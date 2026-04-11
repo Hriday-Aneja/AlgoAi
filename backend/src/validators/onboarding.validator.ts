@@ -24,16 +24,19 @@ const ALLOWED_TOPICS = [
 ] as const;
 
 export const onboardingSchema = z.object({
-  level: z.enum(ALLOWED_LEVELS),
+  experienceLevel: z.enum(ALLOWED_LEVELS),
   goals: z.string().min(3).max(500),
-  topics: z
+  preferredTopics: z
     .array(z.enum(ALLOWED_TOPICS))
     .min(1)
     .max(10)
-    .refine((topics) => new Set(topics).size === topics.length, {
-      message: "topics must be unique.",
-    }),
-  testScore: z.number().int().min(0).max(100).optional(),
+    .refine(
+      (preferredTopics) =>
+        new Set(preferredTopics).size === preferredTopics.length,
+      {
+        message: "preferredTopics must be unique.",
+      },
+    ),
 });
 
 export const completeDaySchema = z.object({

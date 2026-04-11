@@ -2,28 +2,27 @@ import { Prisma } from "@prisma/client";
 import prisma from "../utils/prisma";
 import { OnboardingInput, RoadmapDay } from "../types/onboarding.types";
 
-export const findProfileByUserId = async (userId: string) => {
-  return prisma.userProfile.findUnique({
-    where: { userId },
-  });
-};
-
-export const createUserProfile = async (
+export const upsertOnboardingProfile = async (
   userId: string,
   input: OnboardingInput,
 ) => {
-  return prisma.userProfile.create({
-    data: {
+  return prisma.onboardingProfile.upsert({
+    where: { userId },
+    create: {
       userId,
-      level: input.level,
+      experienceLevel: input.experienceLevel,
+      preferredTopics: input.preferredTopics,
       goals: input.goals,
-      topics: input.topics,
-      testScore: input.testScore ?? null,
+    },
+    update: {
+      experienceLevel: input.experienceLevel,
+      preferredTopics: input.preferredTopics,
+      goals: input.goals,
     },
   });
 };
 
-export const createRoadmapDays = async (
+export const replaceRoadmapDays = async (
   userId: string,
   roadmap: RoadmapDay[],
 ) => {
@@ -31,15 +30,15 @@ export const createRoadmapDays = async (
     userId,
     day: item.day,
     topic: item.topic,
-    problems: item.problems,
+    tasks: item.tasks,
     difficulty: item.difficulty,
     completed: false,
   }));
 
-  await prisma.roadmap.createMany({
-    data: values,
-    skipDuplicates: true,
-  });
+  await prisma.$transaction([
+    prisma.roadmap.deleteMany({ where: { userId } }),
+    prisma.roadmap.createMany({ data: values }),
+  ]);
 };
 
 export const getRoadmapByUserId = async (userId: string) => {

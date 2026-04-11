@@ -3,6 +3,7 @@ import {
   completeOnboardingDay,
   getOnboardingRoadmap,
   submitOnboarding,
+  updateOnboarding,
 } from "../controllers/onboarding.controller";
 import { requireAuth } from "../utils/auth";
 
@@ -14,6 +15,13 @@ const router = Router();
  * @access  Private
  */
 router.post("/", requireAuth, submitOnboarding);
+
+/**
+ * @route   PUT /api/onboarding
+ * @desc    Update onboarding profile and regenerate personalized roadmap
+ * @access  Private
+ */
+router.put("/", requireAuth, updateOnboarding);
 
 /**
  * @route   GET /api/onboarding

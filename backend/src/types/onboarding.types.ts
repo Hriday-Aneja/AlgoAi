@@ -1,20 +1,20 @@
 export interface OnboardingInput {
-  level: string;
+  experienceLevel: "beginner" | "intermediate" | "advanced";
   goals: string;
-  topics: string[];
-  testScore?: number;
+  preferredTopics: string[];
 }
 
 export interface RoadmapDay {
   day: number;
   topic: string;
-  problems: string[];
+  tasks: string[];
   difficulty: string;
 }
 
 export interface OnboardingResponse {
   success: true;
-  roadmap: RoadmapDay[];
+  personalizedRoadmap: RoadmapDay[];
+  recommendedTopics: string[];
 }
 
 export interface CompleteDayInput {

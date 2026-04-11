@@ -7,13 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model UserProfile {
-  id        String   @id @default(cuid())
+model OnboardingProfile {
+  id        String   @id @default(uuid())
   userId    String   @unique
-  level     String
+  experienceLevel String
   goals     String
-  topics    String[]
-  testScore Int?
+  preferredTopics String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -23,17 +22,17 @@ model UserProfile {
 }
 
 model Roadmap {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   userId     String
   day        Int
   topic      String
-  problems   Json
+  tasks      Json      @map("problems")
   difficulty String
   completed  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  userProfile UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  onboardingProfile OnboardingProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, day])
   @@index([userId])
