@@ -7,8 +7,13 @@ import aiFeedbackRoutes from "./aiFeedback.routes";
 import onboardingRoutes from "./onboarding.routes";
 import hintRoutes from "./hint.routes";
 import visualizeRoutes from "./visualize.routes";
+<<<<<<< HEAD
 import streakRoutes from "./streak.routes";
-import dailyChallengeRoutes from "./dailyChallenge.routes";
+=======
+import revisionRoutes from "./revision.routes";
+import bossRoutes from "./boss.routes";
+import chatRoutes from "./chat.routes";
+>>>>>>> 9d205bc (backend more features)
 
 const router = Router();
 
@@ -21,8 +26,13 @@ router.use("/ai-feedback", aiFeedbackRoutes);
 router.use("/onboarding", onboardingRoutes);
 router.use("/hints", hintRoutes);
 router.use("/visualize", visualizeRoutes);
+<<<<<<< HEAD
 router.use("/streak", streakRoutes);
-router.use("/daily-challenge", dailyChallengeRoutes);
+=======
+router.use("/revision", revisionRoutes);
+router.use("/boss", bossRoutes);
+router.use("/chat", chatRoutes);
+>>>>>>> 9d205bc (backend more features)
 
 // Add more routes here as the API grows:
 // router.use('/auth',          authRoutes);
