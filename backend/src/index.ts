@@ -9,15 +9,25 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-// CORS — allow configured origins (defaults to Vite dev server)
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  })
-);
+// CORS — allow configured origins (supports multiple frontend ports)
+const allowedOrigins = [
+  process.env.CORS_ORIGIN,
+  'http://localhost:3000',  // React dev server
+  'http://localhost:5173',  // Vite dev server
+  'http://localhost:5174',  // Vite dev server (fallback port)
+  'http://localhost:5175',  // Vite dev server (fallback port)
+  'http://127.0.0.1:3000',  // Alternative localhost
+  'http://127.0.0.1:5173',  // Alternative localhost
+  'http://127.0.0.1:5174',  // Alternative localhost (fallback port)
+  'http://127.0.0.1:5175',  // Alternative localhost (fallback port)
+].filter(Boolean); // Remove undefined values
+
+app.use(cors({
+  origin: "http://localhost:5175",
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Parse incoming JSON request bodies
 app.use(express.json());

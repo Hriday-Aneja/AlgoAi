@@ -5,13 +5,14 @@ import {
   Flame, Star, Trophy, TrendingUp, Code2, CheckCircle2,
   Clock, Target, ArrowRight, Zap, BarChart2, BookOpen,
   ChevronRight, Play, Shield, Eye, Dna, Activity, Shuffle,
-  AlertTriangle, Users, Sparkles, Lock
+  AlertTriangle, Users, Sparkles, Lock, Wifi, WifiOff
 } from "lucide-react";
 import {
   RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
 import { userStats, roadmap, dailyChallenge, topicStrengths, problems } from "../data/mockData";
+import api, { getHealth, getUserProgress, getWeakTopics } from "../../services/api";
 
 const activityData = [
   [0,1,0,2,1,0,0],[1,0,2,1,0,1,2],[0,2,1,0,1,2,1],[2,1,0,1,2,0,1],
@@ -100,6 +101,37 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"roadmap" | "recent">("roadmap");
 
+  // Health check state
+  const [healthStatus, setHealthStatus] = useState<{
+    status: 'loading' | 'success' | 'error';
+    data?: any;
+    error?: string;
+  }>({ status: 'loading' });
+
+  // User progress state
+  const [userProgress, setUserProgress] = useState<{
+    status: 'loading' | 'success' | 'error';
+    data?: {
+      totalSolved: number;
+      totalAttempted: number;
+    };
+    error?: string;
+  }>({ status: 'loading' });
+
+  // Weak topics state
+  const [weakTopics, setWeakTopics] = useState<{
+    status: 'loading' | 'success' | 'error';
+    data?: Array<{
+      topic: string;
+      total_attempted: number;
+      total_solved: number;
+      accuracy: number;
+      avg_time: number;
+      weakness_level: 'high' | 'medium';
+    }>;
+    error?: string;
+  }>({ status: 'loading' });
+
   const solvedPct = Math.round((userStats.totalSolved / 200) * 100);
   const diffData = [
     { name: "Easy", value: userStats.easy, fill: "#22c55e" },
@@ -107,10 +139,96 @@ export default function Dashboard() {
     { name: "Hard", value: userStats.hard, fill: "#ef4444" },
   ];
 
+  // Use real API data when available, fallback to mock data
+  const displayTotalSolved = userProgress.status === 'success' ? userProgress.data?.totalSolved || 0 : userStats.totalSolved;
+  const displayTotalAttempted = userProgress.status === 'success' ? userProgress.data?.totalAttempted || 0 : userStats.totalAttempted || userStats.totalSolved;
+
   const recentProblems = problems.filter(p => p.status === "solved").slice(0, 6);
   const sortedTopics = [...topicStrengths].sort((a, b) => b.strength - a.strength);
   const topStrong = sortedTopics.slice(0, 3);
   const topWeak = [...topicStrengths].sort((a, b) => a.strength - b.strength).slice(0, 3);
+
+  // Health check API call
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        console.log('Dashboard: Starting health check...');
+        const data = await getHealth();
+        console.log('Dashboard: Health check successful:', data);
+        setHealthStatus({
+          status: 'success',
+          data: data,
+        });
+      } catch (error: any) {
+        console.error('Dashboard: Health check failed:', error);
+        setHealthStatus({
+          status: 'error',
+          error: error.response?.data?.message || error.message || 'Failed to connect to server',
+        });
+      }
+    };
+
+    checkHealth();
+  }, []);
+
+  // User progress API call
+  useEffect(() => {
+    const fetchUserProgress = async () => {
+      try {
+        console.log('Dashboard: Starting user progress fetch...');
+        const userId = 'user123'; // TODO: Get from auth context
+        const response = await getUserProgress(userId);
+        console.log('Dashboard: User progress response:', response);
+
+        // Calculate totals from the progress data
+        const totalSolved = response.data.filter((item: any) => item.status === 'solved').length;
+        const totalAttempted = response.data.length;
+
+        console.log('Dashboard: Calculated totals - solved:', totalSolved, 'attempted:', totalAttempted);
+
+        setUserProgress({
+          status: 'success',
+          data: {
+            totalSolved,
+            totalAttempted,
+          },
+        });
+      } catch (error: any) {
+        console.error('Dashboard: User progress fetch failed:', error);
+        setUserProgress({
+          status: 'error',
+          error: error.response?.data?.message || error.message || 'Failed to fetch user progress',
+        });
+      }
+    };
+
+    fetchUserProgress();
+  }, []);
+
+  // Weak topics API call
+  useEffect(() => {
+    const fetchWeakTopics = async () => {
+      try {
+        console.log('Dashboard: Starting weak topics fetch...');
+        const userId = 'user123'; // TODO: Get from auth context
+        const response = await getWeakTopics(userId);
+        console.log('Dashboard: Weak topics response:', response);
+
+        setWeakTopics({
+          status: 'success',
+          data: response.data,
+        });
+      } catch (error: any) {
+        console.error('Dashboard: Weak topics fetch failed:', error);
+        setWeakTopics({
+          status: 'error',
+          error: error.response?.data?.message || error.message || 'Failed to fetch weak topics',
+        });
+      }
+    };
+
+    fetchWeakTopics();
+  }, []);
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
@@ -149,6 +267,32 @@ export default function Dashboard() {
               <span style={{ color: '#a855f7', fontWeight: 700 }}>#{userStats.rank.toLocaleString()}</span>
               {" "}globally. Keep it up!
             </p>
+
+            {/* Health Status Indicator */}
+            <div className="flex items-center gap-2 mt-2">
+              {healthStatus.status === 'loading' && (
+                <>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <span style={{ fontSize: '11px', color: '#fbbf24' }}>Checking server...</span>
+                </>
+              )}
+              {healthStatus.status === 'success' && (
+                <>
+                  <Wifi className="w-3 h-3" style={{ color: '#22c55e' }} />
+                  <span style={{ fontSize: '11px', color: '#22c55e' }}>
+                    {healthStatus.data?.message || 'Server online'}
+                  </span>
+                </>
+              )}
+              {healthStatus.status === 'error' && (
+                <>
+                  <WifiOff className="w-3 h-3" style={{ color: '#ef4444' }} />
+                  <span style={{ fontSize: '11px', color: '#ef4444' }}>
+                    Server: {healthStatus.error || 'offline'}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex gap-3 flex-shrink-0">
             <motion.button
@@ -189,10 +333,36 @@ export default function Dashboard() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={Code2} label="Problems Solved" value={String(userStats.totalSolved)} sub={`/ 200 target`} color="#00d4ff" delay={0} />
-        <StatCard icon={Flame} label="Current Streak" value={`${userStats.streak}d`} sub="Personal best: 12d" color="#ff6500" delay={1} />
-        <StatCard icon={Trophy} label="Global Rank" value={`#${userStats.rank.toLocaleString()}`} sub="Top 15%" color="#f59e0b" delay={2} />
-        <StatCard icon={Star} label="XP Points" value={String(userStats.xp)} sub={`${userStats.nextLevelXp - userStats.xp} to next level`} color="#a855f7" delay={3} />
+        <StatCard icon={Code2} label="Problems Solved" value={String(displayTotalSolved)} sub={`/ 200 target`} color="#00d4ff" delay={0} />
+        <StatCard icon={Target} label="Problems Attempted" value={String(displayTotalAttempted)} sub="Total attempts" color="#22c55e" delay={1} />
+        <StatCard icon={Flame} label="Current Streak" value={`${userStats.streak}d`} sub="Personal best: 12d" color="#ff6500" delay={2} />
+        <StatCard icon={Trophy} label="Global Rank" value={`#${userStats.rank.toLocaleString()}`} sub="Top 15%" color="#f59e0b" delay={3} />
+      </div>
+
+      {/* User Progress Status Indicator */}
+      <div className="flex items-center gap-2 justify-center">
+        {userProgress.status === 'loading' && (
+          <>
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            <span style={{ fontSize: '11px', color: '#60a5fa' }}>Loading user progress...</span>
+          </>
+        )}
+        {userProgress.status === 'success' && (
+          <>
+            <CheckCircle2 className="w-3 h-3" style={{ color: '#22c55e' }} />
+            <span style={{ fontSize: '11px', color: '#22c55e' }}>
+              Progress data loaded
+            </span>
+          </>
+        )}
+        {userProgress.status === 'error' && (
+          <>
+            <AlertTriangle className="w-3 h-3" style={{ color: '#ef4444' }} />
+            <span style={{ fontSize: '11px', color: '#ef4444' }}>
+              Progress: {userProgress.error || 'Failed to load'}
+            </span>
+          </>
+        )}
       </div>
 
       {/* New Features Showcase */}
@@ -424,27 +594,68 @@ export default function Dashboard() {
               <BarChart2 className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />
               <span style={{ fontSize: '10px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Needs Practice</span>
             </div>
-            {topWeak.map((t, i) => (
-              <motion.div
-                key={t.topic}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 + 0.8 }}
-                className="flex items-center gap-2 mb-2"
-              >
-                <span className="w-20 truncate" style={{ fontSize: '11px', color: '#6b7280' }}>{t.topic}</span>
-                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${t.strength}%` }}
-                    transition={{ duration: 1, delay: i * 0.1 + 0.9 }}
-                    className="h-full rounded-full"
-                    style={{ background: '#ef4444', boxShadow: '0 0 6px #ef444480' }}
-                  />
-                </div>
-                <span className="w-8 text-right" style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444' }}>{t.strength}%</span>
-              </motion.div>
-            ))}
+
+            {weakTopics.status === 'loading' && (
+              <div className="flex items-center justify-center py-4">
+                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '8px' }}>Loading weak topics...</span>
+              </div>
+            )}
+
+            {weakTopics.status === 'error' && (
+              <div className="text-center py-4">
+                <span style={{ fontSize: '11px', color: '#ef4444' }}>Failed to load weak topics</span>
+              </div>
+            )}
+
+            {weakTopics.status === 'success' && weakTopics.data && weakTopics.data.length === 0 && (
+              <div className="text-center py-4">
+                <span style={{ fontSize: '11px', color: '#6b7280' }}>No weak topics found!</span>
+              </div>
+            )}
+
+            {weakTopics.status === 'success' && weakTopics.data && weakTopics.data.length > 0 && (
+              weakTopics.data.slice(0, 3).map((topic, i) => (
+                <motion.div
+                  key={topic.topic}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 + 0.8 }}
+                  className="flex items-center gap-2 mb-2"
+                >
+                  <span className="w-20 truncate" style={{ fontSize: '11px', color: '#6b7280' }}>{topic.topic}</span>
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${topic.accuracy}%` }}
+                      transition={{ duration: 1, delay: i * 0.1 + 0.9 }}
+                      className="h-full rounded-full"
+                      style={{
+                        background: topic.weakness_level === 'high' ? '#ef4444' : '#f59e0b',
+                        boxShadow: `0 0 6px ${topic.weakness_level === 'high' ? '#ef444480' : '#f59e0b80'}`
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-right" style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: topic.weakness_level === 'high' ? '#ef4444' : '#f59e0b'
+                    }}>
+                      {topic.accuracy}%
+                    </span>
+                    <span style={{
+                      fontSize: '9px',
+                      color: topic.weakness_level === 'high' ? '#ef4444' : '#f59e0b',
+                      textTransform: 'uppercase',
+                      fontWeight: 600
+                    }}>
+                      {topic.weakness_level}
+                    </span>
+                  </div>
+                </motion.div>
+              ))
+            )}
           </div>
 
           <button

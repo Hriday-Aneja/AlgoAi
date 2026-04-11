@@ -1,4 +1,5 @@
 import { AIProviderFactory } from './providers/aiProvider.factory';
+import { AIProvider } from './providers/aiProvider.interface';
 import { AIFeedbackInput, AIFeedbackOutput } from '../types/aiFeedback.types';
 
 // Get AI config from environment
@@ -17,8 +18,15 @@ const getAIConfig = () => {
   };
 };
 
-// Create AI provider instance
-const aiProvider = AIProviderFactory.createProvider(getAIConfig());
+// Create AI provider instance lazily
+let aiProvider: AIProvider | null = null;
+
+const getAIProvider = () => {
+  if (!aiProvider) {
+    aiProvider = AIProviderFactory.createProvider(getAIConfig());
+  }
+  return aiProvider;
+};
 
 /**
  * Generates AI-powered feedback based on user's weak topics and recent activity.
@@ -59,6 +67,7 @@ Focus on:
 `;
 
   try {
+    const aiProvider = getAIProvider();
     const content = await aiProvider.generateFeedback(prompt);
 
     // Parse the JSON response

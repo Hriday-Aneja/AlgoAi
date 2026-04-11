@@ -1,4 +1,5 @@
 import { AIProviderFactory } from './providers/aiProvider.factory';
+import { AIProvider } from './providers/aiProvider.interface';
 import {
   ChatMessage,
   Conversation,
@@ -13,22 +14,27 @@ const conversations = new Map<string, Conversation>();
 
 // ─── AI Provider ──────────────────────────────────────────────────────────────
 
-const getAIProvider = () => {
-  const provider = (process.env.AI_PROVIDER || 'gemini') as 'openai' | 'gemini';
-  const apiKey = process.env.AI_API_KEY;
+// Create AI provider lazily to avoid startup errors
+let aiProvider: AIProvider | null = null;
 
-  if (!apiKey) {
-    throw new Error('AI_API_KEY environment variable is required');
+const getAIProvider = () => {
+  if (!aiProvider) {
+    const provider = (process.env.AI_PROVIDER || 'gemini') as 'openai' | 'gemini';
+    const apiKey = process.env.AI_API_KEY;
+
+    if (!apiKey) {
+      throw new Error('AI_API_KEY environment variable is required');
+    }
+
+    aiProvider = AIProviderFactory.createProvider({
+      provider,
+      apiKey,
+      model: provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-3.5-turbo',
+    });
   }
 
-  return AIProviderFactory.createProvider({
-    provider,
-    apiKey,
-    model: provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-3.5-turbo',
-  });
+  return aiProvider;
 };
-
-const aiProvider = getAIProvider();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -166,6 +172,7 @@ export const processChatMessage = async (
   conversationContext += `\n\nUser: ${message}\n\nAssistant:`;
 
   // Get AI response
+  const aiProvider = getAIProvider();
   const reply = await aiProvider.generateFeedback(conversationContext);
 
   // Add AI response to history
