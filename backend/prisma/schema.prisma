@@ -64,6 +64,18 @@ model Hint {
   @@map("hints")
 }
 
+model Visualization {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  input     String
+  output    Json
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("visualizations")
+}
+
 enum SubmissionStatus {
   passed
   failed
