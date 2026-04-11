@@ -39,3 +39,32 @@ model Roadmap {
   @@index([userId])
   @@map("roadmaps")
 }
+
+model Submission {
+  id        String           @id @default(cuid())
+  userId    String
+  problemId String
+  status    SubmissionStatus
+  createdAt DateTime         @default(now())
+
+  @@index([userId, problemId, createdAt])
+  @@map("submissions")
+}
+
+model Hint {
+  id        String   @id @default(cuid())
+  userId    String
+  problemId String
+  hintLevel Int
+  hintText  String
+  createdAt DateTime @default(now())
+
+  @@index([userId, problemId, createdAt])
+  @@index([userId, problemId, hintLevel])
+  @@map("hints")
+}
+
+enum SubmissionStatus {
+  passed
+  failed
+}
