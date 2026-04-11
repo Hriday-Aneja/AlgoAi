@@ -153,6 +153,3 @@ export const getWeakTopics = async (userId: string): Promise<WeakTopic[]> => {
     return [];
   }
 };
-    ];
-  }
-};

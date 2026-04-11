@@ -12,43 +12,61 @@ import {
 
 const TABLE = 'user_progress';
 
+// ─── Database Row Interfaces (for proper TypeScript typing) ──────────────────
+
+/**
+ * Raw row from user_progress table.
+ * Used to safely type Supabase query responses.
+ */
+interface UserProgressRow {
+  id: string;
+  user_id: string;
+  problem_id: string;
+  topic: string | string[] | null;
+  difficulty: 'easy' | 'medium' | 'hard';
+  status: 'solved' | 'attempted';
+  time_taken: number | null;
+  created_at: string;
+  submission_code: string | null;
+  submission_output: string | null;
+}
+
 // ─── Service Layer - Efficient SQL-Based Analysis ──────────────────────────────
 // All queries are optimized to do aggregation at the DB level, not in application.
 
 /**
  * Get topic statistics for a user with a single aggregated query.
  * Avoids N+1 queries and heavy loops.
+ * 
+ * NOTE: PostgREST doesn't support COUNT(*) in .select(), so we fetch raw rows
+ * and aggregate in JavaScript (efficient for reasonable data sizes).
  */
 export const getTopicStatistics = async (
   userId: string
 ): Promise<TopicStatistics[]> => {
-  // Raw query to aggregate at database level
+  // Query to get all user progress (no aggregation in query - we do it in JS)
   const { data, error } = await supabase
     .from(TABLE)
-    .select(
-      `
-        topic,
-        status,
-        time_taken,
-        COUNT(*) as count
-      `
-    )
+    .select('topic, status, time_taken')
     .eq('user_id', userId)
-    .neq('topic', null);
+    .neq('topic', null) as any; // Type assertion needed because Supabase typing is loose
 
+  // Type-safe error handling
   if (error) {
     throw new Error(`Database error [getTopicStatistics]: ${error.message}`);
   }
 
-  if (!data || data.length === 0) {
+  // Type guard: ensure data is an array
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return [];
   }
 
   // Group by topic and calculate statistics
   const topicMap = new Map<string, TopicStatistics>();
 
-  for (const row of data) {
-    const topic = Array.isArray(row.topic) ? row.topic[0] : row.topic;
+  for (const row of data as Array<{ topic: string | string[] | null; status: string; time_taken: number | null }>) {
+    // Safely extract topic (handle array or string)
+    const topic = Array.isArray(row.topic) ? row.topic[0] : (row.topic || null);
     if (!topic) continue;
 
     if (!topicMap.has(topic)) {
@@ -64,13 +82,14 @@ export const getTopicStatistics = async (
     }
 
     const stats = topicMap.get(topic)!;
-    const count = row.count || 1;
-
-    stats.totalAttempts += count;
+    
+    // Increment total attempts (each row = 1 attempt)
+    stats.totalAttempts += 1;
+    
     if (row.status === 'solved') {
-      stats.solvedCount += count;
+      stats.solvedCount += 1;
     } else if (row.status === 'attempted') {
-      stats.attemptedCount += count;
+      stats.attemptedCount += 1;
     }
   }
 
@@ -97,17 +116,17 @@ export const getFailedProblems = async (userId: string): Promise<ProblemMistake[
     .select('problem_id, topic, difficulty, status, time_taken, created_at')
     .eq('user_id', userId)
     .eq('status', 'attempted')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false }) as any; // Type assertion for Supabase response
 
   if (error) {
     throw new Error(`Database error [getFailedProblems]: ${error.message}`);
   }
 
-  if (!data) return [];
+  if (!data || !Array.isArray(data)) return [];
 
-  return data.map((row) => ({
+  return data.map((row: any) => ({
     problemId: row.problem_id,
-    topic: Array.isArray(row.topic) ? row.topic[0] : row.topic,
+    topic: Array.isArray(row.topic) ? row.topic[0] : (row.topic || 'unknown'),
     difficulty: row.difficulty,
     status: row.status,
     timeTaken: row.time_taken,
@@ -158,13 +177,13 @@ export const detectTimeEfficiencyIssues = async (
     )
     .eq('user_id', userId)
     .eq('status', 'solved')
-    .gt('time_taken', 0);
+    .gt('time_taken', 0) as any; // Type assertion for Supabase response
 
   if (error) {
     throw new Error(`Database error [detectTimeEfficiencyIssues]: ${error.message}`);
   }
 
-  if (!data || data.length === 0) return [];
+  if (!data || !Array.isArray(data) || data.length === 0) return [];
 
   // Group by topic + difficulty and calculate averages
   const groupMap = new Map<
@@ -172,8 +191,10 @@ export const detectTimeEfficiencyIssues = async (
     { times: number[]; count: number; difficulty: string }
   >();
 
-  for (const row of data) {
-    const topic = Array.isArray(row.topic) ? row.topic[0] : row.topic;
+  for (const row of data as Array<any>) {
+    const topic = Array.isArray(row.topic) ? row.topic[0] : (row.topic || '');
+    if (!topic) continue;
+    
     const key = `${topic}_${row.difficulty}`;
 
     if (!groupMap.has(key)) {

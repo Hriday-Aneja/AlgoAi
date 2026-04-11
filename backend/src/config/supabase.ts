@@ -1,16 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import env from './env';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl) {
-  throw new Error('Missing environment variable: SUPABASE_URL');
-}
-
-if (!supabaseAnonKey) {
-  throw new Error('Missing environment variable: SUPABASE_ANON_KEY');
-}
-
-const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * Supabase client initialized with validated environment variables.
+ * Environment validation happens in env.ts, so we can safely use these values.
+ */
+const supabase: SupabaseClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
 
 export default supabase;
