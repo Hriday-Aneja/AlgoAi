@@ -1,0 +1,356 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .lab { display: flex; height: 600px; font-family: var(--font-mono); font-size: 13px; background: #0f1117; border-radius: 10px; overflow: hidden; }
+  .sidebar { width: 210px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  .sidebar-header { padding: 12px 14px; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+  .logo { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; font-family: var(--font-sans); }
+  .logo-text { color: #e2e8f0; }
+  .logo-text span { color: #f97316; }
+  .section-label { padding: 10px 14px 4px; font-size: 9px; color: #4b5563; letter-spacing: 0.1em; font-family: var(--font-sans); text-transform: uppercase; }
+  .lang-tabs { display: flex; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+  .lang-tab { flex: 1; padding: 8px 0; text-align: center; font-size: 11px; font-family: var(--font-sans); font-weight: 600; cursor: pointer; color: #4b5563; border-bottom: 2px solid transparent; transition: all 0.15s; letter-spacing: 0.04em; }
+  .lang-tab.active-html { color: #f97316; border-bottom-color: #f97316; }
+  .lang-tab.active-css { color: #38bdf8; border-bottom-color: #38bdf8; }
+  .lang-tab.active-js { color: #facc15; border-bottom-color: #facc15; }
+  .lesson-item { padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #8b949e; font-size: 11px; font-family: var(--font-sans); border-left: 2px solid transparent; transition: all 0.15s; }
+  .lesson-item:hover { background: #1f2937; color: #e2e8f0; }
+  .lesson-item.active { background: #1a1f2e; border-left-color: var(--acc); color: var(--acc); }
+  .lesson-item .check { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid #30363d; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+  .lesson-item.done .check { background: #22c55e; border-color: #22c55e; color: #fff; }
+  .lesson-item .num { color: #4b5563; font-size: 9px; min-width: 14px; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .top-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .lesson-title-bar { color: #e2e8f0; font-size: 12px; font-family: var(--font-sans); font-weight: 500; }
+  .lesson-title-bar span { color: #6e7681; font-size: 11px; margin-left: 6px; }
+  .top-right { display: flex; align-items: center; gap: 8px; }
+  .btn-run { color: #fff; border: none; padding: 5px 14px; border-radius: 6px; font-size: 11px; font-family: var(--font-sans); font-weight: 700; cursor: pointer; transition: opacity 0.15s; letter-spacing: 0.02em; }
+  .btn-reset { background: transparent; border: 1px solid #30363d; color: #6e7681; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-family: var(--font-sans); cursor: pointer; }
+  .btn-reset:hover { border-color: #6e7681; color: #c9d1d9; }
+  .editor-preview { flex: 1; display: flex; overflow: hidden; }
+  .editor-pane { width: 50%; border-right: 1px solid #30363d; display: flex; flex-direction: column; }
+  .pane-header { padding: 6px 12px; background: #0d1117; border-bottom: 1px solid #1f2937; font-size: 10px; color: #6e7681; font-family: var(--font-sans); display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .editor-area { flex: 1; background: #0d1117; overflow: hidden; display: flex; }
+  .line-nums { padding: 10px 8px 10px 6px; min-width: 34px; text-align: right; color: #3d4450; font-size: 11px; line-height: 1.65; user-select: none; overflow: hidden; flex-shrink: 0; }
+  .code-editor { flex: 1; background: transparent; color: #e2e8f0; border: none; outline: none; resize: none; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.65; padding: 10px 10px 10px 2px; white-space: pre; overflow: auto; tab-size: 2; }
+  .right-pane { width: 50%; display: flex; flex-direction: column; }
+  #preview-frame { flex: 1; border: none; background: #fff; }
+  .console-wrap { flex: 1; display: flex; flex-direction: column; background: #0d1117; overflow: hidden; }
+  .console-toolbar { padding: 6px 12px; border-bottom: 1px solid #1f2937; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .console-title { font-size: 10px; color: #6e7681; font-family: var(--font-sans); display: flex; align-items: center; gap: 6px; }
+  .btn-clear { background: transparent; border: none; color: #4b5563; font-size: 10px; font-family: var(--font-sans); cursor: pointer; padding: 2px 6px; border-radius: 3px; }
+  .btn-clear:hover { color: #8b949e; }
+  .console-output { flex: 1; overflow-y: auto; padding: 6px 0; }
+  .c-line { padding: 3px 14px; font-size: 11px; font-family: var(--font-mono); line-height: 1.55; border-bottom: 1px solid #111827; display: flex; align-items: flex-start; gap: 8px; }
+  .c-line.log { color: #c9d1d9; }
+  .c-line.error { color: #f87171; background: #1a0a0a; }
+  .c-line.warn { color: #fbbf24; background: #1a1200; }
+  .c-line.info { color: #60a5fa; }
+  .c-icon { flex-shrink: 0; font-size: 10px; margin-top: 1px; }
+  .c-msg { flex: 1; word-break: break-all; }
+  .c-empty { padding: 20px 14px; font-size: 11px; color: #3d4450; font-family: var(--font-mono); }
+  .badge { font-size: 9px; font-family: var(--font-sans); padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.05em; }
+  .badge-html { background: #431407; color: #f97316; }
+  .badge-css { background: #082f49; color: #38bdf8; }
+  .badge-js { background: #422006; color: #facc15; }
+  .task-bar { background: #0d1117; border-top: 1px solid #30363d; padding: 8px 14px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .task-label { color: #6e7681; font-size: 10px; font-family: var(--font-sans); flex-shrink: 0; }
+  .task-text { color: #c9d1d9; font-size: 11px; font-family: var(--font-sans); flex: 1; }
+  .btn-hint { background: transparent; border: 1px solid #30363d; color: #8b949e; padding: 3px 10px; border-radius: 5px; font-size: 10px; font-family: var(--font-sans); cursor: pointer; }
+  .btn-next { border: 1px solid #22c55e; color: #22c55e; background: #0d1f14; padding: 3px 12px; border-radius: 5px; font-size: 10px; font-family: var(--font-sans); cursor: pointer; font-weight: 600; }
+  .btn-next:hover { background: #22c55e; color: #fff; }
+</style>
+
+<div class="lab" id="lab">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <span>🌐</span>
+        <div class="logo-text">Web Dev <span>Playground</span></div>
+      </div>
+    </div>
+    <div class="lang-tabs" id="lang-tabs">
+      <div class="lang-tab active-html" onclick="switchLang('html')">HTML</div>
+      <div class="lang-tab" onclick="switchLang('css')">CSS</div>
+      <div class="lang-tab" onclick="switchLang('js')">JS</div>
+    </div>
+    <div id="lesson-list"></div>
+  </div>
+
+  <div class="main">
+    <div class="top-bar">
+      <div class="lesson-title-bar" id="lesson-title">—</div>
+      <div class="top-right">
+        <button class="btn-reset" onclick="resetCode()">Reset</button>
+        <button class="btn-run" id="run-btn" onclick="runCode()">▶ Run</button>
+      </div>
+    </div>
+    <div class="editor-preview">
+      <div class="editor-pane">
+        <div class="pane-header">
+          <div class="dot" style="background:#ef4444"></div>
+          <div class="dot" style="background:#f59e0b"></div>
+          <div class="dot" style="background:#22c55e"></div>
+          <span id="file-label" style="margin-left:4px">index.html</span>
+          <span class="badge badge-html" id="lang-badge">HTML</span>
+        </div>
+        <div class="editor-area">
+          <div class="line-nums" id="line-nums">1</div>
+          <textarea class="code-editor" id="code-editor" spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
+        </div>
+      </div>
+      <div class="right-pane" id="right-pane">
+        <div class="pane-header" id="right-header">
+          <div class="dot" style="background:#30363d"></div>
+          <div class="dot" style="background:#30363d"></div>
+          <div class="dot" style="background:#30363d"></div>
+          <span style="margin-left:4px">Preview</span>
+        </div>
+        <iframe id="preview-frame" sandbox="allow-scripts"></iframe>
+        <div class="console-wrap" id="console-wrap" style="display:none">
+          <div class="console-toolbar">
+            <div class="console-title">
+              <div class="dot" style="background:#22c55e;width:6px;height:6px"></div>
+              Console
+            </div>
+            <button class="btn-clear" onclick="clearConsole()">Clear</button>
+          </div>
+          <div class="console-output" id="console-output">
+            <div class="c-empty" id="c-empty">Run your code to see output...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="task-bar">
+      <span class="task-label">Task:</span>
+      <span class="task-text" id="task-text">—</span>
+      <button class="btn-hint" onclick="showHint()">Hint</button>
+      <button class="btn-next" onclick="nextLesson()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const data = {
+  html: [
+    { title:'Hello HTML', sub:'Your first webpage', task:'Change the heading to your name', hint:'Edit text inside the <h1> tag',
+      code:`<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n  </head>\n  <body>\n    <h1>Hello, World!</h1>\n    <p>My first webpage using HTML.</p>\n  </body>\n</html>` },
+    { title:'Headings', sub:'h1 to h6 tags', task:'Add h4, h5, h6 headings below', hint:'Use <h4>, <h5>, <h6> tags',
+      code:`<!DOCTYPE html>\n<html>\n  <body>\n    <h1>Heading 1</h1>\n    <h2>Heading 2</h2>\n    <h3>Heading 3</h3>\n    <!-- add h4, h5, h6 here -->\n  </body>\n</html>` },
+    { title:'Links', sub:'Anchor tags', task:'Make the link open in a new tab', hint:'Add target="_blank" to the <a> tag',
+      code:`<!DOCTYPE html>\n<html>\n  <body>\n    <a href="https://google.com">Go to Google</a>\n    <br><br>\n    <a href="#">Another link</a>\n  </body>\n</html>` },
+    { title:'Lists', sub:'ul, ol, li', task:'Add 2 more items to the fruit list', hint:'Add <li> inside the <ul>',
+      code:`<!DOCTYPE html>\n<html>\n  <body>\n    <h3>Fruits</h3>\n    <ul>\n      <li>Mango</li>\n      <li>Apple</li>\n    </ul>\n    <h3>Steps</h3>\n    <ol>\n      <li>Open editor</li>\n      <li>Write code</li>\n    </ol>\n  </body>\n</html>` },
+    { title:'Forms', sub:'input & button', task:'Add a password field below email', hint:'<input type="password" placeholder="Password">',
+      code:`<!DOCTYPE html>\n<html>\n  <body>\n    <h2>Login</h2>\n    <form>\n      <input type="email" placeholder="Email"><br><br>\n      <!-- password field here -->\n      <button>Login</button>\n    </form>\n  </body>\n</html>` },
+    { title:'Clickable Pages', sub:'Navigation links', task:'Click the link to open my portfolio!', hint:'Click the "View Portfolio" link to see it work!',
+      code:`<!DOCTYPE html>\n<html>\n  <head>\n    <title>Home Page</title>\n    <style>\n      body { font-family: sans-serif; padding: 40px; background: #f0f0f0; }\n      .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.1); }\n      h1 { color: #333; }\n      .link { display: inline-block; margin-top: 20px; padding: 12px 24px; background: #0066cc; color: white; text-decoration: none; border-radius: 5px; }\n      .link:hover { background: #0052a3; }\n    </style>\n  </head>\n  <body>\n    <div class="container">\n      <h1>Welcome to My Portfolio!</h1>\n      <p>Click the link below to explore more pages.</p>\n      <a href="https://github.com" target="_blank" class="link">View Portfolio →</a>\n    </div>\n  </body>\n</html>` },
+  ],
+  css: [
+    { title:'Colors', sub:'color & background', task:'Change background to lightblue', hint:'body { background: lightblue; }',
+      code:`body {\n  background: #f9f9f9;\n  font-family: sans-serif;\n  padding: 20px;\n}\nh1 { color: tomato; }\np  { color: #333; }`,
+      preview:`<h1>Hello CSS!</h1><p>CSS makes things look beautiful.</p>` },
+    { title:'Box Model', sub:'margin, padding, border', task:'Add a 2px solid border to .box', hint:'.box { border: 2px solid navy; }',
+      code:`.box {\n  width: 200px;\n  padding: 20px;\n  margin: 30px auto;\n  background: #e0f2fe;\n  text-align: center;\n}\np { font-family: sans-serif; }`,
+      preview:`<div class="box"><p>I am a box!</p></div>` },
+    { title:'Flexbox', sub:'display: flex', task:'Add justify-content: center to .row', hint:'.row { justify-content: center; }',
+      code:`.row {\n  display: flex;\n  gap: 12px;\n  padding: 20px;\n}\n.card {\n  background: #fef9c3;\n  padding: 20px 30px;\n  border-radius: 8px;\n  font-family: sans-serif;\n  font-weight: bold;\n}`,
+      preview:`<div class="row"><div class="card">A</div><div class="card">B</div><div class="card">C</div></div>` },
+    { title:'Animations', sub:'@keyframes', task:'Change animation duration to 2s', hint:'animation: spin 2s linear infinite;',
+      code:`@keyframes spin {\n  from { transform: rotate(0deg); }\n  to   { transform: rotate(360deg); }\n}\n.circle {\n  width: 60px;\n  height: 60px;\n  border-radius: 50%;\n  border: 6px solid #6366f1;\n  border-top-color: transparent;\n  animation: spin 1s linear infinite;\n  margin: 40px auto;\n}`,
+      preview:`<div class="circle"></div>` },
+    { title:'Hover Effects', sub:'transitions', task:'Change hover background to coral', hint:'.btn:hover { background: coral; }',
+      code:`.btn {\n  display: inline-block;\n  padding: 12px 28px;\n  background: #6366f1;\n  color: white;\n  border-radius: 8px;\n  font-family: sans-serif;\n  font-size: 15px;\n  cursor: pointer;\n  transition: all 0.3s;\n  margin: 30px;\n}\n.btn:hover {\n  background: #4f46e5;\n  transform: scale(1.05);\n}`,
+      preview:`<div class="btn">Hover me!</div>` },
+  ],
+  js: [
+    { title:'Console Log', sub:'Your first JS', task:'Add console.log with your name', hint:'console.log("Your Name")',
+      code:`console.log("Hello from JS!");\nconsole.log("2 + 2 =", 2 + 2);\nconsole.log("ChaiCode is awesome");` },
+    { title:'Variables', sub:'let, const, var', task:'Create a variable for your age and log it', hint:'let age = 20;\nconsole.log(age);',
+      code:`let name = "Hitesh";\nconst pi = 3.14;\nvar city = "Delhi";\n\nconsole.log("Name:", name);\nconsole.log("Pi:", pi);\nconsole.log("City:", city);` },
+    { title:'Functions', sub:'Define & call', task:'Make a function that adds two numbers', hint:'function add(a,b){ return a+b; }\nconsole.log(add(3,4));',
+      code:`function greet(name) {\n  return "Namaste, " + name + "!";\n}\n\nconsole.log(greet("Rahul"));\nconsole.log(greet("Priya"));` },
+    { title:'Arrays', sub:'Lists in JS', task:'Push 2 more fruits and log the array', hint:'fruits.push("Banana");\nconsole.log(fruits);',
+      code:`let fruits = ["Apple", "Orange"];\n\nfruits.push("Grapes");\n\nconsole.log("Fruits:", fruits);\nconsole.log("Total:", fruits.length);\nconsole.log("First:", fruits[0]);` },
+    { title:'DOM Basics', sub:'getElementById', task:'Change button text to "Clicked!" on click', hint:'btn.textContent = "Clicked!";',
+      code:`document.getElementById("myBtn").onclick = function() {\n  document.getElementById("msg").textContent = "Button was clicked!";\n  document.getElementById("msg").style.color = "green";\n};`,
+      preview:`<button id="myBtn" style="padding:10px 20px;font-size:15px;cursor:pointer;border-radius:6px;border:1px solid #ccc">Click Me</button><p id="msg" style="font-family:sans-serif;margin-top:16px;font-size:15px"></p>` },
+  ]
+};
+
+let lang = 'html', idx = 0;
+
+/* ── postMessage listener: iframe sends console logs here ── */
+window.addEventListener('message', (e) => {
+  if (!e.data || e.data.source !== 'wdp-console') return;
+  appendLog(e.data.type, e.data.args);
+});
+
+function appendLog(type, args) {
+  const out = document.getElementById('console-output');
+  const empty = document.getElementById('c-empty');
+  if (empty) empty.remove();
+  const line = document.createElement('div');
+  line.className = 'c-line ' + type;
+  const icon = { log:'›', error:'✖', warn:'⚠', info:'ℹ' }[type] || '›';
+  line.innerHTML = `<span class="c-icon">${icon}</span><span class="c-msg">${escHtml(args)}</span>`;
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function clearConsole() {
+  const out = document.getElementById('console-output');
+  out.innerHTML = '<div class="c-empty" id="c-empty">Run your code to see output...</div>';
+}
+
+/* ── Build iframe srcdoc with injected console override ── */
+function makeConsoleShim() {
+  return `<script>
+(function(){
+  function ser(v){
+    if(v===null) return 'null';
+    if(v===undefined) return 'undefined';
+    if(typeof v==='object'){try{return JSON.stringify(v);}catch(e){return String(v);}}
+    return String(v);
+  }
+  function send(type,args){
+    window.parent.postMessage({source:'wdp-console',type:type,args:args.map(ser).join(' ')},'*');
+  }
+  var _c=window.console||{};
+  window.console={
+    log:function(){send('log',[].slice.call(arguments));_c.log&&_c.log.apply(_c,arguments);},
+    error:function(){send('error',[].slice.call(arguments));_c.error&&_c.error.apply(_c,arguments);},
+    warn:function(){send('warn',[].slice.call(arguments));_c.warn&&_c.warn.apply(_c,arguments);},
+    info:function(){send('info',[].slice.call(arguments));_c.info&&_c.info.apply(_c,arguments);},
+  };
+  window.addEventListener('error',function(e){send('error',[e.message+' (line '+e.lineno+')']);});
+})();
+<\/script>`;
+}
+
+function runCode() {
+  const code = document.getElementById('code-editor').value;
+  const frame = document.getElementById('preview-frame');
+  const consoleWrap = document.getElementById('console-wrap');
+  const lesson = data[lang][idx];
+
+  clearConsole();
+
+  if (lang === 'html') {
+    frame.style.display = 'block'; frame.style.flex = '1';
+    consoleWrap.style.display = 'none';
+    frame.srcdoc = makeConsoleShim() + code;
+
+  } else if (lang === 'css') {
+    frame.style.display = 'block'; frame.style.flex = '1';
+    consoleWrap.style.display = 'none';
+    const html = lesson.preview || '<h2>Preview</h2><p>CSS applied here.</p>';
+    frame.srcdoc = `<style>${code}</style>${html}`;
+
+  } else {
+    const hasPreview = !!lesson.preview;
+    consoleWrap.style.display = 'flex';
+    if (hasPreview) {
+      frame.style.display = 'block';
+      frame.style.flex = '0 0 45%';
+      consoleWrap.style.flex = '0 0 55%';
+      frame.srcdoc = makeConsoleShim() + `<script>${code}<\/script>` + lesson.preview;
+    } else {
+      frame.style.display = 'none';
+      consoleWrap.style.flex = '1';
+      frame.srcdoc = makeConsoleShim() + `<script>${code}<\/script>`;
+    }
+  }
+
+  const items = document.querySelectorAll('.lesson-item');
+  if (items[idx]) items[idx].classList.add('done');
+}
+
+function updateLineNums(code) {
+  const n = code.split('\n').length;
+  document.getElementById('line-nums').textContent = Array.from({length:n},(_,i)=>i+1).join('\n');
+}
+
+function loadLesson(i) {
+  idx = i;
+  const lesson = data[lang][i];
+  document.getElementById('lesson-title').innerHTML = `${lesson.title} <span>— ${lesson.sub}</span>`;
+  document.getElementById('task-text').textContent = lesson.task;
+  document.getElementById('code-editor').value = lesson.code;
+  updateLineNums(lesson.code);
+  const files = {html:'index.html',css:'style.css',js:'script.js'};
+  const badges = {html:'badge-html',css:'badge-css',js:'badge-js'};
+  document.getElementById('file-label').textContent = files[lang];
+  const b = document.getElementById('lang-badge');
+  b.className = 'badge ' + badges[lang];
+  b.textContent = lang.toUpperCase();
+  renderList();
+  runCode();
+}
+
+function renderList() {
+  const list = document.getElementById('lesson-list');
+  list.innerHTML = '';
+  const sec = document.createElement('div');
+  sec.className = 'section-label';
+  sec.textContent = lang.toUpperCase() + ' Lessons';
+  list.appendChild(sec);
+  const acc = {html:'#f97316',css:'#38bdf8',js:'#facc15'}[lang];
+  data[lang].forEach((l,i) => {
+    const el = document.createElement('div');
+    el.className = 'lesson-item' + (i===idx?' active':'') + (i<idx?' done':'');
+    el.style.setProperty('--acc', acc);
+    el.innerHTML = `<div class="check">${i<idx?'✓':''}</div><span class="num">0${i+1}</span><span>${l.title}</span>`;
+    el.onclick = () => loadLesson(i);
+    list.appendChild(el);
+  });
+}
+
+function switchLang(l) {
+  lang = l; idx = 0;
+  const tabs = document.querySelectorAll('.lang-tab');
+  tabs.forEach(t => t.className = 'lang-tab');
+  tabs[['html','css','js'].indexOf(l)].className = 'lang-tab active-' + l;
+  const colors = {html:'#f97316',css:'#0ea5e9',js:'#ca8a04'};
+  document.getElementById('run-btn').style.background = colors[l];
+  renderList();
+  loadLesson(0);
+}
+
+function resetCode() {
+  document.getElementById('code-editor').value = data[lang][idx].code;
+  updateLineNums(data[lang][idx].code);
+}
+function showHint() { alert('Hint: ' + data[lang][idx].hint); }
+function nextLesson() {
+  const items = document.querySelectorAll('.lesson-item');
+  if (items[idx]) { items[idx].classList.add('done'); if(items[idx].querySelector('.check')) items[idx].querySelector('.check').textContent='✓'; }
+  if (idx < data[lang].length-1) { loadLesson(idx+1); }
+  else {
+    const order = ['html','css','js'], ni = order.indexOf(lang)+1;
+    if (ni < order.length) { alert('Complete! Chalte hain '+order[ni].toUpperCase()+' pe!'); switchLang(order[ni]); }
+    else alert('Sab complete! Tu ab ek Web Developer hai! 🏆');
+  }
+}
+
+const editor = document.getElementById('code-editor');
+editor.addEventListener('input', () => updateLineNums(editor.value));
+editor.addEventListener('keydown', e => {
+  if (e.key==='Tab') {
+    e.preventDefault();
+    const s = editor.selectionStart;
+    editor.value = editor.value.substring(0,s)+'  '+editor.value.substring(editor.selectionEnd);
+    editor.selectionStart = editor.selectionEnd = s+2;
+    updateLineNums(editor.value);
+  }
+});
+
+document.getElementById('run-btn').style.background = '#f97316';
+renderList();
+loadLesson(0);
+</script>

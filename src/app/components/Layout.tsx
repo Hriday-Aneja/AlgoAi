@@ -7,7 +7,7 @@ import {
   MessageSquare, Flame, ChevronLeft, ChevronRight,
   Bell, Search, Zap, Star, Brain, Target, Menu, X,
   Eye, AlertTriangle, Shield, Shuffle, Users, Activity, Dna,
-  ChevronDown, Sparkles
+  ChevronDown, Sparkles, Lightbulb
 } from "lucide-react";
 import { userStats } from "../data/mockData";
 
@@ -43,6 +43,11 @@ export default function Layout() {
   const navigate = useNavigate();
 
   const streakPct = (userStats.xp / userStats.nextLevelXp) * 100;
+
+  // Open Web Dev Playground
+  const openPlayground = () => {
+    window.location.href = "/playground.html";
+  };
 
   const NavItem = ({ icon: Icon, label, path, color, badge }: { icon: any; label: string; path: string; color: string; badge?: string }) => (
     <NavLink
@@ -124,6 +129,72 @@ export default function Layout() {
       )}
     </NavLink>
   );
+
+  // Playground Button Component
+  const PlaygroundButton = () => {
+    const [isHovered, setIsHovered] = useState(false);
+    const color = "#6366f1";
+
+    return (
+      <button
+        onClick={openPlayground}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group relative cursor-pointer w-full
+          border ${isHovered ? 'bg-white/[0.04] border-white/[0.06]' : 'border-transparent hover:bg-white/[0.04] hover:border-white/[0.06]'}`}
+      >
+        {isHovered && (
+          <div
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
+            style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+          />
+        )}
+        <div
+          className={`flex-shrink-0 p-1 rounded-md transition-all duration-200 ${isHovered ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`}
+          style={isHovered ? { backgroundColor: `${color}20` } : {}}
+        >
+          <Lightbulb
+            className="w-[16px] h-[16px]"
+            style={{ color: isHovered ? color : undefined }}
+          />
+        </div>
+        {!collapsed && (
+          <>
+            <span
+              className={`flex-1 truncate transition-colors duration-200`}
+              style={{
+                fontSize: '12.5px',
+                fontWeight: 500,
+                color: isHovered ? color : '#8b949e',
+              }}
+            >
+              Web Dev Playground
+            </span>
+            {isHovered && (
+              <div
+                className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-animation"
+                style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+              />
+            )}
+          </>
+        )}
+        {collapsed && (
+          <div
+            className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl"
+            style={{
+              fontSize: '12px',
+              fontWeight: 500,
+              background: '#0f1628',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#fff'
+            }}
+          >
+            Web Dev Playground
+          </div>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#080b14' }}>
@@ -226,6 +297,12 @@ export default function Layout() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Divider before Tools */}
+          <div className="my-2 mx-1" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }} />
+
+          {/* Web Dev Playground */}
+          <PlaygroundButton />
         </nav>
 
         {/* User Section */}
