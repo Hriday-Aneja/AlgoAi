@@ -6,181 +6,234 @@ import {
   ChatRequest,
   UserContext,
 } from '../types/chat.types';
+import { Response } from 'express';
 
-// ─── In-Memory Conversation Storage (Note: Not scalable for production) ──────
-// In production, use Redis or database for conversation history
-
+// ─── In-Memory Conversation Storage ──────────────────────────
 const conversations = new Map<string, Conversation>();
 
-// ─── AI Provider ──────────────────────────────────────────────────────────────
-
-// Create AI provider lazily to avoid startup errors
+// ─── AI Provider (lazy init) ──────────────────────────────────
 let aiProvider: AIProvider | null = null;
 
 const getAIProvider = () => {
   if (!aiProvider) {
     const provider = (process.env.AI_PROVIDER || 'gemini') as 'openai' | 'gemini';
-    const apiKey = process.env.AI_API_KEY;
+
+    // Support both specific keys and the generic AI_API_KEY fallback
+    const apiKey =
+      provider === 'gemini'
+        ? process.env.GEMINI_API_KEY || process.env.AI_API_KEY
+        : process.env.OPENAI_API_KEY || process.env.AI_API_KEY;
 
     if (!apiKey) {
-      throw new Error('AI_API_KEY environment variable is required');
+      throw new Error(
+        `AI API key not set. Add GEMINI_API_KEY (or OPENAI_API_KEY) to your backend .env`
+      );
     }
 
-    aiProvider = AIProviderFactory.createProvider({
-      provider,
-      apiKey,
-      model: provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-3.5-turbo',
-    });
-  }
+    const model =
+      provider === 'gemini'
+        ? process.env.GEMINI_MODEL || 'gemini-1.5-flash'
+        : process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
 
+    aiProvider = AIProviderFactory.createProvider({ provider, apiKey, model });
+  }
   return aiProvider;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Fetches user context (weak topics and recent progress).
- */
-const getUserContext = async (userId: string): Promise<UserContext> => {
-  // Import here to avoid circular dependencies
-  const { getWeakTopics } = await import('./weakTopic.service');
-  const supabase = (await import('../config/supabase')).default;
-
-  // Get weak topics
-  const weakTopicsData = await getWeakTopics(userId);
-  const weakTopics = weakTopicsData.map(wt => wt.topic);
-
-  // Get recent progress (last 10 problems)
-  const { data: recentProgress, error } = await supabase
-    .from('user_progress')
-    .select('problem_id, topic, status, time_taken, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(10);
-
-  if (error) {
-    console.error('Error fetching recent progress:', error);
-  }
-
-  return {
-    weakTopics,
-    recentProgress: recentProgress || [],
-  };
-};
-
-/**
- * Gets or creates a conversation for the user.
- */
+// ─── Conversation helpers ─────────────────────────────────────
 const getConversation = (userId: string): Conversation => {
   let conversation = conversations.get(userId);
-
   if (!conversation) {
-    conversation = {
-      userId,
-      messages: [],
-      lastActivity: new Date(),
-    };
+    conversation = { userId, messages: [], lastActivity: new Date() };
     conversations.set(userId, conversation);
   }
-
   return conversation;
 };
 
-/**
- * Adds a message to the conversation history.
- */
-const addMessageToConversation = (userId: string, message: ChatMessage): void => {
-  const conversation = getConversation(userId);
-  conversation.messages.push(message);
-  conversation.lastActivity = new Date();
-
-  // Keep only last 20 messages to prevent memory issues
-  if (conversation.messages.length > 20) {
-    conversation.messages = conversation.messages.slice(-20);
-  }
-
-  conversations.set(userId, conversation);
+const addMessage = (userId: string, message: ChatMessage): void => {
+  const conv = getConversation(userId);
+  conv.messages.push(message);
+  conv.lastActivity = new Date();
+  // Keep last 20 messages only
+  if (conv.messages.length > 20) conv.messages = conv.messages.slice(-20);
+  conversations.set(userId, conv);
 };
 
-/**
- * Builds the system prompt with user context.
- */
+// ─── User context (safe — won't crash if Supabase not configured) ─
+const getUserContext = async (userId: string): Promise<UserContext> => {
+  try {
+    const { getWeakTopics } = await import('./weakTopic.service');
+    const supabase = (await import('../config/supabase')).default;
+
+    const weakTopicsData = await getWeakTopics(userId);
+    const weakTopics = weakTopicsData.map((wt: any) => wt.topic);
+
+    const { data: recentProgress } = await supabase
+      .from('user_progress')
+      .select('problem_id, topic, status, time_taken, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    return { weakTopics, recentProgress: recentProgress || [] };
+  } catch {
+    // Supabase not configured or user not in DB — return empty context
+    return { weakTopics: [], recentProgress: [] };
+  }
+};
+
+// ─── System prompt builder ────────────────────────────────────
 const buildSystemPrompt = (context: UserContext): string => {
   const { weakTopics, recentProgress } = context;
 
-  return `You are an expert DSA (Data Structures and Algorithms) tutor and helpful assistant. Your role is to help users learn and improve their DSA skills.
+  return `You are AlgoAI — an expert, friendly DSA (Data Structures & Algorithms) tutor.
 
 User Context:
-- Weak Topics: ${weakTopics.length > 0 ? weakTopics.join(', ') : 'None identified'}
-- Recent Activity: ${recentProgress.length > 0 ?
-    recentProgress.map(p => `${p.problem_id} (${p.status})`).join(', ') :
-    'No recent activity'}
-
-Guidelines:
-- Be encouraging and patient
-- Explain concepts clearly with examples
-- Provide hints rather than direct solutions when appropriate
-- Suggest relevant practice problems
-- Focus on understanding over memorization
-- Use simple language and analogies
-- Ask clarifying questions when needed
-
-Capabilities:
-- Explain DSA concepts and problems
-- Give step-by-step hints for problems
-- Suggest topics to study based on weaknesses
-- Recommend practice problems
-- Answer questions about algorithms and data structures
-
-Keep responses concise but helpful.`;
-};
-
-/**
- * Processes a chat message and returns an AI response.
- */
-export const processChatMessage = async (
-  request: ChatRequest
-): Promise<string> => {
-  const { message, userId, problemId } = request;
-
-  // Get user context
-  const context = await getUserContext(userId);
-
-  // Get conversation history
-  const conversation = getConversation(userId);
-  const recentMessages = conversation.messages.slice(-10); // Last 10 messages for context
-
-  // Add user message to history
-  addMessageToConversation(userId, {
-    role: 'user',
-    content: message,
-    timestamp: new Date(),
-  });
-
-  // Build conversation context for AI
-  const systemPrompt = buildSystemPrompt(context);
-
-  let conversationContext = `System: ${systemPrompt}\n\n`;
-  conversationContext += recentMessages
-    .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-    .join('\n\n');
-
-  if (problemId) {
-    conversationContext += `\n\nCurrent Problem Context: ${problemId}`;
+- Weak Topics: ${weakTopics.length > 0 ? weakTopics.join(', ') : 'None identified yet'}
+- Recent Activity: ${
+    recentProgress.length > 0
+      ? recentProgress.map((p: any) => `${p.problem_id} (${p.status})`).join(', ')
+      : 'No recent activity'
   }
 
-  conversationContext += `\n\nUser: ${message}\n\nAssistant:`;
+Guidelines:
+- Be encouraging, patient and concise
+- Explain with real examples and code snippets
+- Give hints rather than full solutions when appropriate
+- Use markdown for clarity (bold, code blocks, lists)
+- Mention time/space complexity where relevant
+- Keep responses focused — max ~300 words unless more is needed
 
-  // Get AI response
-  const aiProvider = getAIProvider();
-  const reply = await aiProvider.generateFeedback(conversationContext);
+You can help with: DSA concepts, problem approaches, debugging, interview tips, complexity analysis.`;
+};
 
-  // Add AI response to history
-  addMessageToConversation(userId, {
-    role: 'assistant',
-    content: reply,
-    timestamp: new Date(),
-  });
+// ─── Build full conversation context string ───────────────────
+const buildConversationContext = (
+  systemPrompt: string,
+  history: ChatMessage[],
+  newMessage: string,
+  problemId?: string
+): string => {
+  let ctx = `System: ${systemPrompt}\n\n`;
+  ctx += history
+    .slice(-10)
+    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n');
+  if (problemId) ctx += `\n\nCurrent Problem: ${problemId}`;
+  ctx += `\n\nUser: ${newMessage}\n\nAssistant:`;
+  return ctx;
+};
+
+// ─────────────────────────────────────────────────────────────
+// processChatMessage — standard (non-streaming) response
+// Used by the existing POST /api/chat endpoint
+// ─────────────────────────────────────────────────────────────
+export const processChatMessage = async (request: ChatRequest): Promise<string> => {
+  const { message, userId = 'anonymous', problemId } = request;
+
+  const context = await getUserContext(userId);
+  const conversation = getConversation(userId);
+  const systemPrompt = buildSystemPrompt(context);
+  const fullContext = buildConversationContext(
+    systemPrompt,
+    conversation.messages,
+    message,
+    problemId
+  );
+
+  addMessage(userId, { role: 'user', content: message, timestamp: new Date() });
+
+  const provider = getAIProvider();
+  const reply = await provider.generateFeedback(fullContext);
+
+  addMessage(userId, { role: 'assistant', content: reply, timestamp: new Date() });
 
   return reply;
+};
+
+// ─────────────────────────────────────────────────────────────
+// streamChatMessage — SSE streaming response
+// Used by the NEW POST /api/chat/stream endpoint
+// ─────────────────────────────────────────────────────────────
+export const streamChatMessage = async (
+  request: ChatRequest,
+  res: Response
+): Promise<void> => {
+  const { message, userId = 'anonymous', problemId } = request;
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if deployed
+
+  const context = await getUserContext(userId);
+  const conversation = getConversation(userId);
+  const systemPrompt = buildSystemPrompt(context);
+  const fullContext = buildConversationContext(
+    systemPrompt,
+    conversation.messages,
+    message,
+    problemId
+  );
+
+  addMessage(userId, { role: 'user', content: message, timestamp: new Date() });
+
+  const provider = getAIProvider();
+  let fullReply = '';
+
+  try {
+    const providerName = (process.env.AI_PROVIDER || 'gemini').toLowerCase();
+
+    if (providerName === 'gemini') {
+      // ── Gemini streaming ──────────────────────────────────────
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY || '';
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      });
+
+      const streamResult = await model.generateContentStream(fullContext);
+
+      for await (const chunk of streamResult.stream) {
+        const text = chunk.text();
+        if (text) {
+          fullReply += text;
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        }
+      }
+    } else {
+      // ── OpenAI streaming ──────────────────────────────────────
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY || process.env.AI_API_KEY,
+      });
+
+      const stream = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: fullContext }],
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content || '';
+        if (text) {
+          fullReply += text;
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        }
+      }
+    }
+
+    // Signal end of stream
+    res.write('data: [DONE]\n\n');
+
+    // Save complete reply to conversation history
+    addMessage(userId, { role: 'assistant', content: fullReply, timestamp: new Date() });
+  } catch (err: any) {
+    res.write(`data: ${JSON.stringify({ error: err.message || 'AI error' })}\n\n`);
+    res.write('data: [DONE]\n\n');
+  } finally {
+    res.end();
+  }
 };

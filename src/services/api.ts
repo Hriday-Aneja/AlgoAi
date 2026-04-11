@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 
 // ─── API Configuration ────────────────────────────────────────────────────────
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3007/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 const API_TIMEOUT = 10000; // 10 seconds
 
 // ─── Axios Instance Setup ─────────────────────────────────────────────────────
@@ -180,13 +180,19 @@ export const sendChatMessage = async (message: string): Promise<{ reply: string 
   try {
     const response = await api.post('/chat', {
       message: message.trim(),
+      userId: 'anonymous', // userId is optional, defaults to anonymous
     });
 
-    if (!response.data?.reply) {
+    // Handle both response formats:
+    // New format: { reply: string }
+    // Legacy format: { status: 'success', data: { reply: string } }
+    const reply = response.data?.reply || response.data?.data?.reply;
+
+    if (!reply || typeof reply !== 'string') {
       throw new Error('Invalid response format from server');
     }
 
-    return response.data;
+    return { reply };
   } catch (error) {
     console.error('Chat API error:', error);
     throw error;
