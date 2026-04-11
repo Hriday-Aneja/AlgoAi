@@ -3,6 +3,7 @@ import healthRoutes          from './health.routes';
 import progressRoutes        from './progress.routes';
 import weakTopicRoutes       from './weakTopic.routes';
 import recommendationRoutes  from './recommendation.routes';
+import aiFeedbackRoutes      from './aiFeedback.routes';
 
 const router = Router();
 
@@ -11,6 +12,7 @@ router.use('/health',          healthRoutes);
 router.use('/progress',        progressRoutes);
 router.use('/weak-topics',     weakTopicRoutes);
 router.use('/recommendations', recommendationRoutes);
+router.use('/ai-feedback',     aiFeedbackRoutes);
 
 // Add more routes here as the API grows:
 // router.use('/auth',          authRoutes);
