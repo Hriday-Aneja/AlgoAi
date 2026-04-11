@@ -75,6 +75,19 @@ model Visualization {
   @@map("visualizations")
 }
 
+model Streak {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  currentStreak Int      @default(0)
+  longestStreak Int      @default(0)
+  lastActiveDate DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@map("streaks")
+}
+
 enum SubmissionStatus {
   passed
   failed
