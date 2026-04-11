@@ -12,19 +12,22 @@
     "dislikes": 1700,
     "description": "Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.",
     "testCases": [
-      { "input": "[2,7,11,15], 9", "output": "[0,1]" },
-      { "input": "[3,2,4], 6", "output": "[1,2]" },
-      { "input": "[3,3], 6", "output": "[0,1]" },
-      { "input": "[2,7,11,15], 17", "output": "[0,3]" },
-      { "input": "[1,2,3,4,5], 9", "output": "[3,4]" }
+      { "input": "nums = [2,7,11,15], target = 9", "output": "[0,1]" },
+      { "input": "nums = [3,2,4], target = 6", "output": "[1,2]" },
+      { "input": "nums = [3,3], target = 6", "output": "[0,1]" },
+      { "input": "nums = [2,7,11,15], target = 17", "output": "[0,3]" },
+      { "input": "nums = [1,2,3,4,5], target = 9", "output": "[3,4]" }
     ],
     "constraints": ["2 <= nums.length <= 10^4", "-10^9 <= nums[i] <= 10^9"],
     "examples": [
-      { "input": "[2,7,11,15], 9", "output": "[0,1]" },
-      { "input": "[3,2,4], 6", "output": "[1,2]" },
-      { "input": "[3,3], 6", "output": "[0,1]" }
+      { "input": "nums = [2,7,11,15], target = 9", "output": "[0,1]" },
+      { "input": "nums = [3,2,4], target = 6", "output": "[1,2]" },
+      { "input": "nums = [3,3], target = 6", "output": "[0,1]" }
     ],
-    "hints": ["Think about what complement you need for each number.", "Can you use a hash map?"],
+    "hints": [
+      "Think about what complement you need for each number.",
+      "Can you use a hash map?"
+    ],
     "starterCode": "function twoSum(nums: number[], target: number): number[] {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(n)"
@@ -54,7 +57,10 @@
       { "input": "\"bbbbb\"", "output": "1" },
       { "input": "\"pwwkew\"", "output": "3" }
     ],
-    "hints": ["Use a sliding window approach.", "Maintain a set of characters in the current window."],
+    "hints": [
+      "Use a sliding window approach.",
+      "Maintain a set of characters in the current window."
+    ],
     "starterCode": "function lengthOfLongestSubstring(s: string): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(min(m,n))"
@@ -84,7 +90,10 @@
       { "input": "[1,2], [3,4]", "output": "2.5" },
       { "input": "[0,0], [0,0]", "output": "0.0" }
     ],
-    "hints": ["Think about binary search on the smaller array.", "Partition both arrays such that left half has (m+n+1)/2 elements."],
+    "hints": [
+      "Think about binary search on the smaller array.",
+      "Partition both arrays such that left half has (m+n+1)/2 elements."
+    ],
     "starterCode": "function findMedianSortedArrays(nums1: number[], nums2: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(log(min(m,n)))",
     "spaceComplexity": "O(1)"
@@ -114,7 +123,10 @@
       { "input": "\"()[]{}\"", "output": "true" },
       { "input": "\"(]\"", "output": "false" }
     ],
-    "hints": ["Use a stack data structure.", "Push opening brackets, pop when closing bracket found."],
+    "hints": [
+      "Use a stack data structure.",
+      "Push opening brackets, pop when closing bracket found."
+    ],
     "starterCode": "function isValid(s: string): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(n)"
@@ -144,7 +156,10 @@
       { "input": "[1]", "output": "1" },
       { "input": "[5,4,-1,7,8]", "output": "23" }
     ],
-    "hints": ["Kadane's Algorithm is the key.", "Keep track of current sum and max sum."],
+    "hints": [
+      "Kadane's Algorithm is the key.",
+      "Keep track of current sum and max sum."
+    ],
     "starterCode": "function maxSubArray(nums: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -168,7 +183,9 @@
       { "input": "[1,2,3], [1,2,3]", "output": "[1,1,2,2,3,3]" },
       { "input": "[5], [1,2,3,4]", "output": "[1,2,3,4,5]" }
     ],
-    "constraints": ["The number of nodes in both lists is in the range [0, 50]."],
+    "constraints": [
+      "The number of nodes in both lists is in the range [0, 50]."
+    ],
     "hints": ["Compare head nodes", "Recursively merge", "Handle null cases"],
     "starterCode": "function mergeTwoLists(list1: ListNode | null, list2: ListNode | null): ListNode | null {\n    // Your code here\n};",
     "timeComplexity": "O(m+n)",
@@ -194,7 +211,11 @@
       { "input": "[2,5], 5", "output": "1" }
     ],
     "constraints": ["1 <= nums.length <= 10^4"],
-    "hints": ["Keep track of left and right pointers", "Check the middle element", "Eliminate half the search space each time"],
+    "hints": [
+      "Keep track of left and right pointers",
+      "Check the middle element",
+      "Eliminate half the search space each time"
+    ],
     "starterCode": "function search(nums: number[], target: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(log n)",
     "spaceComplexity": "O(1)"
@@ -219,7 +240,11 @@
       { "input": "5", "output": "8" }
     ],
     "constraints": ["1 <= n <= 45"],
-    "hints": ["This is Fibonacci!", "dp[i] = dp[i-1] + dp[i-2]", "Base cases: dp[1]=1, dp[2]=2"],
+    "hints": [
+      "This is Fibonacci!",
+      "dp[i] = dp[i-1] + dp[i-2]",
+      "Base cases: dp[1]=1, dp[2]=2"
+    ],
     "starterCode": "function climbStairs(n: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -237,14 +262,27 @@
     "dislikes": 800,
     "description": "Design a data structure that follows the constraints of a Least Recently Used (LRU) cache.",
     "testCases": [
-      { "input": "capacity=2, put(1,1), put(2,2), get(1), put(3,3), get(2)", "output": "1, -1" },
+      {
+        "input": "capacity=2, put(1,1), put(2,2), get(1), put(3,3), get(2)",
+        "output": "1, -1"
+      },
       { "input": "capacity=1, put(1,1), put(2,2), get(1)", "output": "-1" },
-      { "input": "capacity=3, put(1,1), put(2,2), put(3,3), get(1)", "output": "1" },
-      { "input": "capacity=2, put(1,1), get(1), put(2,2), get(2)", "output": "1, 2" },
+      {
+        "input": "capacity=3, put(1,1), put(2,2), put(3,3), get(1)",
+        "output": "1"
+      },
+      {
+        "input": "capacity=2, put(1,1), get(1), put(2,2), get(2)",
+        "output": "1, 2"
+      },
       { "input": "capacity=1, put(1,1), get(1)", "output": "1" }
     ],
     "constraints": ["1 <= capacity <= 3000", "All operations in O(1)"],
-    "hints": ["Combine HashMap + Doubly Linked List", "HashMap for O(1) lookup", "DLL for O(1) insertion/deletion"],
+    "hints": [
+      "Combine HashMap + Doubly Linked List",
+      "HashMap for O(1) lookup",
+      "DLL for O(1) insertion/deletion"
+    ],
     "starterCode": "class LRUCache {\n    constructor(capacity: number) {}\n    get(key: number): number {}\n    put(key: number, value: number): void {}\n}",
     "timeComplexity": "O(1) for get/put",
     "spaceComplexity": "O(capacity)"
@@ -262,14 +300,31 @@
     "dislikes": 620,
     "description": "Given an m x n grid of characters and a string word, return if word exists in the grid.",
     "testCases": [
-      { "input": "[[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], \"ABCCED\"", "output": "true" },
-      { "input": "[[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], \"SEE\"", "output": "true" },
-      { "input": "[[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], \"ABCB\"", "output": "false" },
+      {
+        "input": "[[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], \"ABCCED\"",
+        "output": "true"
+      },
+      {
+        "input": "[[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], \"SEE\"",
+        "output": "true"
+      },
+      {
+        "input": "[[\"A\",\"B\",\"C\",\"E\"],[\"S\",\"F\",\"C\",\"S\"],[\"A\",\"D\",\"E\",\"E\"]], \"ABCB\"",
+        "output": "false"
+      },
       { "input": "[[\"A\"]], \"A\"", "output": "true" },
       { "input": "[[\"a\",\"b\"],[\"c\",\"d\"]], \"cdba\"", "output": "true" }
     ],
-    "constraints": ["m == board.length", "n = board[i].length", "1 <= m, n <= 6"],
-    "hints": ["Use DFS + Backtracking", "Mark visited cells", "Restore cell after backtrack"],
+    "constraints": [
+      "m == board.length",
+      "n = board[i].length",
+      "1 <= m, n <= 6"
+    ],
+    "hints": [
+      "Use DFS + Backtracking",
+      "Mark visited cells",
+      "Restore cell after backtrack"
+    ],
     "starterCode": "function exist(board: string[][], word: string): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(m * n * 4^L)",
     "spaceComplexity": "O(L)"
@@ -312,14 +367,20 @@
     "dislikes": 700,
     "description": "Given an array of intervals, merge all overlapping intervals.",
     "testCases": [
-      { "input": "[[1,3],[2,6],[8,10],[15,18]]", "output": "[[1,6],[8,10],[15,18]]" },
+      {
+        "input": "[[1,3],[2,6],[8,10],[15,18]]",
+        "output": "[[1,6],[8,10],[15,18]]"
+      },
       { "input": "[[1,4],[4,5]]", "output": "[[1,5]]" },
       { "input": "[[1,5]]", "output": "[[1,5]]" },
       { "input": "[[1,5],[2,3]]", "output": "[[1,5]]" },
       { "input": "[[1,4],[2,3]]", "output": "[[1,4]]" }
     ],
     "constraints": ["1 <= intervals.length <= 10^4"],
-    "hints": ["Sort the intervals by their start time.", "If current overlaps with previous, merge them."],
+    "hints": [
+      "Sort the intervals by their start time.",
+      "If current overlaps with previous, merge them."
+    ],
     "starterCode": "function merge(intervals: number[][]): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n log n)",
     "spaceComplexity": "O(n)"
@@ -344,7 +405,11 @@
       { "input": "\"noon\"", "output": "\"noon\"" }
     ],
     "constraints": ["1 <= s.length <= 1000"],
-    "hints": ["Expand around center approach", "For each center, expand outwards", "Track the longest found"],
+    "hints": [
+      "Expand around center approach",
+      "For each center, expand outwards",
+      "Track the longest found"
+    ],
     "starterCode": "function longestPalindrome(s: string): string {\n    // Your code here\n};",
     "timeComplexity": "O(n²)",
     "spaceComplexity": "O(1)"
@@ -362,14 +427,28 @@
     "dislikes": 650,
     "description": "Given an m x n 2D binary grid, return the number of islands.",
     "testCases": [
-      { "input": "[[1,1,1,1,0],[1,1,0,1,0],[1,1,0,0,0],[0,0,0,0,0]]", "output": "1" },
-      { "input": "[[1,1,0,0,0],[1,1,0,0,0],[0,0,1,0,0],[0,0,0,1,1]]", "output": "3" },
+      {
+        "input": "[[1,1,1,1,0],[1,1,0,1,0],[1,1,0,0,0],[0,0,0,0,0]]",
+        "output": "1"
+      },
+      {
+        "input": "[[1,1,0,0,0],[1,1,0,0,0],[0,0,1,0,0],[0,0,0,1,1]]",
+        "output": "3"
+      },
       { "input": "[[0]]", "output": "0" },
       { "input": "[[1]]", "output": "1" },
       { "input": "[[1,0,1],[1,0,1]]", "output": "3" }
     ],
-    "constraints": ["m == grid.length", "n == grid[i].length", "1 <= m, n <= 300"],
-    "hints": ["Use DFS or BFS to explore connected land", "Mark visited cells", "Increment island count for each unvisited land"],
+    "constraints": [
+      "m == grid.length",
+      "n == grid[i].length",
+      "1 <= m, n <= 300"
+    ],
+    "hints": [
+      "Use DFS or BFS to explore connected land",
+      "Mark visited cells",
+      "Increment island count for each unvisited land"
+    ],
     "starterCode": "function numIslands(grid: string[][]): number {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -394,7 +473,10 @@
       { "input": "[1,2,3,4,5]", "output": "5" }
     ],
     "constraints": ["1 <= nums.length <= 2500"],
-    "hints": ["dp[i] = length of LIS ending at index i", "For each i, check all j < i where nums[j] < nums[i]"],
+    "hints": [
+      "dp[i] = length of LIS ending at index i",
+      "For each i, check all j < i where nums[j] < nums[i]"
+    ],
     "starterCode": "function lengthOfLIS(nums: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n²) simple, O(n log n) optimized",
     "spaceComplexity": "O(n)"
@@ -419,7 +501,11 @@
       { "input": "3, [[0,1],[1,2],[2,0]]", "output": "false" }
     ],
     "constraints": ["1 <= numCourses <= 2000"],
-    "hints": ["Build an adjacency list", "Use DFS to detect cycles", "If cycle exists, impossible to complete all"],
+    "hints": [
+      "Build an adjacency list",
+      "Use DFS to detect cycles",
+      "If cycle exists, impossible to complete all"
+    ],
     "starterCode": "function canFinish(numCourses: number, prerequisites: number[][]): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(V + E)",
     "spaceComplexity": "O(V + E)"
@@ -444,7 +530,11 @@
       { "input": "\"aab\", \"ab\"", "output": "\"aab\"" }
     ],
     "constraints": ["1 <= s.length, t.length <= 10^5"],
-    "hints": ["Use sliding window with two pointers", "Use hash map to track frequencies", "Expand right, contract left when valid"],
+    "hints": [
+      "Use sliding window with two pointers",
+      "Use hash map to track frequencies",
+      "Expand right, contract left when valid"
+    ],
     "starterCode": "function minWindow(s: string, t: string): string {\n    // Your code here\n};",
     "timeComplexity": "O(m + n)",
     "spaceComplexity": "O(1)"
@@ -469,7 +559,11 @@
       { "input": "[2,3,10,5,7,8,9]", "output": "36" }
     ],
     "constraints": ["n == height.length", "2 <= n <= 10^5"],
-    "hints": ["Start with two pointers at both ends", "Move the pointer with smaller height", "Track maximum area"],
+    "hints": [
+      "Start with two pointers at both ends",
+      "Move the pointer with smaller height",
+      "Track maximum area"
+    ],
     "starterCode": "function maxArea(height: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -494,7 +588,11 @@
       { "input": "\"27\"", "output": "1" }
     ],
     "constraints": ["1 <= s.length <= 100"],
-    "hints": ["dp[i] = ways to decode s[0:i]", "Check if current digit is valid (1-9)", "Check if last two digits form valid code"],
+    "hints": [
+      "dp[i] = ways to decode s[0:i]",
+      "Check if current digit is valid (1-9)",
+      "Check if last two digits form valid code"
+    ],
     "starterCode": "function numDecodings(s: string): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(n)"
@@ -518,8 +616,14 @@
       { "input": "[1,2,3,4,5]", "output": "[1,2,3,4,5]" },
       { "input": "[1,null,2,null,3]", "output": "[1,null,2,null,3]" }
     ],
-    "constraints": ["The number of nodes in the tree is in the range [0, 10^4]."],
-    "hints": ["Use level order traversal (BFS)", "Or pre-order traversal (DFS)", "Use markers for null nodes"],
+    "constraints": [
+      "The number of nodes in the tree is in the range [0, 10^4]."
+    ],
+    "hints": [
+      "Use level order traversal (BFS)",
+      "Or pre-order traversal (DFS)",
+      "Use markers for null nodes"
+    ],
     "starterCode": "class Codec {\n    serialize(root: TreeNode | null): string {}\n    deserialize(data: string): TreeNode | null {}\n}",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(n)"
@@ -543,8 +647,14 @@
       { "input": "[2,2,2]", "output": "false" },
       { "input": "[5,3,6,2,4,null,7]", "output": "true" }
     ],
-    "constraints": ["The number of nodes in the tree is in the range [1, 10^4]."],
-    "hints": ["Use DFS to validate each node", "Keep track of valid min and max bounds", "Each left subtree must be < node.val"],
+    "constraints": [
+      "The number of nodes in the tree is in the range [1, 10^4]."
+    ],
+    "hints": [
+      "Use DFS to validate each node",
+      "Keep track of valid min and max bounds",
+      "Each left subtree must be < node.val"
+    ],
     "starterCode": "function isValidBST(root: TreeNode | null): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(h)"
@@ -562,14 +672,27 @@
     "dislikes": 450,
     "description": "Design a simplified Twitter with basic functionality.",
     "testCases": [
-      { "input": "postTweet(1, 5); getNewsFeed(1); follow(1, 2); postTweet(2, 6); getNewsFeed(1)", "output": "[5]; [6,5]" },
+      {
+        "input": "postTweet(1, 5); getNewsFeed(1); follow(1, 2); postTweet(2, 6); getNewsFeed(1)",
+        "output": "[5]; [6,5]"
+      },
       { "input": "postTweet(1, 1); getNewsFeed(1)", "output": "[1]" },
       { "input": "follow(1, 2); unfollow(1, 2)", "output": "None" },
-      { "input": "postTweet(2, 5); follow(1, 2); getNewsFeed(1)", "output": "[5]" },
-      { "input": "getNewsFeed(1); postTweet(1, 1); getNewsFeed(1)", "output": "[]; [1]" }
+      {
+        "input": "postTweet(2, 5); follow(1, 2); getNewsFeed(1)",
+        "output": "[5]"
+      },
+      {
+        "input": "getNewsFeed(1); postTweet(1, 1); getNewsFeed(1)",
+        "output": "[]; [1]"
+      }
     ],
     "constraints": ["1 <= userId, followeeId <= 500"],
-    "hints": ["Use HashMap to store users and followers", "Use HashMap for tweets by user", "Use Min Heap for top 10 tweets"],
+    "hints": [
+      "Use HashMap to store users and followers",
+      "Use HashMap for tweets by user",
+      "Use Min Heap for top 10 tweets"
+    ],
     "starterCode": "class Twitter {\n    postTweet(userId: number, tweetId: number): void {}\n    getNewsFeed(userId: number): number[] {}\n    follow(followerId: number, followeeId: number): void {}\n    unfollow(followerId: number, followeeId: number): void {}\n}",
     "timeComplexity": "O(10 log n) for getNewsFeed",
     "spaceComplexity": "O(n)"
@@ -593,8 +716,14 @@
       { "input": "[9], [9,9,9]", "output": "[8,0,0,1]" },
       { "input": "[1,2,3], [4,5,6]", "output": "[5,7,9]" }
     ],
-    "constraints": ["The number of nodes in each list is in the range [1, 100]."],
-    "hints": ["Iterate through both lists simultaneously", "Keep track of carry", "Create new nodes for result"],
+    "constraints": [
+      "The number of nodes in each list is in the range [1, 100]."
+    ],
+    "hints": [
+      "Iterate through both lists simultaneously",
+      "Keep track of carry",
+      "Create new nodes for result"
+    ],
     "starterCode": "function addTwoNumbers(l1: ListNode | null, l2: ListNode | null): ListNode | null {\n    // Your code here\n};",
     "timeComplexity": "O(max(m, n))",
     "spaceComplexity": "O(max(m, n))"
@@ -619,7 +748,12 @@
       { "input": "0", "output": "1 combination" }
     ],
     "constraints": ["1 <= n <= 8"],
-    "hints": ["Use backtracking", "Track open and close counts", "Only add '(' if open < n", "Only add ')' if close < open"],
+    "hints": [
+      "Use backtracking",
+      "Track open and close counts",
+      "Only add '(' if open < n",
+      "Only add ')' if close < open"
+    ],
     "starterCode": "function generateParenthesis(n: number): string[] {\n    // Your code here\n};",
     "timeComplexity": "O(Catalan(n))",
     "spaceComplexity": "O(n)"
@@ -644,7 +778,11 @@
       { "input": "[1,2,3,4,5]", "output": "5" }
     ],
     "constraints": ["1 <= nums.length <= 3 * 10^4"],
-    "hints": ["Use two pointers: slow and fast", "Move fast pointer through array", "When different value found, move slow and update"],
+    "hints": [
+      "Use two pointers: slow and fast",
+      "Move fast pointer through array",
+      "When different value found, move slow and update"
+    ],
     "starterCode": "function removeDuplicates(nums: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -664,12 +802,19 @@
     "testCases": [
       { "input": "[1,2,3,4,5,6,7], 3", "output": "[5,6,7,1,2,3,4]" },
       { "input": "[1,2], 1", "output": "[2,1]" },
-      { "input": "[99,99,99,99,99,99,99], 8", "output": "[99,99,99,99,99,99,99]" },
+      {
+        "input": "[99,99,99,99,99,99,99], 8",
+        "output": "[99,99,99,99,99,99,99]"
+      },
       { "input": "[1], 0", "output": "[1]" },
       { "input": "[1,2,3,4,5], 2", "output": "[4,5,1,2,3]" }
     ],
     "constraints": ["1 <= nums.length <= 10^5"],
-    "hints": ["Use array reversal technique", "Reverse first k elements, then n-k, then all", "Handle k > nums.length with modulo"],
+    "hints": [
+      "Use array reversal technique",
+      "Reverse first k elements, then n-k, then all",
+      "Handle k > nums.length with modulo"
+    ],
     "starterCode": "function rotate(nums: number[], k: number): void {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -694,7 +839,11 @@
       { "input": "[1,0,1,0]", "output": "false" }
     ],
     "constraints": ["1 <= nums.length <= 10^4"],
-    "hints": ["Use greedy approach", "Track the furthest index reachable", "If current position > furthest, can't reach"],
+    "hints": [
+      "Use greedy approach",
+      "Track the furthest index reachable",
+      "If current position > furthest, can't reach"
+    ],
     "starterCode": "function canJump(nums: number[]): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -712,14 +861,21 @@
     "dislikes": 720,
     "description": "Group the anagrams together from an array of strings.",
     "testCases": [
-      { "input": "[\"eat\",\"tea\",\"ate\",\"eat\",\"tan\",\"nat\",\"bat\"]", "output": "3 groups" },
+      {
+        "input": "[\"eat\",\"tea\",\"ate\",\"eat\",\"tan\",\"nat\",\"bat\"]",
+        "output": "3 groups"
+      },
       { "input": "[\"\"]", "output": "1 group" },
       { "input": "[\"a\"]", "output": "1 group" },
       { "input": "[\"ab\",\"ba\",\"a\",\"b\"]", "output": "2 groups" },
       { "input": "[\"listen\",\"silent\",\"enlist\"]", "output": "1 group" }
     ],
     "constraints": ["1 <= strs.length <= 10^4"],
-    "hints": ["Sort characters in each string as key", "Group strings with same sorted key", "Use hash map for grouping"],
+    "hints": [
+      "Sort characters in each string as key",
+      "Group strings with same sorted key",
+      "Use hash map for grouping"
+    ],
     "starterCode": "function groupAnagrams(strs: string[]): string[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n k log k)",
     "spaceComplexity": "O(n k)"
@@ -744,7 +900,11 @@
       { "input": "[99,99,99,99], 2", "output": "99" }
     ],
     "constraints": ["1 <= k <= nums.length <= 10^5"],
-    "hints": ["Use min heap of size k", "Or use quickselect for O(n) average", "Or sort and return nums[n-k]"],
+    "hints": [
+      "Use min heap of size k",
+      "Or use quickselect for O(n) average",
+      "Or sort and return nums[n-k]"
+    ],
     "starterCode": "function findKthLargest(nums: number[], k: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(n) average with quickselect",
     "spaceComplexity": "O(k) for heap"
@@ -769,7 +929,10 @@
       { "input": "[2,1]", "output": "2" }
     ],
     "constraints": ["1 <= nums.length <= 100"],
-    "hints": ["dp[i] = max(dp[i-1], nums[i] + dp[i-2])", "Space optimization: use two variables"],
+    "hints": [
+      "dp[i] = max(dp[i-1], nums[i] + dp[i-2])",
+      "Space optimization: use two variables"
+    ],
     "starterCode": "function rob(nums: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -794,7 +957,11 @@
       { "input": "\"mississippi\", \"m*iss*p*.\"", "output": "false" }
     ],
     "constraints": ["1 <= s.length <= 20", "1 <= p.length <= 30"],
-    "hints": ["Use DP: dp[i][j] = match of s[0:i] with p[0:j]", "Handle '*' specially", "Use recursive approach with memoization"],
+    "hints": [
+      "Use DP: dp[i][j] = match of s[0:i] with p[0:j]",
+      "Handle '*' specially",
+      "Use recursive approach with memoization"
+    ],
     "starterCode": "function isMatch(s: string, p: string): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -819,7 +986,11 @@
       { "input": "[1,2,3,4]", "output": "16 subsets" }
     ],
     "constraints": ["1 <= nums.length <= 10"],
-    "hints": ["For each element, include it or exclude it", "Use backtracking or iterative", "Use bit manipulation for iterative"],
+    "hints": [
+      "For each element, include it or exclude it",
+      "Use backtracking or iterative",
+      "Use bit manipulation for iterative"
+    ],
     "starterCode": "function subsets(nums: number[]): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n*2^n)",
     "spaceComplexity": "O(2^n)"
@@ -837,14 +1008,21 @@
     "dislikes": 320,
     "description": "Implement a FIFO queue using only two stacks.",
     "testCases": [
-      { "input": "push(1); push(2); peek(); pop(); empty()", "output": "1; 1; false" },
+      {
+        "input": "push(1); push(2); peek(); pop(); empty()",
+        "output": "1; 1; false"
+      },
       { "input": "push(1); pop()", "output": "1" },
       { "input": "push(1); push(2); pop(); pop()", "output": "1; 2" },
       { "input": "empty()", "output": "true" },
       { "input": "push(1); peek()", "output": "1" }
     ],
     "constraints": ["Use only standard stack operations"],
-    "hints": ["Use two stacks: push_stack and pop_stack", "On pop, transfer elements from push to pop", "Reverse the order efficiently"],
+    "hints": [
+      "Use two stacks: push_stack and pop_stack",
+      "On pop, transfer elements from push to pop",
+      "Reverse the order efficiently"
+    ],
     "starterCode": "class MyQueue {\n    push(x: number): void {}\n    pop(): number {}\n    peek(): number {}\n    empty(): boolean {}\n}",
     "timeComplexity": "O(1) amortized",
     "spaceComplexity": "O(n)"
@@ -869,7 +1047,11 @@
       { "input": "[5,4,3,2,1]", "output": "0" }
     ],
     "constraints": ["1 <= prices.length <= 10^5"],
-    "hints": ["Track the minimum price so far", "Calculate profit for each price", "Update maximum profit"],
+    "hints": [
+      "Track the minimum price so far",
+      "Calculate profit for each price",
+      "Update maximum profit"
+    ],
     "starterCode": "function maxProfit(prices: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -894,7 +1076,11 @@
       { "input": "[1,2,3,4,5,1]", "output": "true" }
     ],
     "constraints": ["1 <= nums.length <= 10^5"],
-    "hints": ["Use a Set to track seen numbers", "Return true if duplicate found", "Return false at end if all unique"],
+    "hints": [
+      "Use a Set to track seen numbers",
+      "Return true if duplicate found",
+      "Return false at end if all unique"
+    ],
     "starterCode": "function containsDuplicate(nums: number[]): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(n)"
@@ -919,7 +1105,11 @@
       { "input": "\"abc\", \"def\"", "output": "false" }
     ],
     "constraints": ["1 <= s.length, t.length <= 5 * 10^4"],
-    "hints": ["Sort both strings and compare", "Or use frequency map for O(n)", "Count characters in both strings"],
+    "hints": [
+      "Sort both strings and compare",
+      "Or use frequency map for O(n)",
+      "Count characters in both strings"
+    ],
     "starterCode": "function isAnagram(s: string, t: string): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n log n) or O(n)",
     "spaceComplexity": "O(1)"
@@ -944,7 +1134,10 @@
       { "input": "[1,2], [3,4]", "output": "[]" }
     ],
     "constraints": ["1 <= nums1.length, nums2.length <= 1000"],
-    "hints": ["Use Set to store elements from first array", "Check if each element from second array exists in set"],
+    "hints": [
+      "Use Set to store elements from first array",
+      "Check if each element from second array exists in set"
+    ],
     "starterCode": "function intersection(nums1: number[], nums2: number[]): number[] {\n    // Your code here\n};",
     "timeComplexity": "O(m + n)",
     "spaceComplexity": "O(min(m, n))"
@@ -966,10 +1159,17 @@
       { "input": "[-2,0,1,1,2]", "output": "[[-2,0,2],[-2,1,1]]" },
       { "input": "[0,0,0,0]", "output": "[[0,0,0]]" },
       { "input": "[-1,0,1]", "output": "[[-1,0,1]]" },
-      { "input": "[-4,-2,-2,-2,0,1,2,2,2,3,3,4,4,6,6]", "output": "multiple triplets" }
+      {
+        "input": "[-4,-2,-2,-2,0,1,2,2,2,3,3,4,4,6,6]",
+        "output": "multiple triplets"
+      }
     ],
     "constraints": ["3 <= nums.length <= 3000"],
-    "hints": ["Sort the array first", "For each element, use two pointers to find remaining sum", "Skip duplicates to get unique triplets"],
+    "hints": [
+      "Sort the array first",
+      "For each element, use two pointers to find remaining sum",
+      "Skip duplicates to get unique triplets"
+    ],
     "starterCode": "function threeSum(nums: number[]): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n²)",
     "spaceComplexity": "O(1)"
@@ -994,7 +1194,11 @@
       { "input": "2.0, 2", "output": "4.0" }
     ],
     "constraints": ["-100.0 < x < 100.0", "-2^31 <= n <= 2^31 - 1"],
-    "hints": ["Use binary exponentiation (fast exponentiation)", "Handle negative exponents", "Use bit manipulation for efficiency"],
+    "hints": [
+      "Use binary exponentiation (fast exponentiation)",
+      "Handle negative exponents",
+      "Use bit manipulation for efficiency"
+    ],
     "starterCode": "function myPow(x: number, n: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(log n)",
     "spaceComplexity": "O(log n)"
@@ -1019,7 +1223,10 @@
       { "input": "2147483647", "output": "46340" }
     ],
     "constraints": ["0 <= x <= 2^31 - 1"],
-    "hints": ["Use binary search approach", "Find the largest integer whose square is <= x"],
+    "hints": [
+      "Use binary search approach",
+      "Find the largest integer whose square is <= x"
+    ],
     "starterCode": "function mySqrt(x: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(log n)",
     "spaceComplexity": "O(1)"
@@ -1044,7 +1251,11 @@
       { "input": "[1,3], 3", "output": "1" }
     ],
     "constraints": ["1 <= nums.length <= 5000", "-10^4 <= nums[i] <= 10^4"],
-    "hints": ["Identify which half is sorted", "Check if target is in sorted half", "Recursively search appropriate half"],
+    "hints": [
+      "Identify which half is sorted",
+      "Check if target is in sorted half",
+      "Recursively search appropriate half"
+    ],
     "starterCode": "function search(nums: number[], target: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(log n)",
     "spaceComplexity": "O(1)"
@@ -1069,7 +1280,11 @@
       { "input": "[1,3], 3", "output": "[1,1]" }
     ],
     "constraints": ["0 <= nums.length <= 10^5"],
-    "hints": ["Use binary search to find left boundary", "Use binary search to find right boundary", "Two separate binary searches"],
+    "hints": [
+      "Use binary search to find left boundary",
+      "Use binary search to find right boundary",
+      "Two separate binary searches"
+    ],
     "starterCode": "function searchRange(nums: number[], target: number): number[] {\n    // Your code here\n};",
     "timeComplexity": "O(log n)",
     "spaceComplexity": "O(1)"
@@ -1094,7 +1309,11 @@
       { "input": "[2,3,4]", "output": "6 permutations" }
     ],
     "constraints": ["1 <= nums.length <= 6"],
-    "hints": ["Use backtracking approach", "Swap elements and recurse", "Use a visited array to track used elements"],
+    "hints": [
+      "Use backtracking approach",
+      "Swap elements and recurse",
+      "Use a visited array to track used elements"
+    ],
     "starterCode": "function permute(nums: number[]): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n * n!)",
     "spaceComplexity": "O(n!)"
@@ -1119,7 +1338,12 @@
       { "input": "4, 4", "output": "1 combination" }
     ],
     "constraints": ["1 <= n <= 20", "1 <= k <= n"],
-    "hints": ["Use backtracking", "Start from current index", "Add element and recurse", "Backtrack and try next"],
+    "hints": [
+      "Use backtracking",
+      "Start from current index",
+      "Add element and recurse",
+      "Backtrack and try next"
+    ],
     "starterCode": "function combine(n: number, k: number): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n! / (k! * (n-k)!))",
     "spaceComplexity": "O(C(n,k))"
@@ -1144,7 +1368,11 @@
       { "input": "10, 10", "output": "48620" }
     ],
     "constraints": ["1 <= m, n <= 100"],
-    "hints": ["dp[i][j] = paths to reach (i,j)", "Can only move right or down", "dp[i][j] = dp[i-1][j] + dp[i][j-1]"],
+    "hints": [
+      "dp[i][j] = paths to reach (i,j)",
+      "Can only move right or down",
+      "dp[i][j] = dp[i-1][j] + dp[i][j-1]"
+    ],
     "starterCode": "function uniquePaths(m: number, n: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -1169,7 +1397,11 @@
       { "input": "[[1,1,1],[1,1,1],[1,1,1]]", "output": "5" }
     ],
     "constraints": ["m, n >= 1"],
-    "hints": ["dp[i][j] = min sum to reach (i,j)", "Can only move right or down", "dp[i][j] = grid[i][j] + min(dp[i-1][j], dp[i][j-1])"],
+    "hints": [
+      "dp[i][j] = min sum to reach (i,j)",
+      "Can only move right or down",
+      "dp[i][j] = grid[i][j] + min(dp[i-1][j], dp[i][j-1])"
+    ],
     "starterCode": "function minPathSum(grid: number[][]): number {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -1194,7 +1426,11 @@
       { "input": "[1,100,1]", "output": "48" }
     ],
     "constraints": ["1 <= nums.length <= 10^5"],
-    "hints": ["Find the median element", "Cost is sum of abs differences from median", "Use binary search or sort"],
+    "hints": [
+      "Find the median element",
+      "Cost is sum of abs differences from median",
+      "Use binary search or sort"
+    ],
     "starterCode": "function minCostEqualizeArray(nums: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n log n)",
     "spaceComplexity": "O(n)"
@@ -1219,7 +1455,11 @@
       { "input": "[3,3,3,4,5]", "output": "true" }
     ],
     "constraints": ["1 <= nums.length <= 200"],
-    "hints": ["Sum must be even to partition", "Use subset sum DP", "Check if sum/2 is achievable"],
+    "hints": [
+      "Sum must be even to partition",
+      "Use subset sum DP",
+      "Check if sum/2 is achievable"
+    ],
     "starterCode": "function canPartition(nums: number[]): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n * sum/2)",
     "spaceComplexity": "O(sum/2)"
@@ -1244,7 +1484,11 @@
       { "input": "[2,3]", "output": "4 subsequences" }
     ],
     "constraints": ["1 <= arr.length <= 10"],
-    "hints": ["Use backtracking", "Include or exclude each element", "Total 2^n subsequences"],
+    "hints": [
+      "Use backtracking",
+      "Include or exclude each element",
+      "Total 2^n subsequences"
+    ],
     "starterCode": "function printSubsequences(arr: number[]): string[] {\n    // Your code here\n};",
     "timeComplexity": "O(2^n)",
     "spaceComplexity": "O(2^n)"
@@ -1269,7 +1513,11 @@
       { "input": "[10,20,30], 50", "output": "1 subset" }
     ],
     "constraints": ["1 <= arr.length <= 20"],
-    "hints": ["Use backtracking to find subsets", "Include or exclude each element", "Check if current sum equals target"],
+    "hints": [
+      "Use backtracking to find subsets",
+      "Include or exclude each element",
+      "Check if current sum equals target"
+    ],
     "starterCode": "function subsetSum(arr: number[], target: number): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(2^n)",
     "spaceComplexity": "O(2^n)"
@@ -1294,7 +1542,11 @@
       { "input": "3", "output": "0 solutions" }
     ],
     "constraints": ["1 <= n <= 9"],
-    "hints": ["Use backtracking to place queens", "Check if placement is safe", "No two queens on same row, column, or diagonal"],
+    "hints": [
+      "Use backtracking to place queens",
+      "Check if placement is safe",
+      "No two queens on same row, column, or diagonal"
+    ],
     "starterCode": "function solveNQueens(n: number): string[][] {\n    // Your code here\n};",
     "timeComplexity": "O(N!)",
     "spaceComplexity": "O(N)"
@@ -1313,13 +1565,23 @@
     "description": "Solve a Sudoku puzzle using backtracking.",
     "testCases": [
       { "input": "Standard 9x9 Sudoku grid", "output": "Solved Sudoku grid" },
-      { "input": "Partially filled grid", "output": "Completely filled valid grid" },
-      { "input": "Grid with one empty cell", "output": "Grid with cell filled" },
+      {
+        "input": "Partially filled grid",
+        "output": "Completely filled valid grid"
+      },
+      {
+        "input": "Grid with one empty cell",
+        "output": "Grid with cell filled"
+      },
       { "input": "Multiple empty cells", "output": "Valid solved Sudoku" },
       { "input": "Complex puzzle", "output": "Solution with backtracking" }
     ],
     "constraints": ["9x9 board", "Each row, column, 3x3 box has digits 1-9"],
-    "hints": ["Use backtracking", "Check row, column, and 3x3 box constraints", "Try digits 1-9 for each empty cell"],
+    "hints": [
+      "Use backtracking",
+      "Check row, column, and 3x3 box constraints",
+      "Try digits 1-9 for each empty cell"
+    ],
     "starterCode": "function solveSudoku(board: string[][]): void {\n    // Your code here\n};",
     "timeComplexity": "O(9^(n*n))",
     "spaceComplexity": "O(1)"
@@ -1344,7 +1606,11 @@
       { "input": "[[1,1,1],[1,0,1],[1,1,1]]", "output": "multiple paths" }
     ],
     "constraints": ["1 <= m, n <= 20"],
-    "hints": ["Use backtracking", "Can move right and down (or all 4 directions)", "Mark visited cells"],
+    "hints": [
+      "Use backtracking",
+      "Can move right and down (or all 4 directions)",
+      "Mark visited cells"
+    ],
     "starterCode": "function rateMaze(maze: number[][]): string[] {\n    // Your code here\n};",
     "timeComplexity": "O(2^(m*n))",
     "spaceComplexity": "O(m*n)"
@@ -1369,7 +1635,11 @@
       { "input": "\"ab\", \"abc\"", "output": "1" }
     ],
     "constraints": ["0 <= word1.length, word2.length <= 500"],
-    "hints": ["Use DP approach (Levenshtein distance)", "Three operations: insert, delete, replace", "dp[i][j] = min operations for word1[0:i] to word2[0:j]"],
+    "hints": [
+      "Use DP approach (Levenshtein distance)",
+      "Three operations: insert, delete, replace",
+      "dp[i][j] = min operations for word1[0:i] to word2[0:j]"
+    ],
     "starterCode": "function minDistance(word1: string, word2: string): number {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -1394,7 +1664,11 @@
       { "input": "\"acdcb\", \"a*c?b\"", "output": "false" }
     ],
     "constraints": ["0 <= s.length, p.length <= 2000"],
-    "hints": ["Use DP: dp[i][j] = match of s[0:i] with p[0:j]", "'*' can match 0 or more characters", "Greedy approach also works"],
+    "hints": [
+      "Use DP: dp[i][j] = match of s[0:i] with p[0:j]",
+      "'*' can match 0 or more characters",
+      "Greedy approach also works"
+    ],
     "starterCode": "function isMatch(s: string, p: string): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -1419,7 +1693,11 @@
       { "input": "\"1234\", \"1224533890\"", "output": "3" }
     ],
     "constraints": ["1 <= text1.length, text2.length <= 1000"],
-    "hints": ["dp[i][j] = LCS length of text1[0:i] and text2[0:j]", "If chars match: dp[i][j] = dp[i-1][j-1] + 1", "Else: dp[i][j] = max(dp[i-1][j], dp[i][j-1])"],
+    "hints": [
+      "dp[i][j] = LCS length of text1[0:i] and text2[0:j]",
+      "If chars match: dp[i][j] = dp[i-1][j-1] + 1",
+      "Else: dp[i][j] = max(dp[i-1][j], dp[i][j-1])"
+    ],
     "starterCode": "function longestCommonSubsequence(text1: string, text2: string): number {\n    // Your code here\n};",
     "timeComplexity": "O(m*n)",
     "spaceComplexity": "O(m*n)"
@@ -1444,7 +1722,11 @@
       { "input": "[1,2,3,4,5]", "output": "[1,2,3,4,5]" }
     ],
     "constraints": ["1 <= nums.length <= 5*10^4"],
-    "hints": ["Merge sort guarantees O(n log n)", "Divide array into halves", "Merge sorted halves"],
+    "hints": [
+      "Merge sort guarantees O(n log n)",
+      "Divide array into halves",
+      "Merge sorted halves"
+    ],
     "starterCode": "function mergeSort(nums: number[]): number[] {\n    // Your code here\n};",
     "timeComplexity": "O(n log n) worst, average, best",
     "spaceComplexity": "O(n)"
@@ -1469,7 +1751,11 @@
       { "input": "3", "output": "2" }
     ],
     "constraints": ["0 <= n <= 2^31 - 1"],
-    "hints": ["Use bitwise AND with n-1 to remove rightmost 1 bit", "Or check each bit", "Brian Kernighan's algorithm"],
+    "hints": [
+      "Use bitwise AND with n-1 to remove rightmost 1 bit",
+      "Or check each bit",
+      "Brian Kernighan's algorithm"
+    ],
     "starterCode": "function hammingWeight(n: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(1)",
     "spaceComplexity": "O(1)"
@@ -1494,7 +1780,11 @@
       { "input": "[1,1,2,3,3]", "output": "[2]" }
     ],
     "constraints": ["2 <= nums.length <= 3*10^4"],
-    "hints": ["XOR all elements to get XOR of two unique numbers", "Find any set bit difference", "Partition into two groups and XOR separately"],
+    "hints": [
+      "XOR all elements to get XOR of two unique numbers",
+      "Find any set bit difference",
+      "Partition into two groups and XOR separately"
+    ],
     "starterCode": "function singleNumberIII(nums: number[]): number[] {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -1519,7 +1809,11 @@
       { "input": "2147483648", "output": "1" }
     ],
     "constraints": ["0 <= n < 2^32"],
-    "hints": ["Extract each bit from right", "Add to result from left", "Iterate 32 times"],
+    "hints": [
+      "Extract each bit from right",
+      "Add to result from left",
+      "Iterate 32 times"
+    ],
     "starterCode": "function reverseBits(n: number): number {\n    // Your code here\n};",
     "timeComplexity": "O(1)",
     "spaceComplexity": "O(1)"
@@ -1544,7 +1838,11 @@
       { "input": "[1,1,1,1,2]", "output": "1" }
     ],
     "constraints": ["1 <= nums.length <= 5*10^4"],
-    "hints": ["Boyer-Moore Voting Algorithm", "Track candidate and count", "The majority element will win"],
+    "hints": [
+      "Boyer-Moore Voting Algorithm",
+      "Track candidate and count",
+      "The majority element will win"
+    ],
     "starterCode": "function majorityElement(nums: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -1569,7 +1867,11 @@
       { "input": "[1,2,3,4,5]", "output": "0" }
     ],
     "constraints": ["1 <= height.length <= 2 * 10^4"],
-    "hints": ["Use two pointers approach", "Track left max and right max", "Water trapped at i = min(leftMax, rightMax) - height[i]"],
+    "hints": [
+      "Use two pointers approach",
+      "Track left max and right max",
+      "Water trapped at i = min(leftMax, rightMax) - height[i]"
+    ],
     "starterCode": "function trap(height: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -1594,7 +1896,11 @@
       { "input": "[2,3,4,5,1], [1,2,3,4,5]", "output": "1" }
     ],
     "constraints": ["1 <= gas.length == cost.length <= 10^5"],
-    "hints": ["Total gas >= total cost is necessary", "Track current balance", "If balance < 0, start from next station"],
+    "hints": [
+      "Total gas >= total cost is necessary",
+      "Track current balance",
+      "If balance < 0, start from next station"
+    ],
     "starterCode": "function canCompleteCircuit(gas: number[], cost: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(1)"
@@ -1619,7 +1925,11 @@
       { "input": "[3,5,4,2,6]", "output": "12" }
     ],
     "constraints": ["1 <= heights.length <= 10^5"],
-    "hints": ["Use monotonic stack", "For each bar, find left and right boundaries", "Area = height * width"],
+    "hints": [
+      "Use monotonic stack",
+      "For each bar, find left and right boundaries",
+      "Area = height * width"
+    ],
     "starterCode": "function largestRectangleArea(heights: number[]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(n)"
@@ -1644,7 +1954,11 @@
       { "input": "\"aba\"", "output": "[[\"a\",\"b\",\"a\"],[\"aba\"]]" }
     ],
     "constraints": ["1 <= s.length <= 16"],
-    "hints": ["Use backtracking", "Check if substring is palindrome", "Add to result when entire string is partitioned"],
+    "hints": [
+      "Use backtracking",
+      "Check if substring is palindrome",
+      "Add to result when entire string is partitioned"
+    ],
     "starterCode": "function partition(s: string): string[][] {\n    // Your code here\n};",
     "timeComplexity": "O(N * 2^N)",
     "spaceComplexity": "O(2^N)"
@@ -1664,12 +1978,18 @@
     "testCases": [
       { "input": "\"leetcode\", [\"leet\",\"code\"]", "output": "true" },
       { "input": "\"applepenapple\", [\"apple\",\"pen\"]", "output": "true" },
-      { "input": "\"catsandog\", [\"cat\",\"cats\",\"and\",\"sand\",\"dog\"]", "output": "false" },
+      {
+        "input": "\"catsandog\", [\"cat\",\"cats\",\"and\",\"sand\",\"dog\"]",
+        "output": "false"
+      },
       { "input": "\"a\", [\"a\"]", "output": "true" },
       { "input": "\"aa\", [\"a\",\"aa\"]", "output": "true" }
     ],
     "constraints": ["1 <= s.length <= 300"],
-    "hints": ["dp[i] = true if s[0:i] can be segmented", "Check all words ending at i"],
+    "hints": [
+      "dp[i] = true if s[0:i] can be segmented",
+      "Check all words ending at i"
+    ],
     "starterCode": "function wordBreak(s: string, wordDict: string[]): boolean {\n    // Your code here\n};",
     "timeComplexity": "O(n^2)",
     "spaceComplexity": "O(n)"
@@ -1687,14 +2007,21 @@
     "dislikes": 620,
     "description": "Find all words from dictionary in the board using backtracking.",
     "testCases": [
-      { "input": "[[\"o\",\"a\",\"a\",\"n\"],[\"e\",\"t\",\"a\",\"e\"]], [\"oath\",\"pea\",\"eat\",\"tea\"]", "output": "[\"oath\",\"eat\"]" },
+      {
+        "input": "[[\"o\",\"a\",\"a\",\"n\"],[\"e\",\"t\",\"a\",\"e\"]], [\"oath\",\"pea\",\"eat\",\"tea\"]",
+        "output": "[\"oath\",\"eat\"]"
+      },
       { "input": "[[\"a\"],\"b\"], [\"ab\",\"ba\",\"aaab\"]", "output": "[]" },
       { "input": "[[\"a\",\"b\"]], [\"ab\"]", "output": "[\"ab\"]" },
       { "input": "[[\"o\"]], [\"o\"]", "output": "[\"o\"]" },
       { "input": "[[\"a\",\"a\"]], [\"a\"]", "output": "[\"a\"]" }
     ],
     "constraints": ["m == board.length", "n == board[i].length"],
-    "hints": ["Build Trie from dictionary", "Use backtracking with DFS", "Mark visited cells"],
+    "hints": [
+      "Build Trie from dictionary",
+      "Use backtracking with DFS",
+      "Mark visited cells"
+    ],
     "starterCode": "function findWords(board: string[][], words: string[]): string[] {\n    // Your code here\n};",
     "timeComplexity": "O(m*n*4^L)",
     "spaceComplexity": "O(L)"
@@ -1712,14 +2039,27 @@
     "dislikes": 280,
     "description": "Implement a Trie (prefix tree) with search, insert, startsWith.",
     "testCases": [
-      { "input": "insert(\"apple\"); search(\"apple\"); startsWith(\"app\")", "output": "true; true" },
-      { "input": "search(\"app\"); insert(\"app\"); search(\"app\")", "output": "false; true" },
-      { "input": "insert(\"a\"); insert(\"ab\"); search(\"a\"); search(\"ab\")", "output": "true; true" },
+      {
+        "input": "insert(\"apple\"); search(\"apple\"); startsWith(\"app\")",
+        "output": "true; true"
+      },
+      {
+        "input": "search(\"app\"); insert(\"app\"); search(\"app\")",
+        "output": "false; true"
+      },
+      {
+        "input": "insert(\"a\"); insert(\"ab\"); search(\"a\"); search(\"ab\")",
+        "output": "true; true"
+      },
       { "input": "insert(\"test\"); startsWith(\"tes\")", "output": "true" },
       { "input": "insert(\"word\"); search(\"wor\")", "output": "false" }
     ],
     "constraints": ["1 <= word.length, prefix.length <= 2000"],
-    "hints": ["Use nested HashMap/Objects", "Each node has children map", "Mark end of word with boolean"],
+    "hints": [
+      "Use nested HashMap/Objects",
+      "Each node has children map",
+      "Mark end of word with boolean"
+    ],
     "starterCode": "class Trie {\n    insert(word: string): void {}\n    search(word: string): boolean {}\n    startsWith(prefix: string): boolean {}\n}",
     "timeComplexity": "O(m) where m is length of word",
     "spaceComplexity": "O(m)"
@@ -1737,14 +2077,21 @@
     "dislikes": 580,
     "description": "Find the LCA of two nodes in a binary tree.",
     "testCases": [
-      { "input": "root=[3,5,1,6,2,0,8,null,null,7,4], p=5, q=1", "output": "3" },
+      {
+        "input": "root=[3,5,1,6,2,0,8,null,null,7,4], p=5, q=1",
+        "output": "3"
+      },
       { "input": "root=[3,5,1,6,2,0,8], p=5, q=4", "output": "5" },
       { "input": "root=[1,2], p=1, q=2", "output": "1" },
       { "input": "root=[1,2,3], p=2, q=3", "output": "1" },
       { "input": "root=[3,5,1], p=5, q=1", "output": "3" }
     ],
     "constraints": ["2 <= nodes <= 10^5"],
-    "hints": ["Use DFS to find both nodes", "LCA is root if p and q in different subtrees", "If both in same subtree, recurse down"],
+    "hints": [
+      "Use DFS to find both nodes",
+      "LCA is root if p and q in different subtrees",
+      "If both in same subtree, recurse down"
+    ],
     "starterCode": "function lowestCommonAncestor(root: TreeNode, p: TreeNode, q: TreeNode): TreeNode {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(h)"
@@ -1762,14 +2109,25 @@
     "dislikes": 320,
     "description": "Find the LCA of two nodes in a binary search tree.",
     "testCases": [
-      { "input": "root=[6,2,8,0,4,7,9,null,null,3,5], p=2, q=8", "output": "6" },
-      { "input": "root=[6,2,8,0,4,7,9,null,null,3,5], p=2, q=4", "output": "2" },
+      {
+        "input": "root=[6,2,8,0,4,7,9,null,null,3,5], p=2, q=8",
+        "output": "6"
+      },
+      {
+        "input": "root=[6,2,8,0,4,7,9,null,null,3,5], p=2, q=4",
+        "output": "2"
+      },
       { "input": "root=[2,1], p=2, q=1", "output": "2" },
       { "input": "root=[5,3,7,2,4,6,8], p=3, q=7", "output": "5" },
       { "input": "root=[5,3,7,2,4,6,8], p=3, q=4", "output": "3" }
     ],
     "constraints": ["2 <= nodes <= 10^5"],
-    "hints": ["Use BST property", "If both < root, go left", "If both > root, go right", "Otherwise root is LCA"],
+    "hints": [
+      "Use BST property",
+      "If both < root, go left",
+      "If both > root, go right",
+      "Otherwise root is LCA"
+    ],
     "starterCode": "function lowestCommonAncestorBST(root: TreeNode, p: TreeNode, q: TreeNode): TreeNode {\n    // Your code here\n};",
     "timeComplexity": "O(log n) average, O(n) worst",
     "spaceComplexity": "O(h)"
@@ -1794,7 +2152,11 @@
       { "input": "[1,2,3,4,5]", "output": "[[1],[2,3],[4,5]]" }
     ],
     "constraints": ["0 <= nodes <= 2000"],
-    "hints": ["Use Queue for BFS", "Process one level at a time", "Add children to queue for next level"],
+    "hints": [
+      "Use Queue for BFS",
+      "Process one level at a time",
+      "Add children to queue for next level"
+    ],
     "starterCode": "function levelOrder(root: TreeNode | null): number[][] {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(w) where w is max width"
@@ -1819,7 +2181,11 @@
       { "input": "[5,4,8,11,null,13,4,7,2,null,1]", "output": "48" }
     ],
     "constraints": ["1 <= nodes <= 3000", "-1000 <= values <= 1000"],
-    "hints": ["Use DFS post-order traversal", "Track max path for each subtree", "Update global max at each node"],
+    "hints": [
+      "Use DFS post-order traversal",
+      "Track max path for each subtree",
+      "Update global max at each node"
+    ],
     "starterCode": "function maxPathSum(root: TreeNode | null): number {\n    // Your code here\n};",
     "timeComplexity": "O(n)",
     "spaceComplexity": "O(h)"
@@ -1837,14 +2203,21 @@
     "dislikes": 620,
     "description": "Create a deep copy of an undirected graph.",
     "testCases": [
-      { "input": "adjList = [[2,4],[1,3],[2,4],[1,3]]", "output": "Cloned graph" },
+      {
+        "input": "adjList = [[2,4],[1,3],[2,4],[1,3]]",
+        "output": "Cloned graph"
+      },
       { "input": "adjList = [[]]", "output": "[[]]" },
       { "input": "adjList = []", "output": "[]" },
       { "input": "adjList = [[2],[1]]", "output": "[[2],[1]]" },
       { "input": "single node graph", "output": "Cloned single node" }
     ],
     "constraints": ["1 <= Node.val <= 100"],
-    "hints": ["Use DFS or BFS", "Maintain HashMap of old to new nodes", "Create copies while traversing"],
+    "hints": [
+      "Use DFS or BFS",
+      "Maintain HashMap of old to new nodes",
+      "Create copies while traversing"
+    ],
     "starterCode": "function cloneGraph(node: Node | null): Node | null {\n    // Your code here\n};",
     "timeComplexity": "O(V + E)",
     "spaceComplexity": "O(V)"
@@ -1863,13 +2236,20 @@
     "description": "Return order to take courses given prerequisites (topological sort).",
     "testCases": [
       { "input": "2, [[1,0]]", "output": "[0,1]" },
-      { "input": "4, [[1,0],[2,0],[3,1],[3,2]]", "output": "Valid topological order" },
+      {
+        "input": "4, [[1,0],[2,0],[3,1],[3,2]]",
+        "output": "Valid topological order"
+      },
       { "input": "1, []", "output": "[0]" },
       { "input": "2, [[1,0],[0,1]]", "output": "[]" },
       { "input": "3, [[0,1],[0,2],[1,2]]", "output": "[2,1,0]" }
     ],
     "constraints": ["1 <= numCourses <= 2000"],
-    "hints": ["Build adjacency list and indegree", "Use Kahn's algorithm (BFS)", "Or use DFS with visited states"],
+    "hints": [
+      "Build adjacency list and indegree",
+      "Use Kahn's algorithm (BFS)",
+      "Or use DFS with visited states"
+    ],
     "starterCode": "function findOrder(numCourses: number, prerequisites: number[][]): number[] {\n    // Your code here\n};",
     "timeComplexity": "O(V + E)",
     "spaceComplexity": "O(V + E)"
@@ -1887,14 +2267,21 @@
     "dislikes": 720,
     "description": "Find order of characters in alien dictionary from sorted words.",
     "testCases": [
-      { "input": "[\"wrt\",\"wrf\",\"er\",\"ett\",\"rftt\"]", "output": "\"wertf\"" },
+      {
+        "input": "[\"wrt\",\"wrf\",\"er\",\"ett\",\"rftt\"]",
+        "output": "\"wertf\""
+      },
       { "input": "[\"z\",\"x\"]", "output": "\"zx\"" },
       { "input": "[\"z\",\"x\",\"z\"]", "output": "\"\"" },
       { "input": "[\"a\",\"ab\"]", "output": "\"ab\"" },
       { "input": "[\"abc\",\"ab\"]", "output": "\"\"" }
     ],
     "constraints": ["min(sorted_words, unique chars) <= 26"],
-    "hints": ["Build graph from character orders", "Use topological sort", "Compare adjacent words to find order"],
+    "hints": [
+      "Build graph from character orders",
+      "Use topological sort",
+      "Compare adjacent words to find order"
+    ],
     "starterCode": "function alienOrder(words: string[]): string {\n    // Your code here\n};",
     "timeComplexity": "O(N * L + U + min(U^2, U*L))",
     "spaceComplexity": "O(U)"
@@ -1919,7 +2306,11 @@
       { "input": "[[1,2],[2,3],[1,3]], 3, 1", "output": "2" }
     ],
     "constraints": ["1 <= N <= 100", "1 <= times.length <= 6000"],
-    "hints": ["Use Dijkstra's algorithm", "Priority queue for minimum distance", "Return max distance or -1 if unreachable"],
+    "hints": [
+      "Use Dijkstra's algorithm",
+      "Priority queue for minimum distance",
+      "Return max distance or -1 if unreachable"
+    ],
     "starterCode": "function networkDelayTime(times: number[][], n: number, k: number): number {\n    // Your code here\n};",
     "timeComplexity": "O((N + E) log N)",
     "spaceComplexity": "O(N + E)"
@@ -1944,7 +2335,11 @@
       { "input": "4, [[0,1],[2,3]]", "output": "2" }
     ],
     "constraints": ["1 <= n <= 2000"],
-    "hints": ["Use Union-Find data structure", "Or DFS from each unvisited node", "Count number of root components"],
+    "hints": [
+      "Use Union-Find data structure",
+      "Or DFS from each unvisited node",
+      "Count number of root components"
+    ],
     "starterCode": "function countComponents(n: number, edges: number[][]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n + edges) with path compression",
     "spaceComplexity": "O(n)"
@@ -1969,7 +2364,11 @@
       { "input": "[[0,0],[1,0],[0,1],[1,1]]", "output": "3" }
     ],
     "constraints": ["1 <= points.length <= 1000"],
-    "hints": ["Calculate all edge distances (Manhattan)", "Use Kruskal's or Prim's algorithm", "Use Union-Find for cycle detection"],
+    "hints": [
+      "Calculate all edge distances (Manhattan)",
+      "Use Kruskal's or Prim's algorithm",
+      "Use Union-Find for cycle detection"
+    ],
     "starterCode": "function minCostConnectPoints(points: number[][]): number {\n    // Your code here\n};",
     "timeComplexity": "O(n^2 log n)",
     "spaceComplexity": "O(n^2)"
@@ -1987,14 +2386,30 @@
     "dislikes": 400,
     "description": "Implement a min heap with insert, delete-min, peek operations.",
     "testCases": [
-      { "input": "insert(5); insert(3); peek(); extractMin()", "output": "3; 3" },
-      { "input": "insert(10); insert(15); insert(20); extractMin(); peek()", "output": "10; 15" },
+      {
+        "input": "insert(5); insert(3); peek(); extractMin()",
+        "output": "3; 3"
+      },
+      {
+        "input": "insert(10); insert(15); insert(20); extractMin(); peek()",
+        "output": "10; 15"
+      },
       { "input": "insert(1); extractMin(); size()", "output": "1; 0" },
-      { "input": "insert(8); insert(4); insert(12); extractMin(); peek()", "output": "4; 8" },
-      { "input": "multiple inserts and extracts", "output": "maintains min heap property" }
+      {
+        "input": "insert(8); insert(4); insert(12); extractMin(); peek()",
+        "output": "4; 8"
+      },
+      {
+        "input": "multiple inserts and extracts",
+        "output": "maintains min heap property"
+      }
     ],
     "constraints": ["1 <= operations <= 10^4"],
-    "hints": ["Use array representation", "Parent at i, children at 2i+1, 2i+2", "Heapify up/down after insert/delete"],
+    "hints": [
+      "Use array representation",
+      "Parent at i, children at 2i+1, 2i+2",
+      "Heapify up/down after insert/delete"
+    ],
     "starterCode": "class MinHeap {\n    insert(val: number): void {}\n    extractMin(): number {}\n    peek(): number {}\n    size(): number {}\n}",
     "timeComplexity": "O(log n) per operation",
     "spaceComplexity": "O(n)"
@@ -2012,14 +2427,24 @@
     "dislikes": 1100,
     "description": "Find median of stream of integers as they are added.",
     "testCases": [
-      { "input": "addNum(1); addNum(2); findMedian(); addNum(3); findMedian()", "output": "1.5; 2.0" },
-      { "input": "addNum(1); findMedian(); addNum(0); findMedian()", "output": "1.0; 0.5" },
+      {
+        "input": "addNum(1); addNum(2); findMedian(); addNum(3); findMedian()",
+        "output": "1.5; 2.0"
+      },
+      {
+        "input": "addNum(1); findMedian(); addNum(0); findMedian()",
+        "output": "1.0; 0.5"
+      },
       { "input": "Single number stream", "output": "Correct median" },
       { "input": "Two numbers", "output": "Average" },
       { "input": "Balanced numbers", "output": "Middle element or average" }
     ],
     "constraints": ["1 <= num <= 2 * 10^5"],
-    "hints": ["Use max heap for smaller half", "Use min heap for larger half", "Balance so sizes differ by at most 1"],
+    "hints": [
+      "Use max heap for smaller half",
+      "Use min heap for larger half",
+      "Balance so sizes differ by at most 1"
+    ],
     "starterCode": "class MedianFinder {\n    addNum(num: number): void {}\n    findMedian(): number {}\n}",
     "timeComplexity": "O(log n) add, O(1) find",
     "spaceComplexity": "O(n)"
@@ -2037,14 +2462,24 @@
     "dislikes": 280,
     "description": "Push, pop with most frequent element popped first.",
     "testCases": [
-      { "input": "push(5); push(7); push(5); pop(); pop(); pop()", "output": "5; 7; 5" },
+      {
+        "input": "push(5); push(7); push(5); pop(); pop(); pop()",
+        "output": "5; 7; 5"
+      },
       { "input": "push(1); push(1); push(1); pop(); pop()", "output": "1; 1" },
       { "input": "push(4); push(1); push(1); pop()", "output": "1" },
-      { "input": "push(1); push(2); push(3); pop(); pop(); pop()", "output": "3; 2; 1" },
+      {
+        "input": "push(1); push(2); push(3); pop(); pop(); pop()",
+        "output": "3; 2; 1"
+      },
       { "input": "Single push and pop", "output": "Correct element" }
     ],
     "constraints": ["1 <= x <= 10^4"],
-    "hints": ["Track frequency of each number", "Use stack per frequency level", "Pop from stack with max frequency"],
+    "hints": [
+      "Track frequency of each number",
+      "Use stack per frequency level",
+      "Pop from stack with max frequency"
+    ],
     "starterCode": "class FreqStack {\n    push(val: number): void {}\n    pop(): number {}\n}",
     "timeComplexity": "O(1) for both push and pop",
     "spaceComplexity": "O(n)"
@@ -2069,7 +2504,11 @@
       { "input": "put(21, 1); put(1, 1); get(1)", "output": "1" }
     ],
     "constraints": ["0 <= key, value <= 10^6"],
-    "hints": ["Use array of buckets", "Hash function: key % array_size", "Handle collisions with chaining"],
+    "hints": [
+      "Use array of buckets",
+      "Hash function: key % array_size",
+      "Handle collisions with chaining"
+    ],
     "starterCode": "class MyHashMap {\n    put(key: number, value: number): void {}\n    get(key: number): number {}\n    remove(key: number): void {}\n}",
     "timeComplexity": "O(1) average per operation",
     "spaceComplexity": "O(n)"

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bot, Send, User, Sparkles, RefreshCw, Lightbulb } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { sendMessageToGemini, resetGeminiChat } from "../../services/gemini";
 
 // ─── Types ────────────────────────────────────────────────────
 interface Message {
@@ -9,9 +10,6 @@ interface Message {
   content: string;
   timestamp: Date;
 }
-
-// ─── Constants ────────────────────────────────────────────────
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 const suggestions = [
   "Explain Two Sum problem approach",
@@ -44,7 +42,6 @@ export default function Chatbot() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [topic, setTopic] = useState("general");
-  const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -53,109 +50,40 @@ export default function Chatbot() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ─── Core send function with real-time streaming ──────────
+  // ─── Core send function ───────────────────────────────────
   const sendMessage = async (text: string = input) => {
-    const trimmed = text.trim();
-    if (!trimmed || isTyping) return;
+    if (!text.trim() || isTyping) return;
 
     setInput("");
-    setError(null);
 
     // Add user message immediately
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: trimmed,
+      content: text,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
-    // Add an empty AI message that we'll fill token by token
-    const aiMsgId = (Date.now() + 1).toString();
-    const aiMsg: Message = {
-      id: aiMsgId,
-      role: "ai",
-      content: "",
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, aiMsg]);
-
     try {
-      // ── Call the streaming endpoint ──────────────────────────
-      const response = await fetch(`${API_URL}/chat/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: trimmed,
-          userId: "anonymous", // replace with real userId when auth is added
-          problemId: topic !== "general" ? topic : undefined,
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      // ── Read the SSE stream chunk by chunk ───────────────────
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // SSE lines come in the format: "data: {...}\n\n"
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // keep incomplete last line in buffer
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine.startsWith("data:")) continue;
-
-          const data = trimmedLine.slice(5).trim();
-          if (data === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(data);
-
-            if (parsed.error) {
-              throw new Error(parsed.error);
-            }
-
-            if (parsed.text) {
-              // Append new token to the AI message in real time
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === aiMsgId
-                    ? { ...m, content: m.content + parsed.text }
-                    : m
-                )
-              );
-            }
-          } catch (parseErr) {
-            // Ignore malformed chunks
-          }
-        }
-      }
-    } catch (err: any) {
-      const errText = err.message || "Failed to get response";
-      setError(errText);
-
-      // Replace the empty AI message with the error
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiMsgId
-            ? {
-                ...m,
-                content: `⚠️ **Error:** ${errText}\n\nMake sure the backend is running at \`${API_URL}\` and your \`GEMINI_API_KEY\` (or \`OPENAI_API_KEY\`) is set in \`backend/.env\`.`,
-              }
-            : m
-        )
-      );
+      const aiContent = await sendMessageToGemini(text, topic);
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        content: aiContent,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch {
+      const errMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        content:
+          "⚠️ Could not reach AlgoAI. Check your VITE_GEMINI_API_KEY in .env and try again.",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
     } finally {
       setIsTyping(false);
       inputRef.current?.focus();
@@ -163,32 +91,36 @@ export default function Chatbot() {
   };
 
   const clearChat = () => {
+    resetGeminiChat();
     setMessages([
       {
-        ...INITIAL_MESSAGE,
         id: "reset",
-        content: "Chat cleared! What would you like to learn today? 🎯",
+        role: "ai",
+        content: `# Chat cleared! I'm AlgoAI 🤖\n\nFresh start! Ask me anything about DSA, algorithms, or interview prep. 💪`,
         timestamp: new Date(),
       },
     ]);
-    setError(null);
   };
 
   // ─── Render ───────────────────────────────────────────────
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
-
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 bg-[#161b22] border-b border-[#30363d] flex-shrink-0">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
           <Bot className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-white" style={{ fontSize: "15px", fontWeight: 700 }}>
+          <h1
+            className="text-white"
+            style={{ fontSize: "15px", fontWeight: 700 }}
+          >
             AI Doubt Chatbot
           </h1>
           <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${isTyping ? "bg-yellow-400 animate-pulse" : "bg-green-400"}`} />
+            <div
+              className={`w-2 h-2 rounded-full ${isTyping ? "bg-yellow-400 animate-pulse" : "bg-green-400"}`}
+            />
             <span className="text-[#8b949e]" style={{ fontSize: "11px" }}>
               {isTyping ? "Thinking..." : "Online · Powered by AlgoAI"}
             </span>
@@ -217,13 +149,6 @@ export default function Chatbot() {
           </button>
         </div>
       </div>
-
-      {/* Error banner */}
-      {error && (
-        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs">
-          ⚠️ {error} — Check that your backend is running and API key is set.
-        </div>
-      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -269,7 +194,9 @@ export default function Chatbot() {
                   >
                     {msg.content}
                     {/* Blinking cursor while streaming this specific message */}
-                    {msg.role === "ai" && isTyping && msg.id !== "1" &&
+                    {msg.role === "ai" &&
+                      isTyping &&
+                      msg.id !== "1" &&
                       msg === messages[messages.length - 1] && (
                         <span className="inline-block w-0.5 h-4 bg-orange-400 ml-0.5 animate-pulse" />
                       )}

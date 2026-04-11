@@ -12,6 +12,7 @@ import revisionRoutes from "./revision.routes";
 import bossRoutes from "./boss.routes";
 import chatRoutes from "./chat.routes";
 import mistakeRoutes from "./mistake.routes";
+import executeRoutes from "./execute.routes";
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use("/revision", revisionRoutes);
 router.use("/boss", bossRoutes);
 router.use("/chat", chatRoutes);
 router.use("/mistakes", mistakeRoutes);
+router.use("/execute", executeRoutes);
 
 // Add more routes here as the API grows:
 // router.use('/auth',          authRoutes);
