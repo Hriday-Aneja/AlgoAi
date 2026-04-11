@@ -11,6 +11,10 @@ import streakRoutes from "./streak.routes";
 import revisionRoutes from "./revision.routes";
 import bossRoutes from "./boss.routes";
 import chatRoutes from "./chat.routes";
+<<<<<<< HEAD
+=======
+import mistakeRoutes from "./mistake.routes";
+>>>>>>> 4579b5a5a4d9412654ec91f2b0d4c1db2257b6ef
 
 const router = Router();
 
@@ -27,6 +31,10 @@ router.use("/streak", streakRoutes);
 router.use("/revision", revisionRoutes);
 router.use("/boss", bossRoutes);
 router.use("/chat", chatRoutes);
+<<<<<<< HEAD
+=======
+router.use("/mistakes", mistakeRoutes);
+>>>>>>> 4579b5a5a4d9412654ec91f2b0d4c1db2257b6ef
 
 // Add more routes here as the API grows:
 // router.use('/auth',          authRoutes);
