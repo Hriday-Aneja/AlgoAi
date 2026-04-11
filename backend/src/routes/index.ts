@@ -8,6 +8,7 @@ import onboardingRoutes from "./onboarding.routes";
 import hintRoutes from "./hint.routes";
 import visualizeRoutes from "./visualize.routes";
 import streakRoutes from "./streak.routes";
+import dailyChallengeRoutes from "./dailyChallenge.routes";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use("/onboarding", onboardingRoutes);
 router.use("/hints", hintRoutes);
 router.use("/visualize", visualizeRoutes);
 router.use("/streak", streakRoutes);
+router.use("/daily-challenge", dailyChallengeRoutes);
 
 // Add more routes here as the API grows:
 // router.use('/auth',          authRoutes);
