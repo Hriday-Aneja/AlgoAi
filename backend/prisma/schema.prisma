@@ -93,3 +93,25 @@ enum SubmissionStatus {
   passed
   failed
 }
+
+model DailyChallenge {
+  date       DateTime @id
+  problemId  String
+  difficulty String
+  createdAt  DateTime @default(now())
+
+  @@map("daily_challenges")
+}
+
+model DailyChallengeCompletion {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@map("daily_challenge_completions")
+}
