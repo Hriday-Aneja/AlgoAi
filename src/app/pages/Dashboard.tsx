@@ -180,11 +180,16 @@ export default function Dashboard() {
         const response = await getUserProgress(userId);
         console.log('Dashboard: User progress response:', response);
 
+        // Safely calculate totals from the progress data
+        if (!response.data || !Array.isArray(response.data)) {
+          throw new Error('Invalid progress data format');
+        }
+
         // Calculate totals from the progress data
         const totalSolved = response.data.filter((item: any) => item.status === 'solved').length;
         const totalAttempted = response.data.length;
 
-        console.log('Dashboard: Calculated totals - solved:', totalSolved, 'attempted:', totalAttempted);
+        console.log('Dashboard: ✅ Calculated totals - Solved:', totalSolved, 'Attempted:', totalAttempted);
 
         setUserProgress({
           status: 'success',
@@ -194,7 +199,7 @@ export default function Dashboard() {
           },
         });
       } catch (error: any) {
-        console.error('Dashboard: User progress fetch failed:', error);
+        console.error('Dashboard: ❌ User progress fetch failed:', error.message || error);
         setUserProgress({
           status: 'error',
           error: error.response?.data?.message || error.message || 'Failed to fetch user progress',

@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 
 // ─── API Configuration ────────────────────────────────────────────────────────
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3007/api";
 const API_TIMEOUT = 10000; // 10 seconds
 
 // ─── Axios Instance Setup ─────────────────────────────────────────────────────
@@ -166,6 +166,33 @@ export const getWeakTopics = async (userId: string): Promise<{
   console.log('Weak topics API response:', response.data);
   return response.data;
 };
+
+/**
+ * Send a message to the AI chatbot and get a response
+ * @param message - The user's message
+ * @returns The AI's reply
+ */
+export const sendChatMessage = async (message: string): Promise<{ reply: string }> => {
+  if (!message || message.trim().length === 0) {
+    throw new Error('Message cannot be empty');
+  }
+
+  try {
+    const response = await api.post('/chat', {
+      message: message.trim(),
+    });
+
+    if (!response.data?.reply) {
+      throw new Error('Invalid response format from server');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Chat API error:', error);
+    throw error;
+  }
+};
+
 /*
 import api from '@/services/api';
 
@@ -179,6 +206,10 @@ const result = await api.post('/progress', {
   problem_id: 'two-sum',
   status: 'solved'
 });
+
+// CHAT request
+const chatResponse = await sendChatMessage('How do I solve the two sum problem?');
+console.log(chatResponse.reply);
 
 // Error handling
 try {
