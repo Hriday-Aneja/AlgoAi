@@ -47,7 +47,7 @@ export default function Layout() {
 
   // Open Web Dev Playground
   const openPlayground = () => {
-    window.location.href = "/playground.html";
+    navigate("/playground");
   };
 
   const NavItem = ({ icon: Icon, label, path, color, badge }: { icon: any; label: string; path: string; color: string; badge?: string }) => (

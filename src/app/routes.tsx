@@ -16,6 +16,7 @@ import Playlists from "./pages/Playlists";
 import ELI5 from "./pages/ELI5";
 import Roadmap from "./pages/Roadmap";
 import CSQuiz from "./pages/CSQuiz";
+import WebDevPlayground from "./pages/WebDevPlayground";
 // New Feature Pages
 import CodeVisualizer from "./pages/CodeVisualizer";
 import MistakePatterns from "./pages/MistakePatterns";
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
       { path: "eli5", Component: ELI5 },
       { path: "roadmap", Component: Roadmap },
       { path: "quiz", Component: CSQuiz },
+      { path: "playground", Component: WebDevPlayground },
       // New AI Feature Routes
       { path: "visualizer", Component: CodeVisualizer },
       { path: "mistakes", Component: MistakePatterns },
