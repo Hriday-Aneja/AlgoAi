@@ -19,6 +19,7 @@ const mainNav = [
   { icon: FileText, label: "Notes", path: "/notes", color: "#22c55e" },
   { icon: Youtube, label: "Playlists", path: "/playlists", color: "#ef4444" },
   { icon: BarChart2, label: "Analytics", path: "/analytics", color: "#00d4ff" },
+  { icon: Lightbulb, label: "CS Fundamentals Quiz", path: "/quiz", color: "#ec4899" },
   { icon: RefreshCw, label: "Revision", path: "/revision", color: "#f59e0b" },
   { icon: Trophy, label: "Daily Challenge", path: "/daily", color: "#ff6500" },
   { icon: Swords, label: "Mock Interview", path: "/mock-interview", color: "#a855f7" },
