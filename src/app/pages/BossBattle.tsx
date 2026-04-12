@@ -1,50 +1,51 @@
+/**
+ * Boss Battle Page - Integrated with Validators
+ * Complete implementation with test case validation
+ */
+
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Shield, Zap, Clock, Star, Trophy, X, Play,
-  ChevronRight, Flame, Crown, Swords, AlertTriangle, CheckCircle2, RefreshCw
+  ChevronRight, Flame, Crown, Swords, AlertTriangle, CheckCircle2, RefreshCw, Code
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
+import { allBattles } from "../data/bossBattleData";
+import { getValidator } from "../data/bossBattleValidators";
 
 type Screen = "intro" | "battle" | "result";
 
-const BOSSES = [
+const BOSS_THEMES = [
   {
-    id: 1, name: "Array Overlord", level: "EASY", hp: 100, color: "#22c55e",
-    glow: "rgba(34,197,94,0.4)", bg: "rgba(34,197,94,0.08)",
-    avatar: "👾", reward: 500, timeLimit: 300,
-    problem: {
-      title: "Two Sum",
-      description: "Given an array of integers nums and an integer target, return indices of the two numbers that add up to target.",
-      examples: ["Input: nums=[2,7,11,15], target=9 → Output: [0,1]"],
-      constraints: ["2 ≤ nums.length ≤ 10⁴", "-10⁹ ≤ nums[i] ≤ 10⁹"],
-      starter: `function twoSum(nums, target) {\n  // Defeat the Array Overlord!\n  \n}`
-    }
+    name: "Array Overlord",
+    level: "EASY",
+    color: "#22c55e",
+    glow: "rgba(34,197,94,0.4)",
+    bg: "rgba(34,197,94,0.08)",
+    avatar: "👾",
+    hp: 100,
+    timeLimit: 300,
   },
   {
-    id: 2, name: "Tree Titan", level: "MEDIUM", hp: 200, color: "#f59e0b",
-    glow: "rgba(245,158,11,0.4)", bg: "rgba(245,158,11,0.08)",
-    avatar: "🌲", reward: 1200, timeLimit: 240,
-    problem: {
-      title: "Maximum Depth of Binary Tree",
-      description: "Given the root of a binary tree, return its maximum depth.",
-      examples: ["Input: root=[3,9,20,null,null,15,7] → Output: 3"],
-      constraints: ["0 ≤ number of nodes ≤ 10⁴", "-100 ≤ Node.val ≤ 100"],
-      starter: `function maxDepth(root) {\n  // Climb the Tree Titan!\n  \n}`
-    }
+    name: "Tree Titan",
+    level: "MEDIUM",
+    color: "#f59e0b",
+    glow: "rgba(245,158,11,0.4)",
+    bg: "rgba(245,158,11,0.08)",
+    avatar: "🌲",
+    hp: 100,
+    timeLimit: 300,
   },
   {
-    id: 3, name: "Graph God", level: "HARD", hp: 300, color: "#ef4444",
-    glow: "rgba(239,68,68,0.4)", bg: "rgba(239,68,68,0.08)",
-    avatar: "🕸️", reward: 2500, timeLimit: 180,
-    problem: {
-      title: "Course Schedule",
-      description: "Given numCourses and prerequisites, determine if you can finish all courses (detect cycle in directed graph).",
-      examples: ["Input: n=2, [[1,0]] → Output: true", "Input: n=2, [[1,0],[0,1]] → Output: false"],
-      constraints: ["1 ≤ n ≤ 2000"],
-      starter: `function canFinish(numCourses, prerequisites) {\n  // Defeat the Graph God!\n  \n}`
-    }
-  }
+    name: "Graph God",
+    level: "HARD",
+    color: "#ef4444",
+    glow: "rgba(239,68,68,0.4)",
+    bg: "rgba(239,68,68,0.08)",
+    avatar: "🕸️",
+    hp: 100,
+    timeLimit: 300,
+  },
 ];
 
 const HINTS_PER_BOSS = [
@@ -94,13 +95,15 @@ export default function BossBattle() {
   const [score, setScore] = useState(0);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  const [code, setCode] = useState(BOSSES[0].problem.starter);
+  const [code, setCode] = useState(allBattles[0].boilerplate);
   const [bossHp, setBossHp] = useState(100);
   const [won, setWon] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [battleResult, setBattleResult] = useState<any>(null);
   const intervalRef = useRef<any>(null);
 
-  const boss = BOSSES[selectedBoss];
+  const battle = allBattles[selectedBoss];
+  const theme = BOSS_THEMES[selectedBoss];
   const hints = HINTS_PER_BOSS[selectedBoss];
 
   useEffect(() => {
@@ -115,27 +118,30 @@ export default function BossBattle() {
 
   const startBattle = (bossIdx: number) => {
     setSelectedBoss(bossIdx);
-    setCode(BOSSES[bossIdx].problem.starter);
-    setTimer(BOSSES[bossIdx].timeLimit);
-    setBossHp(BOSSES[bossIdx].hp);
+    setCode(allBattles[bossIdx].boilerplate);
+    setTimer(BOSS_THEMES[bossIdx].timeLimit);
+    setBossHp(BOSS_THEMES[bossIdx].hp);
     setScore(0);
     setHintsUsed(0);
     setShowHint(false);
     setSubmitted(false);
     setWon(false);
+    setBattleResult(null);
     setScreen("battle");
   };
 
   const submitCode = () => {
     clearInterval(intervalRef.current);
     setSubmitted(true);
-    const timeBonus = Math.floor(timer * 2);
-    const hintPenalty = hintsUsed * 100;
-    const baseScore = boss.reward;
-    const finalScore = Math.max(0, baseScore + timeBonus - hintPenalty);
-    setScore(finalScore);
-    setWon(true);
-    setBossHp(0);
+    
+    const validator = getValidator(battle.id);
+    const result = validator(code);
+    
+    setBattleResult(result);
+    setScore(result.score);
+    setWon(result.passed);
+    setBossHp(result.passed ? 0 : bossHp);
+    
     setTimeout(() => setScreen("result"), 1500);
   };
 
@@ -181,55 +187,58 @@ export default function BossBattle() {
             </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
-              {BOSSES.map((b, i) => (
-                <motion.div
-                  key={b.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.15 + 0.3 }}
-                  whileHover={{ scale: 1.05, y: -8 }}
-                  className="relative overflow-hidden rounded-2xl p-6 cursor-pointer"
-                  style={{ background: b.bg, border: `1px solid ${b.color}30`, boxShadow: `0 0 30px ${b.glow}15` }}
-                  onClick={() => startBattle(i)}
-                >
-                  <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: b.color, filter: 'blur(20px)' }} />
-                  <div className="text-center mb-4">
-                    <div style={{ fontSize: '48px', filter: `drop-shadow(0 0 10px ${b.glow})` }}>{b.avatar}</div>
-                    <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{b.name}</div>
-                    <div
-                      className="inline-block px-3 py-0.5 rounded-full mt-1"
-                      style={{ fontSize: '10px', fontWeight: 800, background: `${b.color}20`, color: b.color, border: `1px solid ${b.color}40` }}
-                    >
-                      {b.level}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
-                      <span style={{ fontSize: '11px', color: b.color, fontWeight: 700 }}>{b.hp}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                      <div className="h-full rounded-full" style={{ width: '100%', background: b.color, boxShadow: `0 0 8px ${b.color}` }} />
-                    </div>
-                    <div className="flex justify-between mt-3">
-                      <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(b.timeLimit / 60)}:{String(b.timeLimit % 60).padStart(2,'0')}</span>
-                      <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {b.reward.toLocaleString()} XP</span>
-                    </div>
-                  </div>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
-                    style={{
-                      background: `linear-gradient(135deg, ${b.color}, ${b.color}99)`,
-                      color: 'white', fontSize: '13px', fontWeight: 700,
-                      boxShadow: `0 0 20px ${b.glow}30`
-                    }}
+              {allBattles.map((b, i) => {
+                const t = BOSS_THEMES[i];
+                return (
+                  <motion.div
+                    key={b.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.15 + 0.3 }}
+                    whileHover={{ scale: 1.05, y: -8 }}
+                    className="relative overflow-hidden rounded-2xl p-6 cursor-pointer"
+                    style={{ background: t.bg, border: `1px solid ${t.color}30`, boxShadow: `0 0 30px ${t.glow}15` }}
+                    onClick={() => startBattle(i)}
                   >
-                    <Swords className="w-4 h-4" />
-                    Fight!
-                  </motion.button>
-                </motion.div>
-              ))}
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: t.color, filter: 'blur(20px)' }} />
+                    <div className="text-center mb-4">
+                      <div style={{ fontSize: '48px', filter: `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
+                      <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{t.name}</div>
+                      <div
+                        className="inline-block px-3 py-0.5 rounded-full mt-1"
+                        style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
+                      >
+                        {t.level} - {b.difficulty}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
+                        <span style={{ fontSize: '11px', color: t.color, fontWeight: 700 }}>{t.hp}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div className="h-full rounded-full" style={{ width: '100%', background: t.color, boxShadow: `0 0 8px ${t.color}` }} />
+                      </div>
+                      <div className="flex justify-between mt-3">
+                        <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
+                        <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {b.points.toLocaleString()} XP</span>
+                      </div>
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
+                      style={{
+                        background: `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
+                        color: 'white', fontSize: '13px', fontWeight: 700,
+                        boxShadow: `0 0 20px ${t.glow}30`
+                      }}
+                    >
+                      <Swords className="w-4 h-4" />
+                      Fight!
+                    </motion.button>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         )}
@@ -247,20 +256,20 @@ export default function BossBattle() {
             <div
               className="flex items-center justify-between px-6 py-3 flex-shrink-0"
               style={{
-                background: `linear-gradient(90deg, ${boss.bg}, transparent)`,
-                borderBottom: `1px solid ${boss.color}25`
+                background: `linear-gradient(90deg, ${theme.bg}, transparent)`,
+                borderBottom: `1px solid ${theme.color}25`
               }}
             >
               <div className="flex items-center gap-4">
-                <div className="text-3xl" style={{ filter: `drop-shadow(0 0 10px ${boss.glow})` }}>{boss.avatar}</div>
+                <div className="text-3xl" style={{ filter: `drop-shadow(0 0 10px ${theme.glow})` }}>{theme.avatar}</div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{boss.name}</span>
+                    <span className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{theme.name}</span>
                     <span
                       className="px-2 py-0.5 rounded-full"
-                      style={{ fontSize: '10px', fontWeight: 700, background: `${boss.color}20`, color: boss.color }}
+                      style={{ fontSize: '10px', fontWeight: 700, background: `${theme.color}20`, color: theme.color }}
                     >
-                      {boss.level}
+                      {theme.level}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
@@ -270,10 +279,10 @@ export default function BossBattle() {
                         animate={{ width: `${bossHp}%` }}
                         transition={{ duration: 0.5 }}
                         className="h-full rounded-full"
-                        style={{ background: `linear-gradient(90deg, ${boss.color}, ${boss.color}aa)`, boxShadow: `0 0 8px ${boss.glow}` }}
+                        style={{ background: `linear-gradient(90deg, ${theme.color}, ${theme.color}aa)`, boxShadow: `0 0 8px ${theme.glow}` }}
                       />
                     </div>
-                    <span style={{ fontSize: '11px', color: boss.color, fontWeight: 700 }}>{bossHp}%</span>
+                    <span style={{ fontSize: '11px', color: theme.color, fontWeight: 700 }}>{bossHp}%</span>
                   </div>
                 </div>
               </div>
@@ -283,7 +292,7 @@ export default function BossBattle() {
                   <Star className="w-4 h-4" style={{ color: '#f59e0b' }} />
                   <span className="text-white" style={{ fontSize: '13px', fontWeight: 700 }}>{score.toLocaleString()} XP</span>
                 </div>
-                <CountdownTimer seconds={timer} color={boss.color} />
+                <CountdownTimer seconds={timer} color={theme.color} />
                 <button
                   onClick={() => setScreen("intro")}
                   className="p-2 rounded-xl transition-all"
@@ -301,36 +310,44 @@ export default function BossBattle() {
                 className="w-96 flex-shrink-0 p-5 overflow-y-auto"
                 style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}
               >
-                <h2 className="text-white mb-3" style={{ fontSize: '16px', fontWeight: 800 }}>{boss.problem.title}</h2>
+                <h2 className="text-white mb-3" style={{ fontSize: '16px', fontWeight: 800 }}>{battle.title}</h2>
                 <p style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.7, marginBottom: '12px' }}>
-                  {boss.problem.description}
+                  {battle.description}
                 </p>
 
                 <div className="mb-4">
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#ff6500', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
-                    Examples
+                    Test Cases ({battle.testCases.length})
                   </div>
-                  {boss.problem.examples.map((ex, i) => (
+                  {battle.testCases.slice(0, 3).map((tc, i) => (
                     <div
                       key={i}
                       className="p-3 rounded-xl font-mono mb-2"
-                      style={{ fontSize: '12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b7280' }}
+                      style={{ fontSize: '11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b7280' }}
                     >
-                      {ex}
+                      <div style={{ color: '#4a5568', marginBottom: '4px' }}>Test {i + 1}: {tc.description}</div>
+                      <div>Expected: {typeof tc.expected === 'object' ? JSON.stringify(tc.expected) : String(tc.expected)}</div>
                     </div>
                   ))}
+                  {battle.testCases.length > 3 && (
+                    <div style={{ fontSize: '11px', color: '#4a5568', fontStyle: 'italic' }}>
+                      +{battle.testCases.length - 3} more test cases hidden
+                    </div>
+                  )}
                 </div>
 
                 <div className="mb-5">
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#4a5568', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
-                    Constraints
+                    Problem Details
                   </div>
-                  {boss.problem.constraints.map((c, i) => (
-                    <div key={i} className="flex items-center gap-2 mb-1">
-                      <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
-                      <span style={{ fontSize: '12px', color: '#4a5568' }}>{c}</span>
-                    </div>
-                  ))}
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
+                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Difficulty: {battle.difficulty}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
+                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Max Score: {battle.points} XP</span>
+                  </div>
                 </div>
 
                 {/* Hint Button */}
@@ -394,7 +411,7 @@ export default function BossBattle() {
                   <div className="flex items-center gap-2">
                     <div
                       className="w-2 h-2 rounded-full pulse-animation"
-                      style={{ background: boss.color, boxShadow: `0 0 6px ${boss.color}` }}
+                      style={{ background: theme.color, boxShadow: `0 0 6px ${theme.color}` }}
                     />
                     <span style={{ fontSize: '12px', color: '#4a5568' }}>Battle in progress...</span>
                   </div>
@@ -411,9 +428,9 @@ export default function BossBattle() {
                       onClick={submitCode}
                       className="px-6 py-2 rounded-xl flex items-center gap-2 cyber-btn"
                       style={{
-                        background: `linear-gradient(135deg, ${boss.color}, ${boss.color}aa)`,
+                        background: `linear-gradient(135deg, ${theme.color}, ${theme.color}aa)`,
                         color: 'white', fontSize: '13px', fontWeight: 700,
-                        boxShadow: `0 0 20px ${boss.glow}30`
+                        boxShadow: `0 0 20px ${theme.glow}30`
                       }}
                     >
                       <Swords className="w-4 h-4" />
@@ -467,31 +484,34 @@ export default function BossBattle() {
                 transition={{ delay: 0.5 }}
                 style={{ fontSize: '16px', color: '#6b7280', marginBottom: '32px' }}
               >
-                {won ? `You defeated ${boss.name}!` : `${boss.name} was too powerful this time!`}
+                {won ? `You defeated ${theme.name}!` : `${theme.name} was too powerful this time!`}
               </motion.p>
 
-              {won && (
+              {battleResult && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7 }}
-                  className="grid grid-cols-3 gap-4 mb-8"
+                  className="mb-8 text-left"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '20px' }}
                 >
-                  {[
-                    { label: "XP Earned", value: `+${score.toLocaleString()}`, color: '#f59e0b', icon: '⭐' },
-                    { label: "Time Left", value: `${Math.floor(timer / 60)}:${String(timer % 60).padStart(2, '0')}`, color: '#00d4ff', icon: '⏱' },
-                    { label: "Hints Used", value: hintsUsed, color: '#a855f7', icon: '💡' },
-                  ].map(({ label, value, color, icon }) => (
-                    <div
-                      key={label}
-                      className="rounded-2xl p-4"
-                      style={{ background: `${color}10`, border: `1px solid ${color}25` }}
-                    >
-                      <div style={{ fontSize: '24px', marginBottom: '4px' }}>{icon}</div>
-                      <div style={{ fontSize: '20px', fontWeight: 800, color }}>{value}</div>
-                      <div style={{ fontSize: '11px', color: '#4a5568' }}>{label}</div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>Tests Passed</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#22c55e' }}>
+                        {battleResult.testsPassed}/{battleResult.totalTests}
+                      </div>
                     </div>
-                  ))}
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>Score</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b' }}>
+                        +{battleResult.score} XP
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.6, padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                    {battleResult.feedback}
+                  </div>
                 </motion.div>
               )}
 
@@ -521,9 +541,9 @@ export default function BossBattle() {
                   onClick={() => setScreen("intro")}
                   className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
                   style={{
-                    background: 'linear-gradient(135deg, #ff6500, #ff9500)',
+                    background: `linear-gradient(135deg, ${theme.color}, ${theme.color}88)`,
                     color: 'white', fontSize: '14px', fontWeight: 700,
-                    boxShadow: '0 0 20px rgba(255,101,0,0.4)'
+                    boxShadow: `0 0 20px ${theme.glow}40`
                   }}
                 >
                   <Swords className="w-4 h-4" />
