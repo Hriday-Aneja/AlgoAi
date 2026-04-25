@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bot, Send, User, Sparkles, RefreshCw, Lightbulb } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { sendMessageToGemini, resetGeminiChat } from "../../services/gemini";
+import { sendMessageToGroq, resetGroqChat } from "../../services/groq";
 
 // ─── Types ────────────────────────────────────────────────────
 interface Message {
@@ -67,7 +67,7 @@ export default function Chatbot() {
     setIsTyping(true);
 
     try {
-      const aiContent = await sendMessageToGemini(text, topic);
+      const aiContent = await sendMessageToGroq(text, topic);
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
@@ -80,7 +80,7 @@ export default function Chatbot() {
         id: (Date.now() + 1).toString(),
         role: "ai",
         content:
-          "⚠️ Could not reach AlgoAI. Check your VITE_GEMINI_API_KEY in .env and try again.",
+          "⚠️ Could not reach AlgoAI. Check your VITE_GROQ_API_KEY in .env and try again.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errMsg]);
@@ -91,7 +91,7 @@ export default function Chatbot() {
   };
 
   const clearChat = () => {
-    resetGeminiChat();
+    resetGroqChat();
     setMessages([
       {
         id: "reset",

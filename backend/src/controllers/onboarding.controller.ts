@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { ZodError } from "zod";
 import {
   createOrUpdateOnboardingRoadmap,
@@ -9,9 +9,10 @@ import {
   completeDaySchema,
   onboardingSchema,
 } from "../validators/onboarding.validator";
+import { AuthenticatedRequest } from "../types/express";
 
 export const submitOnboarding = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -44,7 +45,7 @@ export const submitOnboarding = async (
 };
 
 export const updateOnboarding = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -77,7 +78,7 @@ export const updateOnboarding = async (
 };
 
 export const getOnboardingRoadmap = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -103,7 +104,7 @@ export const getOnboardingRoadmap = async (
 };
 
 export const completeOnboardingDay = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {

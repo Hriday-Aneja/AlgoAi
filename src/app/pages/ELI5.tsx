@@ -2,23 +2,39 @@ import { useState } from "react";
 import { Brain, Sparkles, ChevronRight, Search, Lightbulb } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { eli5Concepts } from "../data/mockData";
+import { sendMessageToGroq } from "../../services/groq";
 
 const allConcepts = [
   { key: "recursion", label: "Recursion", emoji: "🔄", category: "DSA" },
   { key: "binary search", label: "Binary Search", emoji: "🔍", category: "DSA" },
   { key: "dynamic programming", label: "Dynamic Programming", emoji: "🧠", category: "DSA" },
   { key: "graph", label: "Graphs", emoji: "🗺️", category: "DSA" },
+  { key: "linked list", label: "Linked List", emoji: "🔗", category: "DSA" },
+  { key: "stack", label: "Stack", emoji: "📚", category: "DSA" },
+  { key: "queue", label: "Queue", emoji: "📋", category: "DSA" },
+  { key: "hash table", label: "Hash Table", emoji: "#️⃣", category: "DSA" },
+  { key: "binary tree", label: "Binary Tree", emoji: "🌳", category: "DSA" },
+  { key: "sorting algorithms", label: "Sorting Algorithms", emoji: "🔢", category: "DSA" },
+  { key: "pointer", label: "Pointer", emoji: "👆", category: "Programming" },
+  { key: "api", label: "API", emoji: "🔌", category: "Web Dev" },
+  { key: "neural network", label: "Neural Network", emoji: "🤖", category: "AI/ML" },
+  { key: "array", label: "Array", emoji: "📊", category: "DSA" },
+  { key: "linkedlist", label: "LinkedList", emoji: "🔗", category: "DSA" },
+  { key: "tree", label: "Tree", emoji: "🌲", category: "DSA" },
+  { key: "heap", label: "Heap", emoji: "🏔️", category: "DSA" },
+  { key: "trie", label: "Trie", emoji: "📚", category: "DSA" },
+  { key: "graph traversal", label: "Graph Traversal", emoji: "🚶", category: "DSA" },
+  { key: "greedy algorithm", label: "Greedy Algorithm", emoji: "⚡", category: "DSA" },
+  { key: "backtracking", label: "Backtracking", emoji: "🔙", category: "DSA" },
+  { key: "sliding window", label: "Sliding Window", emoji: "🪟", category: "DSA" },
+  { key: "two pointers", label: "Two Pointers", emoji: "👆👇", category: "DSA" },
 ];
 
-const moreTopics = [
-  { label: "Linked List", emoji: "🔗", category: "DSA" },
-  { label: "Stack & Queue", emoji: "📚", category: "DSA" },
-  { label: "Hash Table", emoji: "#️⃣", category: "DSA" },
-  { label: "Binary Tree", emoji: "🌳", category: "DSA" },
-  { label: "Sorting Algorithms", emoji: "🔢", category: "DSA" },
-  { label: "Pointer", emoji: "👆", category: "Programming" },
-  { label: "API", emoji: "🔌", category: "Web Dev" },
-  { label: "Neural Network", emoji: "🤖", category: "AI/ML" },
+const popularTopics = [
+  { key: "recursion", label: "Recursion", emoji: "🔄", category: "DSA" },
+  { key: "binary search", label: "Binary Search", emoji: "🔍", category: "DSA" },
+  { key: "dynamic programming", label: "Dynamic Programming", emoji: "🧠", category: "DSA" },
+  { key: "graph", label: "Graphs", emoji: "🗺️", category: "DSA" },
 ];
 
 export default function ELI5() {
@@ -30,17 +46,71 @@ export default function ELI5() {
 
   const currentConcept = selected ? eli5Concepts[selected] : null;
 
+  // Filter concepts based on search
+  const filteredConcepts = allConcepts.filter(c =>
+    !search || c.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Show more topics section only when searching
+  const showMoreTopics = search.length > 0;
+
   const handleCustomExplain = async () => {
     if (!custom.trim()) return;
     setIsGenerating(true);
     setCustomResult(null);
-    await new Promise(r => setTimeout(r, 1800));
-    setCustomResult({
-      simple: `${custom} is a fundamental concept that helps computers solve problems more efficiently by breaking them down into smaller, manageable pieces.`,
-      analogy: `Think of ${custom} like organizing your room. Instead of cleaning everything at once (which is overwhelming), you tackle one section at a time, systematically working through the space.`,
-      example: `Example: If you're implementing ${custom}, start with the simplest case first, then build up complexity. Test each step to make sure it works correctly!`
-    });
-    setIsGenerating(false);
+    setSelected(null); // Clear selected concept
+    setSearch(""); // Clear search when using custom explain
+
+    try {
+      const prompt = `Explain "${custom.trim()}" like I'm 5 years old. Provide:
+1. A simple explanation (1-2 sentences)
+2. A real-world analogy
+3. A concrete example
+
+Format your response as JSON:
+{
+  "simple": "simple explanation here",
+  "analogy": "real world analogy here",
+  "example": "concrete example here"
+}`;
+
+      const response = await sendMessageToGroq(prompt, "education");
+
+      // Try to parse JSON from response
+      let parsedResult;
+      try {
+        // Look for JSON in the response
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedResult = JSON.parse(jsonMatch[0]);
+        } else {
+          // Fallback: create a structured response from the text
+          parsedResult = {
+            simple: response.split('.')[0] + '.',
+            analogy: response.includes('like') ? response.split('like')[1]?.split('.')[0] || 'Think of it like learning something new.' : 'Think of it like learning something new.',
+            example: response.includes('example') ? response.split('example')[1]?.split('.')[0] || `For example, ${custom} helps solve problems.` : `For example, ${custom} helps solve problems.`
+          };
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, create a fallback response
+        parsedResult = {
+          simple: `${custom} is a concept that helps solve problems in computer science.`,
+          analogy: `Think of ${custom} like a tool in your toolbox - you use it when you need to solve specific types of problems.`,
+          example: `For example, ${custom} is used in many real-world applications to make things work more efficiently.`
+        };
+      }
+
+      setCustomResult(parsedResult);
+    } catch (error) {
+      console.error('Custom explain error:', error);
+      setCustomResult({
+        simple: `Sorry, I couldn't generate an explanation for "${custom}" right now.`,
+        analogy: "Think of it like trying to explain something very complex - sometimes the right words are hard to find!",
+        example: "Please try again or ask about a different concept."
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -74,11 +144,11 @@ export default function ELI5() {
             />
           </div>
 
-          {/* Main Concepts */}
+          {/* Popular Concepts */}
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
             <div className="text-[#8b949e] mb-3" style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Popular Topics</div>
             <div className="space-y-2">
-              {allConcepts.filter(c => !search || c.label.toLowerCase().includes(search.toLowerCase())).map(c => (
+              {popularTopics.filter(c => !search || c.label.toLowerCase().includes(search.toLowerCase())).map(c => (
                 <button
                   key={c.key}
                   onClick={() => { setSelected(c.key); setCustomResult(null); }}
@@ -99,21 +169,43 @@ export default function ELI5() {
             </div>
           </div>
 
-          {/* More Topics */}
-          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
-            <div className="text-[#8b949e] mb-3" style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>More Topics</div>
-            <div className="flex flex-wrap gap-2">
-              {moreTopics.map(t => (
-                <button
-                  key={t.label}
-                  className="flex items-center gap-1.5 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-[#8b949e] hover:text-white rounded-lg px-3 py-1.5 transition-colors"
-                  style={{ fontSize: '11px' }}
-                >
-                  {t.emoji} {t.label}
-                </button>
-              ))}
+          {/* All Topics (filtered by search) */}
+          {(filteredConcepts.length > 0 || search) && (
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
+              <div className="text-[#8b949e] mb-3" style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                {search ? `Search Results (${filteredConcepts.length})` : 'All Topics'}
+              </div>
+              {filteredConcepts.length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {filteredConcepts.map(c => (
+                    <button
+                      key={c.key}
+                      onClick={() => { setSelected(c.key); setCustomResult(null); }}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
+                        selected === c.key
+                          ? "border-purple-500 bg-purple-500/10"
+                          : "border-[#30363d] bg-[#21262d] hover:border-[#8b949e]"
+                      }`}
+                    >
+                      <span style={{ fontSize: '20px' }}>{c.emoji}</span>
+                      <div>
+                        <div className={`${selected === c.key ? "text-purple-300" : "text-white"}`} style={{ fontSize: '13px', fontWeight: 600 }}>{c.label}</div>
+                        <div className="text-[#8b949e]" style={{ fontSize: '10px' }}>{c.category}</div>
+                      </div>
+                      {selected === c.key && <ChevronRight className="w-4 h-4 text-purple-400 ml-auto" />}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-[#8b949e] mb-2" style={{ fontSize: '14px' }}>🔍 No topics available</div>
+                  <div className="text-[#6b7280]" style={{ fontSize: '12px' }}>
+                    Try searching for something else or use "Ask AI to Explain"
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Custom Explain */}
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">

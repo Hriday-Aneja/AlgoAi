@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ChevronLeft,
@@ -27,6 +27,7 @@ import {
 import Editor from "@monaco-editor/react";
 import { executeCode } from "../../../compiler";
 import { problems } from "../data/mockData";
+import { useUserProgress } from "../contexts/UserProgressContext";
 
 const diffConfig: Record<
   string,
@@ -55,6 +56,7 @@ const diffConfig: Record<
 export default function ProblemDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { incrementQuestionsAttempted, incrementQuestionsSolved, updateTopicStrength } = useUserProgress();
   const problem = problems.find((p) => p.id === id) || problems[0];
 
   const [code, setCode] = useState(problem.starterCode);
@@ -99,6 +101,9 @@ export default function ProblemDetail() {
     setRunResult(null);
     setCompilerOutput(null);
 
+    // Increment attempts when user tries to run code
+    incrementQuestionsAttempted();
+
     const testCases = problem.testCases ?? [];
     try {
       if (testCases.length === 0) {
@@ -112,6 +117,12 @@ export default function ProblemDetail() {
         } else {
           setCompilerOutput(result.stdout || "(no output)");
           setRunResult("success");
+
+          // Update user progress for solved problem
+          incrementQuestionsSolved(10); // 10 XP for solving
+          // Update topic strength
+          const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
+          updateTopicStrength(problem.topic[0], strengthIncrease);
         }
         return;
       }
@@ -145,6 +156,12 @@ export default function ProblemDetail() {
       setCompilerOutput(
         `Passed ${testCases.length} test case${testCases.length === 1 ? "" : "s"}.`,
       );
+
+      // Update user progress for solved problem
+      incrementQuestionsSolved(10); // 10 XP for solving
+      // Update topic strength (simplified - in real app would be based on difficulty and time)
+      const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
+      updateTopicStrength(problem.topic[0], strengthIncrease);
     } catch (error) {
       setRunResult("error");
       setCompilerOutput(

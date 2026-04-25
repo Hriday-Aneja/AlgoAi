@@ -16,24 +16,28 @@ let aiProvider: AIProvider | null = null;
 
 const getAIProvider = () => {
   if (!aiProvider) {
-    const provider = (process.env.AI_PROVIDER || 'gemini') as 'openai' | 'gemini';
+    const provider = (process.env.AI_PROVIDER || 'groq') as 'openai' | 'gemini' | 'groq';
 
-    // Support both specific keys and the generic AI_API_KEY fallback
+    // Support specific keys and the generic AI_API_KEY fallback
     const apiKey =
       provider === 'gemini'
         ? process.env.GEMINI_API_KEY || process.env.AI_API_KEY
-        : process.env.OPENAI_API_KEY || process.env.AI_API_KEY;
+        : provider === 'openai'
+        ? process.env.OPENAI_API_KEY || process.env.AI_API_KEY
+        : process.env.GROQ_API_KEY || process.env.AI_API_KEY;
 
     if (!apiKey) {
       throw new Error(
-        `AI API key not set. Add GEMINI_API_KEY (or OPENAI_API_KEY) to your backend .env`
+        `AI API key not set. Add GROQ_API_KEY, OPENAI_API_KEY, or AI_API_KEY to your backend .env`
       );
     }
 
     const model =
       provider === 'gemini'
         ? process.env.GEMINI_MODEL || 'gemini-1.5-flash'
-        : process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+        : provider === 'openai'
+        ? process.env.OPENAI_MODEL || 'gpt-3.5-turbo'
+        : process.env.GROQ_MODEL || 'groq-1';
 
     aiProvider = AIProviderFactory.createProvider({ provider, apiKey, model });
   }
@@ -183,7 +187,7 @@ export const streamChatMessage = async (
   let fullReply = '';
 
   try {
-    const providerName = (process.env.AI_PROVIDER || 'gemini').toLowerCase();
+    const providerName = (process.env.AI_PROVIDER || 'groq').toLowerCase();
 
     if (providerName === 'gemini') {
       // ── Gemini streaming ──────────────────────────────────────
@@ -203,6 +207,38 @@ export const streamChatMessage = async (
           res.write(`data: ${JSON.stringify({ text })}\n\n`);
         }
       }
+    } else if (providerName === 'groq') {
+      // ── Groq streaming fallback (single event payload) ───────
+      const apiKey = process.env.GROQ_API_KEY || process.env.AI_API_KEY || '';
+      const model = process.env.GROQ_MODEL || 'groq-1';
+
+      const response = await fetch('https://api.groq.ai/v1/llm', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          input: fullContext,
+          max_output_tokens: 1024,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Groq streaming request failed');
+      }
+
+      const data: any = await response.json();
+      const output = (data?.output as any)?.[0];
+      const text =
+        Array.isArray(output?.content)
+          ? output.content.map((item: any) => item?.text || '').join('')
+          : output?.text || data?.output || data?.text || '';
+
+      fullReply += text;
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
     } else {
       // ── OpenAI streaming ──────────────────────────────────────
       const OpenAI = (await import('openai')).default;

@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "acorn": "^8.16.0",
     "axios": "^1.15.0",
+    "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "escodegen": "^2.1.0",
@@ -28,6 +29,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
     "@types/escodegen": "^0.0.10",
     "@types/estraverse": "^5.1.7",

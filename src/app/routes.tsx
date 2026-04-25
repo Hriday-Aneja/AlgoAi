@@ -1,5 +1,8 @@
-import { createBrowserRouter, Navigate } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Problems from "./pages/Problems";
@@ -28,12 +31,24 @@ import CodeDNA from "./pages/CodeDNA";
 
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    Component: Login,
+  },
+  {
+    path: "/signup",
+    Component: Signup,
+  },
+  {
     path: "/onboarding",
     Component: Onboarding,
   },
   {
     path: "/",
-    Component: Layout,
+    Component: () => (
+      <ProtectedRoute>
+        <Layout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", Component: Dashboard },

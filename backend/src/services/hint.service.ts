@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import { getProblemById } from "../repositories/problem.repository";
 import {
   createHint,
@@ -23,17 +22,14 @@ const createHttpError = (statusCode: number, message: string): HttpError => {
   return error;
 };
 
-const getOpenAIClient = (): OpenAI => {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.AI_API_KEY;
+const getGroqApiKey = (): string => {
+  const apiKey = process.env.GROQ_API_KEY || process.env.AI_API_KEY;
 
   if (!apiKey) {
-    throw createHttpError(
-      500,
-      "OPENAI_API_KEY (or AI_API_KEY) is not configured.",
-    );
+    throw createHttpError(500, "GROQ_API_KEY (or AI_API_KEY) is not configured.");
   }
 
-  return new OpenAI({ apiKey });
+  return apiKey;
 };
 
 const analyzeStuckCondition = (
@@ -107,7 +103,7 @@ const buildHintPrompt = (params: {
   ].join("\n");
 };
 
-const generateHintWithOpenAI = async (params: {
+const generateHintWithGroq = async (params: {
   problemTitle: string;
   topic: string;
   difficulty: string;
@@ -115,23 +111,49 @@ const generateHintWithOpenAI = async (params: {
   nextHintLevel: number;
   existingHints: { hintLevel: number; hintText: string }[];
 }): Promise<string> => {
-  const client = getOpenAIClient();
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
+  const apiKey = getGroqApiKey();
+  const model = process.env.GROQ_MODEL || "groq-1";
   const prompt = buildHintPrompt(params);
 
   try {
-    const completion = await client.chat.completions.create({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.5,
-      max_tokens: 220,
+    const response = await fetch("https://api.groq.ai/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        input: prompt,
+        max_output_tokens: 220,
+        temperature: 0.5,
+      }),
     });
 
-    const generatedHint = completion.choices[0]?.message?.content?.trim();
+    if (!response.ok) {
+      throw new Error("Groq request failed");
+    }
+
+    const data = await response.json() as any;
+    const output = data?.output?.[0];
+    let generatedHint = "";
+
+    if (Array.isArray(output?.content)) {
+      generatedHint = output.content.map((item: any) => item?.text || "").join("");
+    }
+
+    if (!generatedHint && typeof output?.text === "string") {
+      generatedHint = output.text;
+    }
+
+    if (!generatedHint && typeof data?.output === "string") {
+      generatedHint = data.output;
+    }
+
+    generatedHint = generatedHint.trim();
 
     if (!generatedHint) {
-      throw new Error("OpenAI returned empty hint content.");
+      throw new Error("Groq returned empty hint content.");
     }
 
     return generatedHint;
@@ -174,7 +196,7 @@ export const generateSmartHint = async (
     };
   }
 
-  const generatedHint = await generateHintWithOpenAI({
+  const generatedHint = await generateHintWithGroq({
     problemTitle: problem.title,
     topic: problem.topic,
     difficulty: problem.difficulty,

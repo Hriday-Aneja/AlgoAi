@@ -42,11 +42,13 @@ export const buildRoadmapPrompt = (context: AiRoadmapContext): string => {
 };
 
 const getAIConfig = (): AIConfig | null => {
-  const provider = (process.env.AI_PROVIDER || "gemini") as "openai" | "gemini";
+  const provider = (process.env.AI_PROVIDER || "groq") as "openai" | "gemini" | "groq";
   const apiKey =
     provider === "gemini"
       ? process.env.GEMINI_API_KEY || process.env.AI_API_KEY
-      : process.env.OPENAI_API_KEY || process.env.AI_API_KEY;
+      : provider === "openai"
+      ? process.env.OPENAI_API_KEY || process.env.AI_API_KEY
+      : process.env.GROQ_API_KEY || process.env.AI_API_KEY;
 
   if (!apiKey) {
     return null;
@@ -58,7 +60,9 @@ const getAIConfig = (): AIConfig | null => {
     model:
       provider === "gemini"
         ? process.env.GEMINI_MODEL || process.env.AI_MODEL
-        : process.env.OPENAI_MODEL || process.env.AI_MODEL,
+        : provider === "openai"
+        ? process.env.OPENAI_MODEL || process.env.AI_MODEL
+        : process.env.GROQ_MODEL || process.env.AI_MODEL || "groq-1",
   };
 };
 

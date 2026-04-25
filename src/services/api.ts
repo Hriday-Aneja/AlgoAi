@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 
 // ─── API Configuration ────────────────────────────────────────────────────────
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3005/api";
 const API_TIMEOUT = 10000; // 10 seconds
 
 // ─── Axios Instance Setup ─────────────────────────────────────────────────────
@@ -21,8 +21,11 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    // Add any request preprocessing here
-    // For example: add auth tokens, modify headers, etc.
+    // Add auth token from localStorage
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
 
     // Log requests in development
     if (import.meta.env.DEV) {
@@ -168,10 +171,45 @@ export const getWeakTopics = async (userId: string): Promise<{
 };
 
 /**
- * Send a message to the AI chatbot and get a response
- * @param message - The user's message
- * @returns The AI's reply
+ * Get advanced recommendations for a user
  */
+export const getAdvancedRecommendations = async (userId: string): Promise<{
+  recommendations: Array<{
+    problemId: string;
+    title: string;
+    difficulty: string;
+    topic: string;
+    reasoning: string;
+    confidence: number;
+  }>;
+  strategy: string;
+  weakTopicCount: number;
+}> => {
+  console.log('Calling advanced recommendations API for user:', userId);
+  const response = await api.get(`/advanced-recommendations/${userId}`);
+  console.log('Advanced recommendations API response:', response.data);
+  return response.data.data;
+};
+
+export const updateUserStats = async (updates: {
+  questionsAttempted?: number;
+  questionsSolved?: number;
+  xpGained?: number;
+  currentStreak?: number;
+  lastLoginDate?: string;
+  roadmapProgress?: Record<string, any>;
+  topicStrengths?: Record<string, number>;
+  dailyStats?: { questionsSolved?: number; xpGained?: number; timeSpent?: number };
+}): Promise<any> => {
+  const response = await api.put('/user/stats', updates);
+  return response.data;
+};
+
+export const getUserAnalytics = async (): Promise<any> => {
+  const response = await api.get('/user/analytics');
+  return response.data;
+};
+
 export const sendChatMessage = async (message: string): Promise<{ reply: string }> => {
   if (!message || message.trim().length === 0) {
     throw new Error('Message cannot be empty');
@@ -197,6 +235,22 @@ export const sendChatMessage = async (message: string): Promise<{ reply: string 
     console.error('Chat API error:', error);
     throw error;
   }
+};
+
+/**
+ * Submit onboarding data for a user
+ */
+export const submitOnboarding = async (data: {
+  experienceLevel: string;
+  goals: string;
+  preferredTopics: string[];
+  timeCommitment: string;
+  testScore: number;
+}): Promise<any> => {
+  console.log('Submitting onboarding data:', data);
+  const response = await api.post('/onboarding', data);
+  console.log('Onboarding submission response:', response.data);
+  return response.data;
 };
 
 /*

@@ -51,7 +51,7 @@ AlgoAI is an intelligent learning platform designed to help users improve their 
 
 ### APIs & Tools
 - JDoodle API (Code Execution)
-- AI APIs (OpenAI / Gemini - future scope)
+- Groq API (Chat, Feedback, Roadmap Generation)
 
 ---
 

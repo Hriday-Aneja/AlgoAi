@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   Flame, Star, Trophy, TrendingUp, Code2, CheckCircle2,
@@ -12,7 +12,9 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
 import { userStats, roadmap, dailyChallenge, topicStrengths, problems } from "../data/mockData";
-import api, { getHealth, getUserProgress, getWeakTopics } from "../../services/api";
+import { getHealth, getUserProgress, getWeakTopics, getAdvancedRecommendations } from "../../services/api";
+import { useAuth } from "../contexts/AuthContext";
+import { useUserProgress } from "../contexts/UserProgressContext";
 
 const activityData = [
   [0,1,0,2,1,0,0],[1,0,2,1,0,1,2],[0,2,1,0,1,2,1],[2,1,0,1,2,0,1],
@@ -99,22 +101,24 @@ function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }: {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const { progress, checkAndUpdateStreak } = useUserProgress();
   const [activeTab, setActiveTab] = useState<"roadmap" | "recent">("roadmap");
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/login");
+    } else {
+      // Check and update streak when user logs in
+      checkAndUpdateStreak();
+    }
+  }, [isAuthenticated, navigate, checkAndUpdateStreak]);
 
   // Health check state
   const [healthStatus, setHealthStatus] = useState<{
     status: 'loading' | 'success' | 'error';
     data?: any;
-    error?: string;
-  }>({ status: 'loading' });
-
-  // User progress state
-  const [userProgress, setUserProgress] = useState<{
-    status: 'loading' | 'success' | 'error';
-    data?: {
-      totalSolved: number;
-      totalAttempted: number;
-    };
     error?: string;
   }>({ status: 'loading' });
 
@@ -132,6 +136,20 @@ export default function Dashboard() {
     error?: string;
   }>({ status: 'loading' });
 
+  // Recommendations state
+  const [recommendations, setRecommendations] = useState<{
+    status: 'loading' | 'success' | 'error';
+    data?: Array<{
+      problemId: string;
+      title: string;
+      difficulty: string;
+      topic: string;
+      reasoning: string;
+      confidence: number;
+    }>;
+    error?: string;
+  }>({ status: 'loading' });
+
   const solvedPct = Math.round((userStats.totalSolved / 200) * 100);
   const diffData = [
     { name: "Easy", value: userStats.easy, fill: "#22c55e" },
@@ -139,9 +157,13 @@ export default function Dashboard() {
     { name: "Hard", value: userStats.hard, fill: "#ef4444" },
   ];
 
-  // Use real API data when available, fallback to mock data
-  const displayTotalSolved = userProgress.status === 'success' ? userProgress.data?.totalSolved || 0 : userStats.totalSolved;
-  const displayTotalAttempted = userProgress.status === 'success' ? userProgress.data?.totalAttempted || 0 : userStats.totalAttempted || userStats.totalSolved;
+  // Use real user progress data when available, fallback to mock data
+  const displayTotalSolved = progress?.questionsSolved || userStats.totalSolved;
+  const displayTotalAttempted = progress?.questionsAttempted || userStats.totalAttempted || userStats.totalSolved;
+  const displayCurrentStreak = progress?.currentStreak || 0;
+  const displayLongestStreak = progress?.longestStreak || 0;
+  const displayTotalXp = progress?.totalXp || 0;
+  const displayLevel = progress?.level || 1;
 
   const recentProblems = problems.filter(p => p.status === "solved").slice(0, 6);
   const sortedTopics = [...topicStrengths].sort((a, b) => b.strength - a.strength);
@@ -171,52 +193,17 @@ export default function Dashboard() {
     checkHealth();
   }, []);
 
-  // User progress API call
-  useEffect(() => {
-    const fetchUserProgress = async () => {
-      try {
-        console.log('Dashboard: Starting user progress fetch...');
-        const userId = 'user123'; // TODO: Get from auth context
-        const response = await getUserProgress(userId);
-        console.log('Dashboard: User progress response:', response);
-
-        // Safely calculate totals from the progress data
-        if (!response.data || !Array.isArray(response.data)) {
-          throw new Error('Invalid progress data format');
-        }
-
-        // Calculate totals from the progress data
-        const totalSolved = response.data.filter((item: any) => item.status === 'solved').length;
-        const totalAttempted = response.data.length;
-
-        console.log('Dashboard: ✅ Calculated totals - Solved:', totalSolved, 'Attempted:', totalAttempted);
-
-        setUserProgress({
-          status: 'success',
-          data: {
-            totalSolved,
-            totalAttempted,
-          },
-        });
-      } catch (error: any) {
-        console.error('Dashboard: ❌ User progress fetch failed:', error.message || error);
-        setUserProgress({
-          status: 'error',
-          error: error.response?.data?.message || error.message || 'Failed to fetch user progress',
-        });
-      }
-    };
-
-    fetchUserProgress();
-  }, []);
-
   // Weak topics API call
   useEffect(() => {
     const fetchWeakTopics = async () => {
       try {
-        console.log('Dashboard: Starting weak topics fetch...');
-        const userId = 'user123'; // TODO: Get from auth context
-        const response = await getWeakTopics(userId);
+        if (!user?.id) {
+          console.log('Dashboard: No user ID available for weak topics');
+          return;
+        }
+        
+        console.log('Dashboard: Starting weak topics fetch for userId:', user.id);
+        const response = await getWeakTopics(user.id);
         console.log('Dashboard: Weak topics response:', response);
 
         setWeakTopics({
@@ -233,7 +220,36 @@ export default function Dashboard() {
     };
 
     fetchWeakTopics();
-  }, []);
+  }, [user?.id]);
+
+  // Recommendations API call
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        if (!user?.id) {
+          console.log('Dashboard: No user ID available for recommendations');
+          return;
+        }
+
+        console.log('Dashboard: Starting recommendations fetch for userId:', user.id);
+        const response = await getAdvancedRecommendations(user.id);
+        console.log('Dashboard: Recommendations response:', response);
+
+        setRecommendations({
+          status: 'success',
+          data: response.recommendations,
+        });
+      } catch (error: any) {
+        console.error('Dashboard: Recommendations fetch failed:', error);
+        setRecommendations({
+          status: 'error',
+          error: error.response?.data?.message || error.message || 'Failed to fetch recommendations',
+        });
+      }
+    };
+
+    fetchRecommendations();
+  }, [user?.id]);
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
@@ -340,32 +356,23 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={Code2} label="Problems Solved" value={String(displayTotalSolved)} sub={`/ 200 target`} color="#00d4ff" delay={0} />
         <StatCard icon={Target} label="Problems Attempted" value={String(displayTotalAttempted)} sub="Total attempts" color="#22c55e" delay={1} />
-        <StatCard icon={Flame} label="Current Streak" value={`${userStats.streak}d`} sub="Personal best: 12d" color="#ff6500" delay={2} />
-        <StatCard icon={Trophy} label="Global Rank" value={`#${userStats.rank.toLocaleString()}`} sub="Top 15%" color="#f59e0b" delay={3} />
+        <StatCard icon={Flame} label="Current Streak" value={`${displayCurrentStreak}d`} sub={`Best: ${displayLongestStreak}d`} color="#ff6500" delay={2} />
+        <StatCard icon={Star} label="Total XP" value={String(displayTotalXp)} sub={`Level ${displayLevel}`} color="#f59e0b" delay={3} />
       </div>
 
       {/* User Progress Status Indicator */}
       <div className="flex items-center gap-2 justify-center">
-        {userProgress.status === 'loading' && (
-          <>
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-            <span style={{ fontSize: '11px', color: '#60a5fa' }}>Loading user progress...</span>
-          </>
-        )}
-        {userProgress.status === 'success' && (
+        {progress ? (
           <>
             <CheckCircle2 className="w-3 h-3" style={{ color: '#22c55e' }} />
             <span style={{ fontSize: '11px', color: '#22c55e' }}>
-              Progress data loaded
+              User data loaded
             </span>
           </>
-        )}
-        {userProgress.status === 'error' && (
+        ) : (
           <>
-            <AlertTriangle className="w-3 h-3" style={{ color: '#ef4444' }} />
-            <span style={{ fontSize: '11px', color: '#ef4444' }}>
-              Progress: {userProgress.error || 'Failed to load'}
-            </span>
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            <span style={{ fontSize: '11px', color: '#60a5fa' }}>Loading user data...</span>
           </>
         )}
       </div>
@@ -920,6 +927,114 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
+      </motion.div>
+
+      {/* AI Recommendations */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.9 }}
+        className="rounded-2xl p-5"
+        style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)'
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white flex items-center gap-2" style={{ fontSize: '14px', fontWeight: 700 }}>
+            <Zap className="w-4 h-4" style={{ color: '#00d4ff' }} />
+            AI Recommendations
+          </h3>
+          <div className="flex items-center gap-2">
+            {recommendations.status === 'loading' && (
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            )}
+            {recommendations.status === 'success' && (
+              <CheckCircle2 className="w-3 h-3" style={{ color: '#22c55e' }} />
+            )}
+            {recommendations.status === 'error' && (
+              <AlertTriangle className="w-3 h-3" style={{ color: '#ef4444' }} />
+            )}
+          </div>
+        </div>
+
+        {recommendations.status === 'loading' && (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p style={{ fontSize: '12px', color: '#6b7280' }}>Analyzing your progress...</p>
+            </div>
+          </div>
+        )}
+
+        {recommendations.status === 'error' && (
+          <div className="text-center py-8">
+            <AlertTriangle className="w-8 h-8 mx-auto mb-3" style={{ color: '#ef4444' }} />
+            <p style={{ fontSize: '12px', color: '#ef4444' }}>Failed to load recommendations</p>
+            <p style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>{recommendations.error}</p>
+          </div>
+        )}
+
+        {recommendations.status === 'success' && (!recommendations.data || recommendations.data.length === 0) && (
+          <div className="text-center py-8">
+            <Target className="w-8 h-8 mx-auto mb-3" style={{ color: '#6b7280' }} />
+            <p style={{ fontSize: '12px', color: '#6b7280' }}>No recommendations available</p>
+            <p style={{ fontSize: '11px', color: '#4a5568', marginTop: '4px' }}>Solve more problems to get personalized suggestions!</p>
+          </div>
+        )}
+
+        {recommendations.status === 'success' && recommendations.data && recommendations.data.length > 0 && (
+          <div className="space-y-3">
+            {recommendations.data.slice(0, 3).map((rec, i) => (
+              <motion.div
+                key={rec.problemId}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 + 1.0 }}
+                className="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all group"
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)'
+                }}
+                whileHover={{ scale: 1.01, borderColor: 'rgba(0,212,255,0.3)' }}
+                onClick={() => navigate(`/problems/${rec.problemId}`)}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{
+                    background: 'rgba(0,212,255,0.15)',
+                    border: '1px solid rgba(0,212,255,0.3)'
+                  }}
+                >
+                  <Zap className="w-4 h-4" style={{ color: '#00d4ff' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-white group-hover:text-[#00d4ff] transition-colors truncate" style={{ fontSize: '13px', fontWeight: 600 }}>
+                    {rec.title}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className="rounded-md px-2 py-0.5 text-xs font-medium"
+                      style={{
+                        background: rec.difficulty === "Easy" ? 'rgba(34,197,94,0.1)' :
+                                   rec.difficulty === "Medium" ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                        color: rec.difficulty === "Easy" ? '#22c55e' :
+                               rec.difficulty === "Medium" ? '#f59e0b' : '#ef4444'
+                      }}
+                    >
+                      {rec.difficulty}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#6b7280' }}>{rec.topic}</span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#4a5568', marginTop: '4px', lineHeight: 1.4 }}>
+                    {rec.reasoning}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0 mt-0.5 group-hover:text-[#00d4ff]" style={{ color: '#4a5568', transition: 'color 0.2s' }} />
+              </motion.div>
+            ))}
+          </div>
+        )}
       </motion.div>
     </div>
   );

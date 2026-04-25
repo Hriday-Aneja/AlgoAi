@@ -1,10 +1,11 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { ZodError } from "zod";
 import { visualizeCodeExecution } from "../services/visualize.service";
 import { visualizeRequestSchema } from "../validators/visualize.validator";
+import { AuthenticatedRequest } from "../types/express";
 
 export const visualizeCode = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {

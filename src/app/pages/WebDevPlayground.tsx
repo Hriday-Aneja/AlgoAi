@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
 type Language = "html" | "css" | "js";

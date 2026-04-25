@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard, Code2, BookOpen, FileText, Youtube,
@@ -7,9 +7,10 @@ import {
   MessageSquare, Flame, ChevronLeft, ChevronRight,
   Bell, Search, Zap, Star, Brain, Target, Menu, X,
   Eye, AlertTriangle, Shield, Shuffle, Users, Activity, Dna,
-  ChevronDown, Sparkles, Lightbulb
+  ChevronDown, Sparkles, Lightbulb, LogOut
 } from "lucide-react";
 import { userStats } from "../data/mockData";
+import { useAuth } from "../contexts/AuthContext";
 
 const mainNav = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", color: "#ff6500" },
@@ -41,11 +42,37 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [newFeaturesOpen, setNewFeaturesOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (profileOpen && !target.closest('.profile-dropdown-container')) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [profileOpen]);
 
   const streakPct = (userStats.xp / userStats.nextLevelXp) * 100;
 
-  // Open Web Dev Playground
+  const handleLogout = () => {
+    try {
+      console.log('Logout clicked - starting logout process');
+      setProfileOpen(false);
+      logout();
+      console.log('Logout completed, navigating to login');
+      navigate("/login");
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  };
+
   const openPlayground = () => {
     navigate("/playground");
   };
@@ -483,16 +510,57 @@ export default function Layout() {
               />
             </button>
 
-            {/* Avatar */}
-            <button
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #ff6500, #a855f7)',
-                boxShadow: '0 0 12px rgba(255,101,0,0.4)'
-              }}
-            >
-              <span className="text-white" style={{ fontSize: '10px', fontWeight: 800 }}>{userStats.avatar}</span>
-            </button>
+            {/* Avatar with Dropdown */}
+            <div className="relative profile-dropdown-container">
+              <button
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #ff6500, #a855f7)',
+                  boxShadow: '0 0 12px rgba(255,101,0,0.4)'
+                }}
+              >
+                <span className="text-white" style={{ fontSize: '10px', fontWeight: 800 }}>
+                  {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                </span>
+              </button>
+              
+              {/* Profile Dropdown */}
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl"
+                    style={{
+                      background: 'rgba(8,11,20,0.98)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      backdropFilter: 'blur(20px)',
+                      zIndex: 100
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-3 border-b border-white/10">
+                      <div className="text-white text-sm font-semibold">{user?.name || 'User'}</div>
+                      <div style={{ fontSize: '12px', color: '#4a5568' }}>{user?.email || 'user@example.com'}</div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('Logout button clicked on dashboard');
+                        handleLogout();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all duration-200 rounded-lg border border-red-500/30 hover:border-red-500/60 shadow-sm hover:shadow-md"
+                      style={{ fontSize: '14px', fontWeight: 600, zIndex: 100 }}
+                    >
+                      <LogOut className="w-5 h-5" />
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 

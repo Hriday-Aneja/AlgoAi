@@ -34,27 +34,18 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 #### AI Provider (Required)
 
-Choose either **Gemini** or **OpenAI**:
+Use **Groq**:
 
-**Option 1: Google Gemini (Recommended)**
-
-1. Go to [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
+1. Go to [https://www.groq.ai/](https://www.groq.ai/)
 2. Create a new API key
 3. Set in `.env`:
 ```
-AI_PROVIDER=gemini
-GEMINI_API_KEY=AIzaSyD-...
+AI_PROVIDER=groq
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=groq-1
 ```
 
-**Option 2: OpenAI**
-
-1. Go to [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. Create a new API key
-3. Set in `.env`:
-```
-AI_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-```
+> **Note**: If you previously configured OpenAI or Gemini, it is recommended to switch to Groq for your AI backend.
 
 ### Step 3: Start the backend
 
@@ -80,9 +71,9 @@ You should see output like:
    • SUPABASE_ANON_KEY: ✓ configured
 
    [AI PROVIDER]
-   • AI_PROVIDER: gemini
-   • GEMINI_MODEL: gemini-1.5-flash
-   • GEMINI_API_KEY: ✓ configured
+   • AI_PROVIDER: groq
+   • GROQ_MODEL: groq-1
+   • GROQ_API_KEY: ✓ configured
 
 🚀 Server running on http://localhost:3001
 ```
@@ -116,11 +107,11 @@ This means your `.env` file is missing required values or not being loaded.
 - Ensure `.env` file is in `backend/` folder (NOT `backend/src/`)
 - Make sure no spaces or quotes around values
 
-### Error: "GEMINI_API_KEY is not defined"
+### Error: "GROQ_API_KEY is not defined"
 
-- If using Gemini, check your API key is correct
-- Keys usually start with `AIzaSy...`
-- Go to [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey) to regenerate if needed
+- Check your Groq API key is correct
+- Keys usually start with `grok_` or the format provided by Groq
+- Go to [https://www.groq.ai/](https://www.groq.ai/) to regenerate if needed
 
 ## Security Notes
 
@@ -150,7 +141,9 @@ backend/
 |----------|----------|---------|--------|
 | `SUPABASE_URL` | ✅ | `https://abc.supabase.co` | Supabase Dashboard |
 | `SUPABASE_ANON_KEY` | ✅ | `eyJhbGc...` | Supabase Dashboard |
-| `AI_PROVIDER` | ✅ | `gemini` or `openai` | Your choice |
+| `AI_PROVIDER` | ✅ | `groq`, `gemini`, or `openai` | Your choice |
+| `GROQ_API_KEY` | ✅ if Groq | `your_groq_api_key_here` | Groq Dashboard |
+| `GROQ_MODEL` | ❌ | `groq-1` | Groq (default used) |
 | `GEMINI_API_KEY` | ✅ if Gemini | `AIzaSy...` | Google AI Studio |
 | `GEMINI_MODEL` | ❌ | `gemini-1.5-flash` | Google (default used) |
 | `OPENAI_API_KEY` | ✅ if OpenAI | `sk-...` | OpenAI Dashboard |

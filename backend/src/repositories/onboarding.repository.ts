@@ -11,12 +11,12 @@ export const upsertOnboardingProfile = async (
     create: {
       userId,
       experienceLevel: input.experienceLevel,
-      preferredTopics: input.preferredTopics,
+      preferredTopics: JSON.stringify(input.preferredTopics), // Serialize array to string
       goals: input.goals,
     },
     update: {
       experienceLevel: input.experienceLevel,
-      preferredTopics: input.preferredTopics,
+      preferredTopics: JSON.stringify(input.preferredTopics), // Serialize array to string
       goals: input.goals,
     },
   });
@@ -30,7 +30,7 @@ export const replaceRoadmapDays = async (
     userId,
     day: item.day,
     topic: item.topic,
-    tasks: item.tasks,
+    tasks: JSON.stringify(item.tasks), // Serialize array to string
     difficulty: item.difficulty,
     completed: false,
   }));
@@ -42,10 +42,16 @@ export const replaceRoadmapDays = async (
 };
 
 export const getRoadmapByUserId = async (userId: string) => {
-  return prisma.roadmap.findMany({
+  const roadmaps = await prisma.roadmap.findMany({
     where: { userId },
     orderBy: { day: "asc" },
   });
+
+  // Deserialize tasks from string back to array
+  return roadmaps.map(roadmap => ({
+    ...roadmap,
+    tasks: JSON.parse(roadmap.tasks as string),
+  }));
 };
 
 export const markRoadmapDayCompleted = async (userId: string, day: number) => {

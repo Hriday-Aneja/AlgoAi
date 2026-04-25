@@ -1,5 +1,6 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Request, Response, RequestHandler } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { AuthenticatedRequest } from "../types/express";
 
 interface AuthTokenPayload extends JwtPayload {
   sub?: string;
@@ -49,4 +50,17 @@ export const requireAuth = (
       message: "Invalid or expired token.",
     });
   }
+};
+
+/**
+ * Wraps a request handler that expects AuthenticatedRequest
+ * and returns a standard Express RequestHandler.
+ * This allows TypeScript to properly type handlers used after requireAuth middleware.
+ */
+export const withAuth = (
+  handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void> | void
+): RequestHandler => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    return handler(req as AuthenticatedRequest, res, next);
+  };
 };

@@ -1,10 +1,11 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { ZodError } from "zod";
 import { generateSmartHint } from "../services/hint.service";
 import { hintRequestSchema } from "../validators/hint.validator";
+import { AuthenticatedRequest } from "../types/express";
 
 export const requestHint = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {

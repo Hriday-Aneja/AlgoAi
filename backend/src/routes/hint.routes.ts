@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requestHint } from "../controllers/hint.controller";
-import { requireAuth } from "../utils/auth";
+import { requireAuth, withAuth } from "../utils/auth";
 
 const router = Router();
 
@@ -9,6 +9,6 @@ const router = Router();
  * @desc    Generate progressive hint when user is stuck
  * @access  Private
  */
-router.post("/", requireAuth, requestHint);
+router.post("/", requireAuth, withAuth(requestHint));
 
 export default router;

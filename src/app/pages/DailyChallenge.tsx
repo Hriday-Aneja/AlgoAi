@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { Flame, Clock, CheckCircle2, Trophy, Target, Play, ChevronRight, Star, Zap } from "lucide-react";
 import { dailyChallenge, userStats } from "../data/mockData";
+import { useUserProgress } from "../contexts/UserProgressContext";
 
 const weekStreak = [
   { day: "Mon", done: true },
@@ -15,6 +16,7 @@ const weekStreak = [
 
 export default function DailyChallenge() {
   const navigate = useNavigate();
+  const { progress, incrementQuestionsSolved, addDailyStat } = useUserProgress();
   const [timeLeft, setTimeLeft] = useState(dailyChallenge.timeLimit);
   const [timerActive, setTimerActive] = useState(false);
   const [solved, setSolved] = useState(false);
@@ -22,6 +24,10 @@ export default function DailyChallenge() {
     // Your code here
     // Hint: Try expanding around center
 };`);
+
+  // Use real user data
+  const displayStreak = progress?.currentStreak || 0;
+  const displayTotalSolved = progress?.questionsSolved || 0;
 
   useEffect(() => {
     if (!timerActive || timeLeft <= 0) return;
@@ -36,6 +42,10 @@ export default function DailyChallenge() {
   const handleSubmit = () => {
     setSolved(true);
     setTimerActive(false);
+
+    // Update user progress for completing daily challenge
+    incrementQuestionsSolved(20); // 20 XP for daily challenge
+    addDailyStat(1, 20, Math.round((dailyChallenge.timeLimit - timeLeft) / 60)); // 1 solved, 20 XP, time in minutes
   };
 
   return (
@@ -58,10 +68,10 @@ export default function DailyChallenge() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Flame className="w-5 h-5 text-orange-400" />
-            <span className="text-white" style={{ fontSize: '16px', fontWeight: 700 }}>{userStats.streak} Day Streak</span>
+            <span className="text-white" style={{ fontSize: '16px', fontWeight: 700 }}>{displayStreak} Day Streak</span>
             <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-3 py-0.5" style={{ fontSize: '11px' }}>🔥 On Fire!</span>
           </div>
-          <div className="text-[#8b949e]" style={{ fontSize: '12px' }}>Total: {userStats.totalSolved} solved</div>
+          <div className="text-[#8b949e]" style={{ fontSize: '12px' }}>Total: {displayTotalSolved} solved</div>
         </div>
         <div className="flex gap-2">
           {weekStreak.map(({ day, done }) => (

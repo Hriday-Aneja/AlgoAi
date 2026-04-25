@@ -3,8 +3,27 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  onboardingProfile OnboardingProfile?
+  submissions       Submission[]
+  hints             Hint[]
+  visualizations    Visualization[]
+  streak            Streak?
+  progress          UserProgress?
+
+  @@map("users")
 }
 
 model OnboardingProfile {
@@ -12,10 +31,12 @@ model OnboardingProfile {
   userId    String   @unique
   experienceLevel String
   goals     String
-  preferredTopics String[]
+  preferredTopics String  // Changed from String[] to String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   roadmaps  Roadmap[]
 
   @@map("user_profiles")
@@ -26,13 +47,14 @@ model Roadmap {
   userId     String
   day        Int
   topic      String
-  tasks      Json      @map("problems")
+  tasks      String   // Changed from Json to String
   difficulty String
   completed  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  onboardingProfile OnboardingProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  // Relations
+  user OnboardingProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([userId, day])
   @@index([userId])
@@ -43,8 +65,11 @@ model Submission {
   id        String           @id @default(cuid())
   userId    String
   problemId String
-  status    SubmissionStatus
+  status    String           // Changed from SubmissionStatus to String
   createdAt DateTime         @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, problemId, createdAt])
   @@map("submissions")
@@ -58,6 +83,9 @@ model Hint {
   hintText  String
   createdAt DateTime @default(now())
 
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, problemId, createdAt])
   @@index([userId, problemId, hintLevel])
   @@map("hints")
@@ -68,8 +96,11 @@ model Visualization {
   userId    String
   code      String
   input     String
-  output    Json
+  output    String   // Changed from Json to String
   createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@map("visualizations")
@@ -84,13 +115,11 @@ model Streak {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@map("streaks")
-}
-
-enum SubmissionStatus {
-  passed
-  failed
 }
 
 model DailyChallenge {
@@ -113,4 +142,18 @@ model DailyChallengeCompletion {
   @@unique([userId, date])
   @@index([userId])
   @@map("daily_challenge_completions")
+}
+
+model UserProgress {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  data      String   // Store the complete progress object as JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_progress")
 }

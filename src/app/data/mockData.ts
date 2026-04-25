@@ -349,6 +349,101 @@ export const eli5Concepts: Record<string, { simple: string; analogy: string; exa
     simple: "A collection of nodes (points) connected by edges (lines), representing relationships.",
     analogy: "Your friend circle! You are a node, your friends are nodes, and the friendships are edges connecting you all.",
     example: "Google Maps is a graph! Cities = nodes, Roads = edges, Distances = weights."
+  },
+  "linked list": {
+    simple: "A chain of connected boxes where each box points to the next one, like a treasure hunt.",
+    analogy: "Like a scavenger hunt where each clue tells you where to find the next clue. You can only go forward, not backward easily.",
+    example: "A playlist! Each song points to the next song. When you finish one, it automatically goes to the next."
+  },
+  "stack": {
+    simple: "A pile where you can only add or remove items from the top, like a stack of plates.",
+    analogy: "Like stacking dinner plates. You put new plates on top, and when you need a plate, you take from the top.",
+    example: "Browser back button! Each page you visit gets stacked, and back takes you to the previous page."
+  },
+  "queue": {
+    simple: "A line where people join at the end and leave from the front, like waiting in line.",
+    analogy: "Like standing in line at a store. First person in line gets served first. New people join the back.",
+    example: "Printer queue! Documents wait in line to be printed. First document in gets printed first."
+  },
+  "hash table": {
+    simple: "A magic box that can instantly find things using special labels, like a filing cabinet with perfect organization.",
+    analogy: "Like a phone book where you instantly know which page someone's name is on, without searching through all pages.",
+    example: "Dictionary app! Type a word, and it instantly shows the meaning. No searching needed!"
+  },
+  "binary tree": {
+    simple: "A family tree where each person has at most 2 children, organized in a hierarchy.",
+    analogy: "Like a family tree, but each person can have at most 2 kids. Perfect for organizing things in order.",
+    example: "File system! Root folder has subfolders, each subfolder can have more subfolders, like a tree structure."
+  },
+  "sorting algorithms": {
+    simple: "Ways to arrange things in order, like organizing toys from smallest to biggest.",
+    analogy: "Like sorting your clothes by color. You can do it slowly (checking each item) or find smarter ways.",
+    example: "Bubble sort: Like bubbles rising, swap neighbors if they're out of order. Quick sort: Pick a leader and organize around it."
+  },
+  "pointer": {
+    simple: "An arrow that points to where something is stored in computer memory, like a treasure map X marks the spot.",
+    analogy: "Like having someone's home address. You don't have the house, but you know exactly where to find it.",
+    example: "In C programming: int *ptr = &number; means ptr points to where 'number' lives in memory."
+  },
+  "api": {
+    simple: "A messenger that lets different computer programs talk to each other, like a waiter taking orders.",
+    analogy: "Like ordering food at a restaurant. You tell the waiter what you want, they tell the kitchen, and bring back your food.",
+    example: "Weather app! It asks a weather API 'What's the weather in New York?' and gets back the answer to show you."
+  },
+  "neural network": {
+    simple: "A computer brain made of connected nodes that learn patterns, like how your brain recognizes faces.",
+    analogy: "Like a group of friends passing secrets. Each friend changes the message a little before passing it along.",
+    example: "Photo recognition! Show it thousands of cat photos, and it learns to recognize cats in new photos."
+  },
+  "array": {
+    simple: "A numbered list of items stored next to each other in memory, like houses on a street with addresses.",
+    analogy: "Like a street of houses numbered 1, 2, 3, 4... You can instantly go to house #5 without checking others.",
+    example: "A shopping list! Item 0: milk, Item 1: bread, Item 2: eggs. You can ask for item[1] and get bread instantly."
+  },
+  "linkedlist": {
+    simple: "A chain of connected boxes where each box points to the next one, like a treasure hunt.",
+    analogy: "Like a scavenger hunt where each clue tells you where to find the next clue. You can only go forward, not backward easily.",
+    example: "A playlist! Each song points to the next song. When you finish one, it automatically goes to the next."
+  },
+  "tree": {
+    simple: "A hierarchical structure with a root and branches, like a family tree or folder structure.",
+    analogy: "Like a family tree starting from grandparents, then parents, then children. Each level branches out.",
+    example: "File explorer! Root drive C: has folders, each folder can have subfolders, creating a tree structure."
+  },
+  "heap": {
+    simple: "A special tree where parents are always bigger/smaller than children, perfect for finding extremes.",
+    analogy: "Like a tournament bracket where the best player always wins. The champion is always at the top.",
+    example: "Priority queue! Emergency room - critical patients get treated first, like the 'largest' priority."
+  },
+  "trie": {
+    simple: "A tree where each path represents a word, perfect for finding words that start with certain letters.",
+    analogy: "Like a dictionary where you can follow letter paths to find words. 'C-A-T' leads to 'cat', 'car', etc.",
+    example: "Auto-complete! Type 'app' and it suggests 'apple', 'application', 'appetizer' from the trie."
+  },
+  "graph traversal": {
+    simple: "Ways to visit all connected points in a graph, like exploring all rooms in a house.",
+    analogy: "Like exploring a maze. You can go depth-first (go deep into one path) or breadth-first (check all nearby first).",
+    example: "Social network suggestions! BFS finds friends of friends. DFS finds if two people are connected."
+  },
+  "greedy algorithm": {
+    simple: "Always make the best choice right now, hoping it leads to the best overall result.",
+    analogy: "Like eating the biggest cookie first. It might not be perfect, but it feels right at the moment!",
+    example: "Coin change! To make $0.37 with fewest coins, greedily take quarters, then dimes, etc."
+  },
+  "backtracking": {
+    simple: "Try a path, if it doesn't work, go back and try another path, like solving a maze.",
+    analogy: "Like trying different routes in a maze. Hit a dead end? Go back and try a different turn.",
+    example: "Sudoku solver! Try a number, if it causes conflicts, backtrack and try a different number."
+  },
+  "sliding window": {
+    simple: "A moving window of fixed size that slides over data, checking what's inside the window.",
+    analogy: "Like looking through a telescope that only shows a small area. Move it around to see different parts.",
+    example: "Maximum sum of any 3 consecutive numbers in an array. Slide a window of size 3 across the array."
+  },
+  "two pointers": {
+    simple: "Two fingers moving through data from different directions or speeds to solve problems efficiently.",
+    analogy: "Like two people searching a line from opposite ends, meeting in the middle.",
+    example: "Finding two numbers that add to target: One pointer from start, one from end, move them towards each other."
   }
 };
 

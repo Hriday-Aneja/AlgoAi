@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { BookOpen, CheckCircle2, Clock, Target, ChevronRight, TrendingUp } from "lucide-react";
 import { sheets } from "../data/mockData";
 

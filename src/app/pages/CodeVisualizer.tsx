@@ -1,69 +1,30 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Play, Pause, SkipBack, SkipForward, ChevronRight,
-  Eye, Code2, Layers, GitBranch, Cpu, RotateCcw, Zap
-} from "lucide-react";
+import { Eye, Code2, Sparkles, Copy, Trash2, Send, Loader } from "lucide-react";
 import Editor from "@monaco-editor/react";
+import { explainCodeLineByLine } from "../../services/groq";
 
-const DEMO_STEPS = [
-  {
-    line: 1,
-    description: "Function twoSum called with nums=[2,7,11,15], target=9",
-    variables: { nums: "[2,7,11,15]", target: "9", map: "{}", i: "-", complement: "-" },
-    callStack: ["twoSum(nums, 9)"],
-    highlight: "rgba(255,101,0,0.2)",
-    loop: null,
-    output: ""
-  },
-  {
-    line: 2,
-    description: "Initialize empty HashMap: map = {}",
-    variables: { nums: "[2,7,11,15]", target: "9", map: "{}", i: "0", complement: "-" },
-    callStack: ["twoSum(nums, 9)"],
-    highlight: "rgba(0,212,255,0.15)",
-    loop: { iteration: 0, total: 4 },
-    output: ""
-  },
-  {
-    line: 3,
-    description: "Loop start: i=0, nums[0]=2, complement = 9-2 = 7",
-    variables: { nums: "[2,7,11,15]", target: "9", map: "{}", i: "0", complement: "7" },
-    callStack: ["twoSum(nums, 9)", "  → loop i=0"],
-    highlight: "rgba(168,85,247,0.2)",
-    loop: { iteration: 1, total: 4 },
-    output: ""
-  },
-  {
-    line: 4,
-    description: "Check if 7 exists in map → false. Add 2→0 to map.",
-    variables: { nums: "[2,7,11,15]", target: "9", map: "{ 2: 0 }", i: "0", complement: "7" },
-    callStack: ["twoSum(nums, 9)", "  → loop i=0"],
-    highlight: "rgba(34,197,94,0.15)",
-    loop: { iteration: 1, total: 4 },
-    output: "map.set(2, 0)"
-  },
-  {
-    line: 3,
-    description: "Loop continue: i=1, nums[1]=7, complement = 9-7 = 2",
-    variables: { nums: "[2,7,11,15]", target: "9", map: "{ 2: 0 }", i: "1", complement: "2" },
-    callStack: ["twoSum(nums, 9)", "  → loop i=1"],
-    highlight: "rgba(168,85,247,0.2)",
-    loop: { iteration: 2, total: 4 },
-    output: ""
-  },
-  {
-    line: 4,
-    description: "Check if 2 exists in map → TRUE! Found at index 0. Return [0, 1]",
-    variables: { nums: "[2,7,11,15]", target: "9", map: "{ 2: 0 }", i: "1", complement: "2" },
-    callStack: ["twoSum(nums, 9)", "  → RETURN [0, 1] 🎉"],
-    highlight: "rgba(255,101,0,0.25)",
-    loop: { iteration: 2, total: 4 },
-    output: "✅ RETURN [0, 1]"
-  }
-];
+interface CodeLineExplanation {
+  lineNumber: number;
+  code: string;
+  explanation: string;
+}
 
-const CODE = `function twoSum(nums, target) {
+interface CodeExplanationData {
+  language: string;
+  code: string;
+  explanation: string;
+  lineByLineExplanations: CodeLineExplanation[];
+  complexity?: {
+    time: string;
+    space: string;
+  };
+  error?: string;
+}
+
+export default function CodeVisualizer() {
+  const [code, setCode] = useState(
+    `function twoSum(nums, target) {
   const map = new Map();
   for (let i = 0; i < nums.length; i++) {
     const complement = target - nums[i];
@@ -71,36 +32,54 @@ const CODE = `function twoSum(nums, target) {
     map.set(nums[i], i);
   }
   return [];
-}`;
+}`
+  );
 
-const PROBLEMS = [
-  { id: 1, title: "Two Sum", difficulty: "Easy", color: "#22c55e" },
-  { id: 2, title: "Fibonacci (Recursive)", difficulty: "Easy", color: "#22c55e" },
-  { id: 3, title: "Binary Search", difficulty: "Medium", color: "#f59e0b" },
-  { id: 4, title: "Merge Sort", difficulty: "Hard", color: "#ef4444" },
-];
+  const [language, setLanguage] = useState("javascript");
+  const [loading, setLoading] = useState(false);
+  const [explanation, setExplanation] = useState<CodeExplanationData | null>(null);
+  const [selectedLineIndex, setSelectedLineIndex] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-export default function CodeVisualizer() {
-  const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1500);
-  const [selectedProblem, setSelectedProblem] = useState(0);
-  const [tab, setTab] = useState<"variables" | "stack" | "output">("variables");
+  const handleExplainCode = async () => {
+    if (!code.trim()) {
+      setError("Please enter some code to explain");
+      return;
+    }
 
-  const currentStep = DEMO_STEPS[step];
+    setLoading(true);
+    setError(null);
+    setExplanation(null);
+    setSelectedLineIndex(null);
 
-  useEffect(() => {
-    if (!playing) return;
-    const interval = setInterval(() => {
-      setStep(s => {
-        if (s >= DEMO_STEPS.length - 1) { setPlaying(false); return s; }
-        return s + 1;
-      });
-    }, speed);
-    return () => clearInterval(interval);
-  }, [playing, speed]);
+    const result = await explainCodeLineByLine(code, language);
 
-  const reset = () => { setStep(0); setPlaying(false); };
+    if (result.error) {
+      setError(result.error);
+      setExplanation(null);
+    } else {
+      setExplanation(result as CodeExplanationData);
+    }
+
+    setLoading(false);
+  };
+
+  const handleClear = () => {
+    setCode("");
+    setExplanation(null);
+    setSelectedLineIndex(null);
+    setError(null);
+  };
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(code);
+  };
+
+  const currentLineExplanation = selectedLineIndex !== null && explanation
+    ? explanation.lineByLineExplanations[selectedLineIndex]
+    : null;
+
+  const languages = ["javascript", "python", "java", "cpp", "csharp"];
 
   return (
     <div className="h-full flex flex-col" style={{ background: '#080b14' }}>
@@ -117,30 +96,30 @@ export default function CodeVisualizer() {
             <Eye className="w-5 h-5" style={{ color: '#00d4ff' }} />
           </div>
           <div>
-            <h1 className="text-white" style={{ fontSize: '18px', fontWeight: 800 }}>Code Thinking Visualizer</h1>
-            <p style={{ fontSize: '12px', color: '#4a5568' }}>Step-by-step execution flow with variable tracking</p>
+            <h1 className="text-white" style={{ fontSize: '18px', fontWeight: 800 }}>Code Explainer</h1>
+            <p style={{ fontSize: '12px', color: '#4a5568' }}>Line-by-line explanation powered by Groq AI</p>
           </div>
         </div>
 
-        {/* Problem Select */}
-        <div className="flex gap-2">
-          {PROBLEMS.map((p, i) => (
-            <button
-              key={p.id}
-              onClick={() => { setSelectedProblem(i); reset(); }}
-              className="px-3 py-1.5 rounded-lg transition-all"
-              style={{
-                fontSize: '12px',
-                fontWeight: 600,
-                background: selectedProblem === i ? `${p.color}15` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${selectedProblem === i ? p.color + '40' : 'rgba(255,255,255,0.06)'}`,
-                color: selectedProblem === i ? p.color : '#6b7280'
-              }}
-            >
-              {p.title}
-            </button>
+        {/* Language Selector */}
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="px-3 py-2 rounded-lg"
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'white',
+            fontSize: '13px',
+            fontWeight: 600
+          }}
+        >
+          {languages.map((lang) => (
+            <option key={lang} value={lang} style={{ background: '#080b14', color: 'white' }}>
+              {lang.charAt(0).toUpperCase() + lang.slice(1)}
+            </option>
           ))}
-        </div>
+        </select>
       </div>
 
       {/* Main Content */}
@@ -149,361 +128,273 @@ export default function CodeVisualizer() {
         <div className="flex-1 flex flex-col" style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}>
           {/* Code Editor */}
           <div className="flex-1 relative">
-            {/* Line highlight overlay */}
-            <div className="relative" style={{ height: '100%' }}>
-              <Editor
-                height="100%"
-                language="javascript"
-                value={CODE}
-                theme="vs-dark"
-                options={{
-                  readOnly: true,
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                  lineNumbers: 'on',
-                  scrollBeyondLastLine: false,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontLigatures: true,
-                  renderLineHighlight: 'line',
-                  lineHeight: 24,
-                }}
-                onMount={(editor) => {
-                  editor.updateOptions({ theme: 'vs-dark' });
-                }}
-              />
-              {/* Current line overlay */}
-              <div
-                className="absolute left-0 right-0 pointer-events-none transition-all duration-500"
-                style={{
-                  top: `${(currentStep.line - 1) * 24 + 8}px`,
-                  height: '24px',
-                  background: currentStep.highlight,
-                  borderLeft: '3px solid #ff6500',
-                  zIndex: 10
-                }}
-              />
-            </div>
+            <Editor
+              height="100%"
+              language={language}
+              value={code}
+              onChange={(value) => setCode(value || "")}
+              theme="vs-dark"
+              options={{
+                readOnly: false,
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontLigatures: true,
+                renderLineHighlight: 'line',
+                lineHeight: 24,
+                scrollbar: { vertical: 'visible', horizontal: 'visible' }
+              }}
+            />
           </div>
 
-          {/* Playback Controls */}
+          {/* Controls */}
           <div
-            className="flex items-center justify-between px-6 py-4"
+            className="flex items-center justify-between px-6 py-4 gap-4"
             style={{ borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.3)' }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2">
               <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={reset}
-                className="p-2 rounded-xl transition-all"
-                style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}
-              >
-                <RotateCcw className="w-4 h-4" />
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setStep(s => Math.max(0, s - 1))}
-                disabled={step === 0}
-                className="p-2 rounded-xl transition-all"
-                style={{ background: 'rgba(255,255,255,0.06)', color: step === 0 ? '#2a2a3a' : '#6b7280' }}
-              >
-                <SkipBack className="w-4 h-4" />
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setPlaying(!playing)}
-                className="px-5 py-2 rounded-xl flex items-center gap-2 cyber-btn"
+                onClick={handleCopyCode}
+                className="px-3 py-2 rounded-lg flex items-center gap-2 transition-all"
                 style={{
-                  background: playing ? 'rgba(239,68,68,0.2)' : 'linear-gradient(135deg, #ff6500, #ff9500)',
-                  border: playing ? '1px solid rgba(239,68,68,0.4)' : 'none',
-                  color: 'white',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  boxShadow: playing ? 'none' : '0 0 20px rgba(255,101,0,0.4)'
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#6b7280',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}
+                title="Copy code to clipboard"
+              >
+                <Copy className="w-4 h-4" />
+                Copy
+              </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleClear}
+                className="px-3 py-2 rounded-lg flex items-center gap-2 transition-all"
+                style={{
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#6b7280',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}
+                title="Clear code editor"
+              >
+                <Trash2 className="w-4 h-4" />
+                Clear
+              </motion.button>
+            </div>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex-1 px-3 py-2 rounded-lg"
+                style={{
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#f87171',
+                  fontSize: '12px'
                 }}
               >
-                {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                {playing ? "Pause" : "Play"}
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setStep(s => Math.min(DEMO_STEPS.length - 1, s + 1))}
-                disabled={step === DEMO_STEPS.length - 1}
-                className="p-2 rounded-xl transition-all"
-                style={{ background: 'rgba(255,255,255,0.06)', color: step === DEMO_STEPS.length - 1 ? '#2a2a3a' : '#6b7280' }}
-              >
-                <SkipForward className="w-4 h-4" />
-              </motion.button>
-            </div>
+                ⚠️ {error}
+              </motion.div>
+            )}
 
-            {/* Step indicator */}
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1">
-                {DEMO_STEPS.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setStep(i)}
-                    className="rounded-full transition-all"
-                    style={{
-                      width: i === step ? '20px' : '6px',
-                      height: '6px',
-                      background: i === step ? '#ff6500' : i < step ? 'rgba(255,101,0,0.4)' : 'rgba(255,255,255,0.1)',
-                      boxShadow: i === step ? '0 0 8px rgba(255,101,0,0.6)' : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-              <span style={{ fontSize: '12px', color: '#4a5568' }}>
-                Step {step + 1} / {DEMO_STEPS.length}
-              </span>
-            </div>
-
-            {/* Speed control */}
-            <div className="flex items-center gap-2">
-              <span style={{ fontSize: '11px', color: '#4a5568' }}>Speed:</span>
-              {[2000, 1500, 800].map((s, i) => (
-                <button
-                  key={s}
-                  onClick={() => setSpeed(s)}
-                  className="px-2 py-1 rounded-lg transition-all"
-                  style={{
-                    fontSize: '11px',
-                    background: speed === s ? 'rgba(255,101,0,0.15)' : 'rgba(255,255,255,0.04)',
-                    color: speed === s ? '#ff6500' : '#6b7280',
-                    border: `1px solid ${speed === s ? 'rgba(255,101,0,0.3)' : 'rgba(255,255,255,0.06)'}`
-                  }}
-                >
-                  {['0.5x', '1x', '2x'][i]}
-                </button>
-              ))}
-            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleExplainCode}
+              disabled={loading}
+              className="px-6 py-2 rounded-lg flex items-center gap-2 transition-all"
+              style={{
+                background: loading
+                  ? 'rgba(99,102,241,0.3)'
+                  : 'linear-gradient(135deg, #ff6500, #ff9500)',
+                border: loading ? '1px solid rgba(99,102,241,0.4)' : 'none',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: 700,
+                boxShadow: loading ? 'none' : '0 0 20px rgba(255,101,0,0.4)',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Explain Code
+                </>
+              )}
+            </motion.button>
           </div>
         </div>
 
-        {/* Execution Panel */}
-        <div className="w-96 flex flex-col">
-          {/* Current Action */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="p-4 m-4 rounded-xl"
-              style={{
-                background: 'linear-gradient(135deg, rgba(255,101,0,0.1), rgba(168,85,247,0.05))',
-                border: '1px solid rgba(255,101,0,0.2)'
-              }}
+        {/* Explanation Panel */}
+        <div className="w-96 flex flex-col" style={{ borderLeft: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
+          {!explanation && !loading && (
+            <div
+              className="flex-1 flex flex-col items-center justify-center p-6"
+              style={{ color: '#4a5568' }}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div
-                  className="w-2 h-2 rounded-full pulse-animation"
-                  style={{ background: '#ff6500', boxShadow: '0 0 6px #ff6500' }}
-                />
-                <span style={{ fontSize: '10px', fontWeight: 700, color: '#ff6500', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Executing Line {currentStep.line}
-                </span>
-              </div>
-              <p className="text-white" style={{ fontSize: '13px', lineHeight: 1.5 }}>
-                {currentStep.description}
+              <Code2 className="w-12 h-12 mb-3" style={{ opacity: 0.3 }} />
+              <p style={{ fontSize: '13px', textAlign: 'center' }}>
+                Enter code and click "Explain Code" to see detailed line-by-line explanations powered by AI.
               </p>
-              {currentStep.output && (
-                <div
-                  className="mt-2 px-3 py-1.5 rounded-lg font-mono"
-                  style={{ fontSize: '12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}
-                >
-                  {currentStep.output}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Loop Indicator */}
-          {currentStep.loop && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mx-4 mb-3 p-3 rounded-xl flex items-center gap-3"
-              style={{
-                background: 'rgba(168,85,247,0.08)',
-                border: '1px solid rgba(168,85,247,0.2)'
-              }}
-            >
-              <Cpu className="w-4 h-4 flex-shrink-0" style={{ color: '#a855f7' }} />
-              <div className="flex-1">
-                <div style={{ fontSize: '10px', color: '#a855f7', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Loop Iteration
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  {Array.from({ length: currentStep.loop.total }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-1.5 flex-1 rounded-full transition-all duration-500"
-                      style={{
-                        background: i < currentStep.loop!.iteration ? '#a855f7' : 'rgba(255,255,255,0.08)',
-                        boxShadow: i < currentStep.loop!.iteration ? '0 0 6px rgba(168,85,247,0.5)' : 'none'
-                      }}
-                    />
-                  ))}
-                  <span style={{ fontSize: '11px', color: '#a855f7', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {currentStep.loop.iteration}/{currentStep.loop.total}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
+            </div>
           )}
 
-          {/* Tabs */}
-          <div
-            className="flex mx-4 rounded-xl overflow-hidden mb-3"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            {(['variables', 'stack', 'output'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className="flex-1 py-2 transition-all capitalize"
+          {loading && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                 style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  background: tab === t ? 'rgba(255,101,0,0.15)' : 'transparent',
-                  color: tab === t ? '#ff6500' : '#4a5568',
-                  borderBottom: tab === t ? '2px solid #ff6500' : '2px solid transparent'
+                  width: '40px',
+                  height: '40px',
+                  border: '3px solid rgba(255,101,0,0.2)',
+                  borderTop: '3px solid #ff6500',
+                  borderRadius: '50%',
+                  marginBottom: '16px'
                 }}
-              >
-                {t === 'variables' ? '🔢 Variables' : t === 'stack' ? '📚 Call Stack' : '💻 Output'}
-              </button>
-            ))}
-          </div>
+              />
+              <p style={{ color: '#4a5568', fontSize: '13px' }}>
+                Analyzing your code with Groq AI...
+              </p>
+            </div>
+          )}
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto px-4 pb-4">
+          {explanation && !loading && (
             <AnimatePresence mode="wait">
-              {tab === 'variables' && (
-                <motion.div
-                  key="variables"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-2"
-                >
-                  {Object.entries(currentStep.variables).map(([key, value], i) => (
-                    <motion.div
-                      key={key}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="flex items-center justify-between p-3 rounded-xl"
-                      style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.06)'
-                      }}
-                    >
-                      <span className="font-mono" style={{ fontSize: '13px', color: '#00d4ff', fontWeight: 600 }}>{key}</span>
-                      <span
-                        className="font-mono px-2 py-0.5 rounded-lg"
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex-1 flex flex-col overflow-hidden"
+              >
+                {/* Overall Explanation */}
+                <div className="px-4 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div
+                    className="p-3 rounded-lg"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(255,101,0,0.1), rgba(168,85,247,0.05))',
+                      border: '1px solid rgba(255,101,0,0.2)'
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="w-4 h-4" style={{ color: '#ff6500' }} />
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#ff6500', textTransform: 'uppercase' }}>
+                        Overview
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#d1d5db', lineHeight: 1.5 }}>
+                      {explanation.explanation}
+                    </p>
+                    {explanation.complexity && (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div
+                          className="p-2 rounded-lg"
+                          style={{
+                            background: 'rgba(34,197,94,0.1)',
+                            border: '1px solid rgba(34,197,94,0.2)',
+                            fontSize: '11px',
+                            color: '#22c55e'
+                          }}
+                        >
+                          <div style={{ fontWeight: 700 }}>Time</div>
+                          <div>{explanation.complexity.time}</div>
+                        </div>
+                        <div
+                          className="p-2 rounded-lg"
+                          style={{
+                            background: 'rgba(59,130,246,0.1)',
+                            border: '1px solid rgba(59,130,246,0.2)',
+                            fontSize: '11px',
+                            color: '#3b82f6'
+                          }}
+                        >
+                          <div style={{ fontWeight: 700 }}>Space</div>
+                          <div>{explanation.complexity.space}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Line by Line Explanations */}
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                  {explanation.lineByLineExplanations.length === 0 ? (
+                    <div style={{ color: '#4a5568', fontSize: '12px', textAlign: 'center', marginTop: '16px' }}>
+                      No line-by-line explanations available
+                    </div>
+                  ) : (
+                    explanation.lineByLineExplanations.map((line, index) => (
+                      <motion.button
+                        key={index}
+                        onClick={() => setSelectedLineIndex(selectedLineIndex === index ? null : index)}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="w-full text-left p-3 rounded-lg transition-all"
                         style={{
-                          fontSize: '12px',
-                          color: value === '-' ? '#4a5568' : '#f59e0b',
-                          background: value === '-' ? 'transparent' : 'rgba(245,158,11,0.1)',
-                          border: value === '-' ? 'none' : '1px solid rgba(245,158,11,0.2)'
+                          background: selectedLineIndex === index
+                            ? 'rgba(255,101,0,0.15)'
+                            : 'rgba(255,255,255,0.03)',
+                          border: selectedLineIndex === index
+                            ? '1px solid rgba(255,101,0,0.3)'
+                            : '1px solid rgba(255,255,255,0.06)',
+                          cursor: 'pointer'
                         }}
                       >
-                        {value}
-                      </span>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-
-              {tab === 'stack' && (
-                <motion.div
-                  key="stack"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="space-y-2"
-                >
-                  {[...currentStep.callStack].reverse().map((frame, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="p-3 rounded-xl font-mono"
-                      style={{
-                        fontSize: '12px',
-                        background: i === 0 ? 'rgba(255,101,0,0.1)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${i === 0 ? 'rgba(255,101,0,0.3)' : 'rgba(255,255,255,0.06)'}`,
-                        color: i === 0 ? '#ff6500' : '#6b7280'
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <GitBranch className="w-3 h-3 flex-shrink-0" />
-                        {frame}
-                      </div>
-                    </motion.div>
-                  ))}
-                  <div
-                    className="p-2 rounded-xl text-center"
-                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.06)' }}
-                  >
-                    <span style={{ fontSize: '10px', color: '#2a2a3a' }}>— Stack Bottom —</span>
-                  </div>
-                </motion.div>
-              )}
-
-              {tab === 'output' && (
-                <motion.div
-                  key="output"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="p-3 rounded-xl font-mono"
-                  style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    minHeight: '200px'
-                  }}
-                >
-                  <div style={{ fontSize: '10px', color: '#4a5568', marginBottom: '8px' }}>
-                    {'>'} Console Output
-                  </div>
-                  {DEMO_STEPS.slice(0, step + 1)
-                    .filter(s => s.output)
-                    .map((s, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: -5 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="mb-1"
-                        style={{ fontSize: '12px', color: s.output.includes('✅') ? '#22c55e' : '#f59e0b' }}
-                      >
-                        {s.output}
-                      </motion.div>
+                        <div className="flex items-start gap-2">
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              color: '#ff6500',
+                              background: 'rgba(255,101,0,0.2)',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              minWidth: '30px',
+                              textAlign: 'center'
+                            }}
+                          >
+                            L{line.lineNumber}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className="font-mono mb-1 text-xs overflow-x-auto"
+                              style={{ color: '#00d4ff', opacity: 0.8 }}
+                            >
+                              {line.code}
+                            </div>
+                            {selectedLineIndex === index && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                style={{ fontSize: '12px', color: '#d1d5db', lineHeight: 1.4, marginTop: '6px' }}
+                              >
+                                {line.explanation}
+                              </motion.div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.button>
                     ))
-                  }
-                  {step === DEMO_STEPS.length - 1 && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      delay={0.5}
-                      className="mt-3 p-2 rounded-lg"
-                      style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}
-                    >
-                      <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>
-                        🎉 Execution Complete!
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#4a5568', marginTop: '4px' }}>
-                        Result: [0, 1] | Time: O(n) | Space: O(n)
-                      </div>
-                    </motion.div>
                   )}
-                  <span className="terminal-cursor" />
-                </motion.div>
-              )}
+                </div>
+              </motion.div>
             </AnimatePresence>
-          </div>
+          )}
         </div>
       </div>
     </div>

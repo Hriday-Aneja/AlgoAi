@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import {
   Plus, Search, FileText, Edit3, Trash2, Tag,
   Calendar, ChevronRight, BookOpen, X, Save

@@ -1,10 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
-import { motion, AnimatePresence } from "motion/react";
+import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Zap, ChevronRight, ChevronLeft, CheckCircle2, Target,
-  Brain, Code2, Sparkles, ArrowRight, Star
+  Zap,
+  Brain,
+  CheckCircle2,
+  Target,
+  Code2,
+  Star,
+  Sparkles,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import { submitOnboarding } from "../../services/api";
 
 const steps = ["Profile", "Goals", "Topics", "Mini Test", "Roadmap"];
 
@@ -95,12 +104,31 @@ export default function Onboarding() {
 
   const handleGenerate = async () => {
     setGenerating(true);
-    const score = calculateScore();
-    setTestScore(score);
-    await new Promise(r => setTimeout(r, 2500));
-    setGenerating(false);
-    setGenerated(true);
-    setStep(4);
+    try {
+      const score = calculateScore();
+      setTestScore(score);
+
+      // Submit onboarding data to backend
+      await submitOnboarding({
+        experienceLevel: level,
+        goals: goal,
+        preferredTopics: selectedTopics,
+        timeCommitment: time,
+        testScore: score,
+      });
+
+      // Simulate generation delay
+      await new Promise(r => setTimeout(r, 1500));
+      setGenerating(false);
+      setGenerated(true);
+      setStep(4);
+    } catch (error) {
+      console.error('Failed to submit onboarding data:', error);
+      setGenerating(false);
+      // Still proceed to show roadmap even if submission fails
+      setGenerated(true);
+      setStep(4);
+    }
   };
 
   const canNext = () => {

@@ -78,12 +78,12 @@ app.use(errorHandler);
  * @param attemptsLeft - Number of fallback attempts remaining
  */
 function startServer(portToTry: number, attemptsLeft: number = 10): void {
-  const server = app.listen(portToTry, () => {
-    console.log(`\n🚀 Server is running`);
-    console.log(`   ➜  Local:   http://localhost:${portToTry}`);
-    console.log(`   ➜  Health:  http://localhost:${portToTry}/api/health`);
-    console.log(`   ➜  Env:     ${process.env.NODE_ENV || 'development'}\n`);
-  });
+const server = app.listen(portToTry, "0.0.0.0", () => {
+  console.log(`\n🚀 Server is running`);
+  console.log(`   ➜  Local:   http://localhost:${portToTry}`);
+  console.log(`   ➜  Health:  http://localhost:${portToTry}/api/health`);
+  console.log(`   ➜  Env:     ${process.env.NODE_ENV || 'development'}\n`);
+});
 
   // Handle port already in use
   server.on('error', (error: NodeJS.ErrnoException) => {

@@ -1,12 +1,13 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { getDailyChallenge, hasUserCompletedToday, completeDailyChallenge } from '../services/dailyChallenge.service';
+import { AuthenticatedRequest } from '../types/express';
 
 /**
  * GET /api/daily-challenge
  * Returns today's daily challenge and completion status for the authenticated user.
  */
 export const getDailyChallengeHandler = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -41,7 +42,7 @@ export const getDailyChallengeHandler = async (
  * Marks today's challenge as completed for the authenticated user.
  */
 export const completeDailyChallengeHandler = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

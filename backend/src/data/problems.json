@@ -82,5 +82,35 @@
   { "id": "merge-sorted-array",                  "title": "Merge Sorted Array",                    "topic": "sorting",               "difficulty": "easy",   "url": "https://leetcode.com/problems/merge-sorted-array/" },
   { "id": "sort-colors",                         "title": "Sort Colors",                           "topic": "sorting",               "difficulty": "medium", "url": "https://leetcode.com/problems/sort-colors/" },
   { "id": "merge-intervals",                     "title": "Merge Intervals",                       "topic": "sorting",               "difficulty": "medium", "url": "https://leetcode.com/problems/merge-intervals/" },
-  { "id": "non-overlapping-intervals",           "title": "Non-overlapping Intervals",             "topic": "sorting",               "difficulty": "medium", "url": "https://leetcode.com/problems/non-overlapping-intervals/" }
+  { "id": "non-overlapping-intervals",           "title": "Non-overlapping Intervals",             "topic": "sorting",               "difficulty": "medium", "url": "https://leetcode.com/problems/non-overlapping-intervals/" },
+
+  { "id": "reverse-linked-list",                 "title": "Reverse Linked List",                   "topic": "linked_list",           "difficulty": "easy",   "url": "https://leetcode.com/problems/reverse-linked-list/" },
+  { "id": "merge-two-sorted-lists",              "title": "Merge Two Sorted Lists",                "topic": "linked_list",           "difficulty": "easy",   "url": "https://leetcode.com/problems/merge-two-sorted-lists/" },
+  { "id": "linked-list-cycle",                   "title": "Linked List Cycle",                     "topic": "linked_list",           "difficulty": "easy",   "url": "https://leetcode.com/problems/linked-list-cycle/" },
+  { "id": "remove-nth-node-from-end",            "title": "Remove Nth Node From End of List",       "topic": "linked_list",           "difficulty": "medium", "url": "https://leetcode.com/problems/remove-nth-node-from-end-of-list/" },
+  { "id": "reorder-list",                        "title": "Reorder List",                          "topic": "linked_list",           "difficulty": "medium", "url": "https://leetcode.com/problems/reorder-list/" },
+  { "id": "copy-list-with-random-pointer",       "title": "Copy List with Random Pointer",         "topic": "linked_list",           "difficulty": "medium", "url": "https://leetcode.com/problems/copy-list-with-random-pointer/" },
+  { "id": "merge-k-sorted-lists",                "title": "Merge k Sorted Lists",                  "topic": "linked_list",           "difficulty": "hard",   "url": "https://leetcode.com/problems/merge-k-sorted-lists/" },
+  { "id": "reverse-nodes-in-k-group",            "title": "Reverse Nodes in k-Group",              "topic": "linked_list",           "difficulty": "hard",   "url": "https://leetcode.com/problems/reverse-nodes-in-k-group/" },
+
+  { "id": "binary-tree-inorder-traversal",       "title": "Binary Tree Inorder Traversal",         "topic": "binary_tree",          "difficulty": "easy",   "url": "https://leetcode.com/problems/binary-tree-inorder-traversal/" },
+  { "id": "same-tree",                           "title": "Same Tree",                             "topic": "binary_tree",          "difficulty": "easy",   "url": "https://leetcode.com/problems/same-tree/" },
+  { "id": "binary-tree-preorder-traversal",      "title": "Binary Tree Preorder Traversal",        "topic": "binary_tree",          "difficulty": "easy",   "url": "https://leetcode.com/problems/binary-tree-preorder-traversal/" },
+  { "id": "binary-tree-postorder-traversal",     "title": "Binary Tree Postorder Traversal",       "topic": "binary_tree",          "difficulty": "easy",   "url": "https://leetcode.com/problems/binary-tree-postorder-traversal/" },
+  { "id": "binary-tree-level-order-traversal",   "title": "Binary Tree Level Order Traversal",     "topic": "binary_tree",          "difficulty": "medium", "url": "https://leetcode.com/problems/binary-tree-level-order-traversal/" },
+  { "id": "construct-binary-tree-from-preorder", "title": "Construct Binary Tree from Preorder",   "topic": "binary_tree",          "difficulty": "medium", "url": "https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/" },
+  { "id": "flatten-binary-tree",                 "title": "Flatten Binary Tree to Linked List",     "topic": "binary_tree",          "difficulty": "medium", "url": "https://leetcode.com/problems/flatten-binary-tree-to-linked-list/" },
+
+  { "id": "valid-parentheses",                   "title": "Valid Parentheses",                     "topic": "stack",                "difficulty": "easy",   "url": "https://leetcode.com/problems/valid-parentheses/" },
+  { "id": "min-stack",                           "title": "Min Stack",                             "topic": "stack",                "difficulty": "easy",   "url": "https://leetcode.com/problems/min-stack/" },
+  { "id": "evaluate-reverse-polish-notation",    "title": "Evaluate Reverse Polish Notation",      "topic": "stack",                "difficulty": "medium", "url": "https://leetcode.com/problems/evaluate-reverse-polish-notation/" },
+  { "id": "largest-rectangle-in-histogram",      "title": "Largest Rectangle in Histogram",        "topic": "stack",                "difficulty": "hard",   "url": "https://leetcode.com/problems/largest-rectangle-in-histogram/" },
+
+  { "id": "implement-queue-using-stacks",        "title": "Implement Queue using Stacks",          "topic": "queue",                "difficulty": "easy",   "url": "https://leetcode.com/problems/implement-queue-using-stacks/" },
+  { "id": "design-circular-queue",               "title": "Design Circular Queue",                 "topic": "queue",                "difficulty": "medium", "url": "https://leetcode.com/problems/design-circular-queue/" },
+
+  { "id": "two-sum",                             "title": "Two Sum",                               "topic": "hash_table",           "difficulty": "easy",   "url": "https://leetcode.com/problems/two-sum/" },
+  { "id": "contains-duplicate",                  "title": "Contains Duplicate",                    "topic": "hash_table",           "difficulty": "easy",   "url": "https://leetcode.com/problems/contains-duplicate/" },
+  { "id": "group-anagrams",                      "title": "Group Anagrams",                        "topic": "hash_table",           "difficulty": "medium", "url": "https://leetcode.com/problems/group-anagrams/" },
+  { "id": "top-k-frequent-elements",             "title": "Top K Frequent Elements",               "topic": "hash_table",           "difficulty": "medium", "url": "https://leetcode.com/problems/top-k-frequent-elements/" }
 ]

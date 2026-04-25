@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Target, ArrowRight, AlertCircle } from "lucide-react";
 import { topicStrengths, userStats } from "../data/mockData";
+import { useUserProgress } from "../contexts/UserProgressContext";
 
 const weeklyData = [
   { week: "W1", solved: 8 },
@@ -27,10 +28,17 @@ const submissionData = [
 
 export default function Analytics() {
   const navigate = useNavigate();
+  const { progress } = useUserProgress();
   const radarData = topicStrengths.map(t => ({ subject: t.topic, strength: t.strength }));
 
   const strongTopics = topicStrengths.filter(t => t.strength >= 70).sort((a, b) => b.strength - a.strength);
   const weakTopics = topicStrengths.filter(t => t.strength < 50).sort((a, b) => a.strength - b.strength);
+
+  // Use real user data when available
+  const displayTotalSolved = progress?.questionsSolved || userStats.totalSolved;
+  const displayEasySolved = progress?.topicStrengths?.['Arrays'] ? Math.round((progress.topicStrengths['Arrays'] / 100) * 50) : userStats.easy;
+  const displayMediumSolved = progress?.topicStrengths?.['Dynamic Programming'] ? Math.round((progress.topicStrengths['Dynamic Programming'] / 100) * 30) : userStats.medium;
+  const displayHardSolved = progress?.topicStrengths?.['Graphs'] ? Math.round((progress.topicStrengths['Graphs'] / 100) * 10) : userStats.hard;
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">
@@ -42,10 +50,10 @@ export default function Analytics() {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Total Solved", value: userStats.totalSolved, sub: "problems", color: "text-orange-400" },
-          { label: "Easy Solved", value: userStats.easy, sub: `/ ${Math.round(userStats.easy * 1.8)} available`, color: "text-green-400" },
-          { label: "Medium Solved", value: userStats.medium, sub: `/ ${Math.round(userStats.medium * 2.3)} available`, color: "text-yellow-400" },
-          { label: "Hard Solved", value: userStats.hard, sub: `/ ${Math.round(userStats.hard * 5)} available`, color: "text-red-400" },
+          { label: "Total Solved", value: displayTotalSolved, sub: "problems", color: "text-orange-400" },
+          { label: "Easy Solved", value: displayEasySolved, sub: `/ ${Math.round(displayEasySolved * 1.8)} available`, color: "text-green-400" },
+          { label: "Medium Solved", value: displayMediumSolved, sub: `/ ${Math.round(displayMediumSolved * 2.3)} available`, color: "text-yellow-400" },
+          { label: "Hard Solved", value: displayHardSolved, sub: `/ ${Math.round(displayHardSolved * 5)} available`, color: "text-red-400" },
         ].map(({ label, value, sub, color }) => (
           <div key={label} className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
             <div className={`${color} mb-1`} style={{ fontSize: '28px', fontWeight: 800 }}>{value}</div>

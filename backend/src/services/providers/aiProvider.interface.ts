@@ -3,7 +3,7 @@ export interface AIProvider {
 }
 
 export interface AIConfig {
-  provider: 'openai' | 'gemini';
+  provider: 'openai' | 'gemini' | 'groq';
   apiKey: string;
   model?: string;
 }

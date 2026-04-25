@@ -65,11 +65,13 @@ export interface Environment {
   SUPABASE_ANON_KEY: string;
 
   // AI Provider (REQUIRED)
-  AI_PROVIDER: "gemini" | "openai";
-  GEMINI_API_KEY?: string;
-  GEMINI_MODEL?: string;
+  AI_PROVIDER: "groq" | "openai" | "gemini";
+  GROQ_API_KEY?: string;
+  GROQ_MODEL?: string;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
   JDOODLE_CLIENT_ID?: string;
   JDOODLE_CLIENT_SECRET?: string;
 
@@ -122,7 +124,9 @@ function validateEnvironment(): void {
       "      - SUPABASE_URL: Get from Supabase Dashboard → Settings → API",
     );
     console.error("      - SUPABASE_ANON_KEY: Get from above");
-    console.error('      - AI_PROVIDER: Set to "gemini" or "openai"');
+    console.error('      - AI_PROVIDER: Set to "groq", "openai" or "gemini"');
+    console.error("      - GROQ_API_KEY: Get from Groq AI Dashboard\n");
+    console.error("      - OPENAI_API_KEY: Get from OpenAI Dashboard\n");
     console.error("      - GEMINI_API_KEY: Get from Google AI Studio\n");
     console.error("   3. Restart the server\n");
 
@@ -144,11 +148,13 @@ function parseEnvironment(): Environment {
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "",
 
     // AI Provider (required)
-    AI_PROVIDER: (process.env.AI_PROVIDER as any) || "gemini",
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    AI_PROVIDER: (process.env.AI_PROVIDER as any) || "groq",
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
+    GROQ_MODEL: process.env.GROQ_MODEL || "groq-1",
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4-turbo",
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-1.5-flash",
     JDOODLE_CLIENT_ID: process.env.JDOODLE_CLIENT_ID,
     JDOODLE_CLIENT_SECRET: process.env.JDOODLE_CLIENT_SECRET,
 
@@ -192,6 +198,13 @@ function logConfiguration(env: Environment): void {
     console.log(`   • OPENAI_MODEL: ${env.OPENAI_MODEL}`);
     console.log(
       `   • OPENAI_API_KEY: ${env.OPENAI_API_KEY ? "✓ configured" : "✗ MISSING"}`,
+    );
+  }
+
+  if (env.AI_PROVIDER === "groq") {
+    console.log(`   • GROQ_MODEL: ${env.GROQ_MODEL}`);
+    console.log(
+      `   • GROQ_API_KEY: ${env.GROQ_API_KEY ? "✓ configured" : "✗ MISSING"}`,
     );
   }
 

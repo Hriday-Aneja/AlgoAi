@@ -79,7 +79,7 @@ export const ChatbotPage: React.FC = () => {
           <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
             <p className="text-sm text-gray-600">API Endpoint</p>
             <p className="text-sm font-mono text-gray-900 break-all">
-              {import.meta.env.VITE_API_URL || 'http://localhost:3007/api'}/chat
+              {import.meta.env.VITE_API_URL || 'http://localhost:3008/api'}/chat
             </p>
           </div>
 

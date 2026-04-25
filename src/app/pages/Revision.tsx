@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { RefreshCw, CheckCircle2, Clock, ChevronRight, Brain, ArrowRight, Zap } from "lucide-react";
 import { revisionProblems } from "../data/mockData";
 

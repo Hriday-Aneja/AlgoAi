@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   Map, CheckCircle2, Lock, Play, ChevronRight, Target,

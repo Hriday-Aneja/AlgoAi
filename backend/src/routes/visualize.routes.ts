@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { visualizeCode } from "../controllers/visualize.controller";
-import { requireAuth } from "../utils/auth";
+import { requireAuth, withAuth } from "../utils/auth";
 
 const router = Router();
 
@@ -9,6 +9,6 @@ const router = Router();
  * @desc    Execute and visualize code step-by-step
  * @access  Private
  */
-router.post("/", requireAuth, visualizeCode);
+router.post("/", requireAuth, withAuth(visualizeCode));
 
 export default router;
