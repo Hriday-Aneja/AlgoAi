@@ -1,6 +1,8 @@
 import supabase from '../config/supabase';
 import { ProblemToRevise, RevisionReason } from '../types/revision.types';
 
+const PROBLEM_PROGRESS_TABLE = 'user_problem_progress';
+
 // ─── Spaced Repetition Intervals (days) ───────────────────────────────────────
 
 const SPACED_REPETITION_DAYS = [1, 3, 7];
@@ -40,17 +42,29 @@ export const getProblemsToRevise = async (userId: string): Promise<ProblemToRevi
   const problemsToRevise: ProblemToRevise[] = [];
 
   // 1. Spaced repetition: solved problems due for revision
-  const { data: solvedProblems, error: solvedError } = await supabase
-    .from('user_progress')
+  let { data: solvedProblems, error: solvedError } = await supabase
+    .from(PROBLEM_PROGRESS_TABLE)
     .select('problem_id, topic, difficulty, created_at')
-    .eq('user_id', userId)
+    .eq('userId', userId)
     .eq('status', 'solved')
-    .order('created_at', { ascending: false });
+    .order('createdAt', { ascending: false });
+
+  if (solvedError && solvedError.message.includes('userId')) {
+    const fallback = await supabase
+      .from(PROBLEM_PROGRESS_TABLE)
+      .select('problem_id, topic, difficulty, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'solved')
+      .order('created_at', { ascending: false });
+
+    solvedProblems = fallback.data ?? [];
+    solvedError = fallback.error;
+  }
 
   if (solvedError) {
     console.error('Error fetching solved problems:', solvedError);
   } else {
-    for (const problem of solvedProblems) {
+    for (const problem of solvedProblems ?? []) {
       if (isSpacedRepetitionDay(new Date(problem.created_at))) {
         problemsToRevise.push({
           problem_id: problem.problem_id,
@@ -66,17 +80,29 @@ export const getProblemsToRevise = async (userId: string): Promise<ProblemToRevi
   // 2. Low accuracy topics: solved problems from weak topics
   const weakTopics = await getWeakTopics(userId);
   if (weakTopics.length > 0) {
-    const { data: weakTopicProblems, error: weakError } = await supabase
-      .from('user_progress')
+    let { data: weakTopicProblems, error: weakError } = await supabase
+      .from(PROBLEM_PROGRESS_TABLE)
       .select('problem_id, topic, difficulty, created_at')
-      .eq('user_id', userId)
+      .eq('userId', userId)
       .eq('status', 'solved')
       .overlaps('topic', weakTopics);
+
+    if (weakError && weakError.message.includes('userId')) {
+      const fallback = await supabase
+        .from(PROBLEM_PROGRESS_TABLE)
+        .select('problem_id, topic, difficulty, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'solved')
+        .overlaps('topic', weakTopics);
+
+      weakTopicProblems = fallback.data ?? [];
+      weakError = fallback.error;
+    }
 
     if (weakError) {
       console.error('Error fetching weak topic problems:', weakError);
     } else {
-      for (const problem of weakTopicProblems) {
+      for (const problem of weakTopicProblems ?? []) {
         // Avoid duplicates
         if (!problemsToRevise.some(p => p.problem_id === problem.problem_id)) {
           problemsToRevise.push({
@@ -92,17 +118,29 @@ export const getProblemsToRevise = async (userId: string): Promise<ProblemToRevi
   }
 
   // 3. Previously failed: attempted but not solved problems
-  const { data: failedProblems, error: failedError } = await supabase
-    .from('user_progress')
+  let { data: failedProblems, error: failedError } = await supabase
+    .from(PROBLEM_PROGRESS_TABLE)
     .select('problem_id, topic, difficulty, created_at')
-    .eq('user_id', userId)
+    .eq('userId', userId)
     .eq('status', 'attempted')
-    .order('created_at', { ascending: false });
+    .order('createdAt', { ascending: false });
+
+  if (failedError && failedError.message.includes('userId')) {
+    const fallback = await supabase
+      .from(PROBLEM_PROGRESS_TABLE)
+      .select('problem_id, topic, difficulty, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'attempted')
+      .order('created_at', { ascending: false });
+
+    failedProblems = fallback.data ?? [];
+    failedError = fallback.error;
+  }
 
   if (failedError) {
     console.error('Error fetching failed problems:', failedError);
   } else {
-    for (const problem of failedProblems) {
+    for (const problem of failedProblems ?? []) {
       // Avoid duplicates
       if (!problemsToRevise.some(p => p.problem_id === problem.problem_id)) {
         problemsToRevise.push({

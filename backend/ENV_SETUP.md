@@ -26,6 +26,27 @@ Edit `backend/.env` and fill in these required fields:
    - **SUPABASE_URL** → "Project URL"
    - **SUPABASE_ANON_KEY** → "Anon Key"
 
+#### Database Connection (Required)
+
+1. In Supabase, go to **Database** → **Connection info**
+2. Copy the Postgres connection string
+3. Paste it into your `.env` as `DATABASE_URL`
+
+Example:
+```
+DATABASE_URL=postgresql://postgres:<YOUR_DB_PASSWORD>@db.<YOUR_PROJECT_REF>.supabase.co:5432/postgres
+```
+
+#### JWT Secret (Required)
+
+1. Choose a strong secret string for signing authentication tokens
+2. Add it to `.env` as `JWT_SECRET`
+
+Example:
+```
+JWT_SECRET=your_super_secret_jwt_key_change_this_in_production_123456789
+```
+
 Example:
 ```
 SUPABASE_URL=https://xyzabc.supabase.co

@@ -3,6 +3,44 @@ import { UserStreak, UpdateStreakDto, StreakUpdateResponse } from '../types/stre
 
 const TABLE = 'streaks';
 
+export const calculateNextStreakState = ({
+  currentStreak,
+  daysDiff,
+}: {
+  currentStreak: number;
+  daysDiff: number;
+}): { currentStreak: number; streakIncremented: boolean; message: string } => {
+  if (daysDiff === 0) {
+    return {
+      currentStreak: Math.max(1, currentStreak),
+      streakIncremented: false,
+      message: 'Problem solved today already. Streak unchanged.',
+    };
+  }
+
+  if (daysDiff === 1) {
+    return {
+      currentStreak: currentStreak + 1,
+      streakIncremented: true,
+      message: `Streak continued! Day ${currentStreak + 1}`,
+    };
+  }
+
+  if (daysDiff > 1) {
+    return {
+      currentStreak: 1,
+      streakIncremented: true,
+      message: 'Streak reset after skipping days. New streak: Day 1',
+    };
+  }
+
+  return {
+    currentStreak: Math.max(1, currentStreak),
+    streakIncremented: false,
+    message: 'Invalid date. Streak unchanged.',
+  };
+};
+
 // ─── Helper: Date Utilities ───────────────────────────────────────────────────
 // Handles timezone-aware date comparisons without time components.
 
@@ -135,27 +173,10 @@ export const updateStreakOnProblemSolved = async (
   // 3. Calculate days difference
   const daysDiff = daysDifference(todayDate, lastActiveDate);
 
-  let newCurrentStreak = streak.currentStreak;
-  let streakIncremented = false;
-  let message = '';
-
-  if (daysDiff === 0) {
-    // Same day: no increment (already solved a problem today)
-    message = 'Problem solved today already. Streak unchanged.';
-  } else if (daysDiff === 1) {
-    // Next day: increment streak
-    newCurrentStreak = streak.currentStreak + 1;
-    streakIncremented = true;
-    message = `Streak continued! Day ${newCurrentStreak}`;
-  } else if (daysDiff > 1) {
-    // Skipped days: reset to 1
-    newCurrentStreak = 1;
-    streakIncremented = true;
-    message = `Streak reset after skipping days. New streak: Day 1`;
-  } else {
-    // daysDiff < 0 (shouldn't happen, but handle gracefully)
-    message = 'Invalid date. Streak unchanged.';
-  }
+  const { currentStreak: newCurrentStreak, streakIncremented, message } = calculateNextStreakState({
+    currentStreak: streak.currentStreak,
+    daysDiff,
+  });
 
   // 4. Update longestStreak if exceeded
   const newLongestStreak = Math.max(streak.longestStreak, newCurrentStreak);

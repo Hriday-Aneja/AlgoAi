@@ -143,10 +143,34 @@ export const getUserProgress = async (userId: string): Promise<{
     created_at: string;
   }>;
 }> => {
-  console.log('Calling user progress API for user:', userId);
-  const response = await api.get(`/progress/${userId}`);
-  console.log('User progress API response:', response.data);
-  return response.data;
+  try {
+    console.log('Calling user progress API for user:', userId);
+    const response = await api.get(`/progress/${userId}`);
+    console.log('User progress API response:', response.data);
+    
+    // Handle new API format { success: true, progress: {...} }
+    if (response.data?.success && response.data?.progress) {
+      return {
+        count: Array.isArray(response.data.progress) ? response.data.progress.length : 0,
+        data: Array.isArray(response.data.progress) ? response.data.progress : []
+      };
+    }
+    
+    // Handle legacy format { data: [...] }
+    if (response.data?.data) {
+      return {
+        count: Array.isArray(response.data.data) ? response.data.data.length : 0,
+        data: Array.isArray(response.data.data) ? response.data.data : []
+      };
+    }
+    
+    // Fallback to empty data
+    return { count: 0, data: [] };
+  } catch (error) {
+    console.error('User progress API error:', error);
+    // Return empty data instead of crashing
+    return { count: 0, data: [] };
+  }
 };
 
 /**
@@ -164,10 +188,25 @@ export const getWeakTopics = async (userId: string): Promise<{
     weakness_level: 'high' | 'medium';
   }>;
 }> => {
-  console.log('Calling weak topics API for user:', userId);
-  const response = await api.get(`/weak-topics/${userId}`);
-  console.log('Weak topics API response:', response.data);
-  return response.data;
+  try {
+    console.log('Calling weak topics API for user:', userId);
+    const response = await api.get(`/weak-topics/${userId}`);
+    console.log('Weak topics API response:', response.data);
+    
+    // Ensure data is always an array
+    if (!response.data?.data) {
+      return { user_id: userId, count: 0, data: [] };
+    }
+    
+    return {
+      ...response.data,
+      data: Array.isArray(response.data.data) ? response.data.data : []
+    };
+  } catch (error) {
+    console.error('Weak topics API error:', error);
+    // Return empty data instead of crashing
+    return { user_id: userId, count: 0, data: [] };
+  }
 };
 
 /**
@@ -185,10 +224,178 @@ export const getAdvancedRecommendations = async (userId: string): Promise<{
   strategy: string;
   weakTopicCount: number;
 }> => {
-  console.log('Calling advanced recommendations API for user:', userId);
-  const response = await api.get(`/advanced-recommendations/${userId}`);
-  console.log('Advanced recommendations API response:', response.data);
-  return response.data.data;
+  try {
+    console.log('Calling advanced recommendations API for user:', userId);
+    const response = await api.get(`/advanced-recommendations/${userId}`);
+    console.log('Advanced recommendations API response:', response.data);
+    
+    // Handle nested data structure
+    const data = response.data?.data || response.data;
+    
+    return {
+      recommendations: Array.isArray(data?.recommendations) ? data.recommendations : [],
+      strategy: data?.strategy || 'default',
+      weakTopicCount: data?.weakTopicCount || 0
+    };
+  } catch (error) {
+    console.error('Advanced recommendations API error:', error);
+    // Return empty recommendations instead of crashing
+    return {
+      recommendations: [],
+      strategy: 'default',
+      weakTopicCount: 0
+    };
+  }
+};
+
+export interface ProblemRecord {
+  id: string;
+  title: string;
+  difficulty: 'easy' | 'medium' | 'hard' | 'Easy' | 'Medium' | 'Hard';
+  topic: string;
+  url?: string;
+  tags?: string[];
+  status?: 'solved' | 'attempted' | 'unsolved' | 'bookmarked';
+  acceptance?: number;
+  submissions?: number;
+  description?: string;
+  testCases?: { input: string; output: string }[];
+  examples?: { input: string; output: string; explanation?: string }[];
+  constraints?: string[];
+  hints?: string[];
+  starterCode?: string;
+  solution?: string;
+  timeComplexity?: string;
+  spaceComplexity?: string;
+  videoUrl?: string;
+  likes?: number;
+  dislikes?: number;
+}
+
+export interface RoadmapDay {
+  day: number;
+  topic: string;
+  difficulty: string;
+  tasks: string[];
+  completed?: boolean;
+  isLocked?: boolean;
+}
+
+export interface RoadmapMeta {
+  startDate?: string;
+  daysSinceStart?: number;
+  currentRoadmapDay?: number;
+  roadmapLength?: number;
+  unlockedDays?: number;
+  lockedDays?: number;
+  unlockedDayNumbers?: number[];
+  lockedDayNumbers?: number[];
+}
+
+export interface WeeklyActivityDay {
+  day: string;
+  solved: number;
+}
+
+export interface ProgressRecord {
+  id: string;
+  user_id: string;
+  problem_id: string;
+  topic: string[];
+  difficulty: 'easy' | 'medium' | 'hard';
+  status: 'solved' | 'attempted';
+  time_taken: number | null;
+  created_at: string;
+}
+
+export const getAllProblems = async (): Promise<{
+  status: string;
+  count: number;
+  data: ProblemRecord[];
+}> => {
+  try {
+    console.log('Calling problems API...');
+    const response = await api.get('/problems');
+    console.log('Problems API response:', response.data);
+    
+    // Ensure data is always an array
+    if (!response.data?.data) {
+      return {
+        status: 'error',
+        count: 0,
+        data: []
+      };
+    }
+    
+    return {
+      status: response.data?.status || 'success',
+      count: Array.isArray(response.data.data) ? response.data.data.length : 0,
+      data: Array.isArray(response.data.data) ? response.data.data : []
+    };
+  } catch (error) {
+    console.error('Problems API error:', error);
+    // Return empty array instead of crashing
+    return {
+      status: 'error',
+      count: 0,
+      data: []
+    };
+  }
+};
+
+export const postProgressRecord = async (
+  payload: {
+    user_id: string;
+    problem_id: string;
+    topic: string | string[];
+    difficulty: 'easy' | 'medium' | 'hard';
+    status: 'solved' | 'attempted';
+    time_taken?: number | null;
+  }
+): Promise<{ status: string; data: ProgressRecord }> => {
+  console.log('Saving progress record...', payload);
+  const response = await api.post('/progress', payload);
+  console.log('Progress save response:', response.data);
+  return response.data;
+};
+
+export const getUserRoadmap = async (guestUserId?: string): Promise<{
+  success: boolean;
+  roadmap: RoadmapDay[];
+  roadmapMeta?: RoadmapMeta;
+}> => {
+  try {
+    console.log('Fetching user roadmap...');
+    const headers: Record<string, string> = {};
+    const userId = guestUserId ?? localStorage.getItem('guestUserId');
+    if (userId) {
+      headers['x-user-id'] = userId;
+    }
+
+    const response = await api.get('/onboarding', { headers });
+    console.log('User roadmap response:', response.data);
+    
+    // Ensure roadmap is always an array
+    if (!response.data?.roadmap) {
+      return {
+        success: false,
+        roadmap: [],
+      };
+    }
+    
+    return {
+      success: response.data?.success !== false,
+      roadmap: Array.isArray(response.data.roadmap) ? response.data.roadmap : [],
+      roadmapMeta: response.data?.roadmapMeta,
+    };
+  } catch (error) {
+    console.error('User roadmap API error:', error);
+    // Return empty roadmap instead of crashing
+    return {
+      success: false,
+      roadmap: [],
+    };
+  }
 };
 
 export const updateUserStats = async (updates: {
@@ -207,7 +414,20 @@ export const updateUserStats = async (updates: {
 
 export const getUserAnalytics = async (): Promise<any> => {
   const response = await api.get('/user/analytics');
-  return response.data;
+  return response.data?.analytics || response.data || {};
+};
+
+export const getWeeklyActivity = async (): Promise<WeeklyActivityDay[]> => {
+  try {
+    const response = await api.get('/weekly-activity');
+    if (response.data?.success && Array.isArray(response.data.activity)) {
+      return response.data.activity as WeeklyActivityDay[];
+    }
+    return [];
+  } catch (error) {
+    console.error('Weekly activity API error:', error);
+    return [];
+  }
 };
 
 export const sendChatMessage = async (message: string): Promise<{ reply: string }> => {
@@ -240,6 +460,57 @@ export const sendChatMessage = async (message: string): Promise<{ reply: string 
 /**
  * Submit onboarding data for a user
  */
+const EXPERIENCE_LEVEL_ALIASES: Record<string, string> = {
+  beginner: 'beginner',
+  basic: 'intermediate',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+};
+
+const TOPIC_NORMALIZATION_MAP: Record<string, string[]> = {
+  arrays: ['arrays'],
+  strings: ['strings'],
+  'linked list': ['linked-list'],
+  'linked-list': ['linked-list'],
+  stack: ['stack'],
+  queue: ['queue'],
+  hashing: ['hashing'],
+  'two pointers': ['two-pointers'],
+  'two-pointers': ['two-pointers'],
+  'sliding window': ['sliding-window'],
+  'sliding-window': ['sliding-window'],
+  'binary search': ['binary-search'],
+  'binary-search': ['binary-search'],
+  recursion: ['recursion'],
+  backtracking: ['backtracking'],
+  trees: ['trees'],
+  bst: ['bst'],
+  heaps: ['heaps'],
+  greedy: ['greedy'],
+  graphs: ['graphs'],
+  dp: ['dp'],
+  'dynamic programming': ['dp'],
+  trie: ['trie'],
+  'bit manipulation': ['bit-manipulation'],
+  'bit-manipulation': ['bit-manipulation'],
+  'stack & queue': ['stack', 'queue'],
+};
+
+const normalizeExperienceLevel = (level: string): string => {
+  return EXPERIENCE_LEVEL_ALIASES[level.toLowerCase().trim()] ?? level.toLowerCase().trim();
+};
+
+const normalizePreferredTopics = (topics: string[]): string[] => {
+  return Array.from(
+    new Set(
+      topics.flatMap((topic) => {
+        const normalized = topic.toLowerCase().trim();
+        return TOPIC_NORMALIZATION_MAP[normalized] ?? [];
+      }),
+    ),
+  );
+};
+
 export const submitOnboarding = async (data: {
   experienceLevel: string;
   goals: string;
@@ -247,9 +518,13 @@ export const submitOnboarding = async (data: {
   timeCommitment: string;
   testScore: number;
 }): Promise<any> => {
-  console.log('Submitting onboarding data:', data);
-  const response = await api.post('/onboarding', data);
-  console.log('Onboarding submission response:', response.data);
+  const normalizedData = {
+    ...data,
+    experienceLevel: normalizeExperienceLevel(data.experienceLevel),
+    preferredTopics: normalizePreferredTopics(data.preferredTopics),
+  };
+
+  const response = await api.post('/onboarding', normalizedData);
   return response.data;
 };
 

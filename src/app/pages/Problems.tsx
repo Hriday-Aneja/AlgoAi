@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -6,7 +6,10 @@ import {
   ChevronRight, Code2, Globe, Brain, Database, Cpu, Layout,
   Filter, Zap, TrendingUp
 } from "lucide-react";
-import { problems, type Domain, type Difficulty, type Status } from "../data/mockData";
+import { problems, type Domain, type Difficulty, type Status, type Problem } from "../data/mockData";
+import { useUserProgress } from "../contexts/UserProgressContext";
+import { useAuth } from "../contexts/AuthContext";
+import { getAllProblems, getUserProgress, type ProgressRecord } from "../../services/api";
 
 const domainTabs: { id: Domain | "All"; label: string; icon: any; color: string }[] = [
   { id: "All", label: "All", icon: Zap, color: "#ff6500" },
@@ -28,30 +31,80 @@ const statusConfig: Record<Status, { icon: any; color: string; bg: string }> = {
 
 export default function Problems() {
   const navigate = useNavigate();
+  const { progress } = useUserProgress();
+  const { user } = useAuth();
+  const [backendProblems, setBackendProblems] = useState<Problem[]>(problems);
+  const [backendProgress, setBackendProgress] = useState<ProgressRecord[]>([]);
+  const [loadingProblems, setLoadingProblems] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(false);
+  const [problemError, setProblemError] = useState<string | null>(null);
+  const [progressError, setProgressError] = useState<string | null>(null);
   const [domain, setDomain] = useState<Domain | "All">("All");
   const [difficulty, setDifficulty] = useState<Difficulty | "All">("All");
   const [status, setStatus] = useState<Status | "All">("All");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
 
-  const allTags = Array.from(new Set(problems.flatMap(p => p.tags)));
+  useEffect(() => {
+    const loadBackendData = async () => {
+      if (!user?.id) return;
 
-  const filtered = problems.filter(p => {
-    if (domain !== "All" && p.domain !== domain) return false;
-    if (difficulty !== "All" && p.difficulty !== difficulty) return false;
-    if (status !== "All" && p.status !== status) return false;
-    if (tagFilter && !p.tags.includes(tagFilter)) return false;
-    if (search && !p.title.toLowerCase().includes(search.toLowerCase())) return false;
+      setLoadingProblems(true);
+      setLoadingProgress(true);
+      setProblemError(null);
+      setProgressError(null);
+
+      try {
+        const [problemResponse, progressResponse] = await Promise.all([
+          getAllProblems(),
+          getUserProgress(user.id),
+        ]);
+
+        setBackendProblems(problemResponse.data ?? problems);
+        setLoadingProblems(false);
+
+        setBackendProgress(progressResponse.data ?? []);
+        setLoadingProgress(false);
+      } catch (error: any) {
+        if (error?.response?.config?.url?.includes('/problems')) {
+          setProblemError(error.message || 'Failed to load problems');
+          setLoadingProblems(false);
+        } else {
+          setProgressError(error.message || 'Failed to load progress');
+          setLoadingProgress(false);
+        }
+        console.error('Problems: backend load failed', error);
+      }
+    };
+
+    loadBackendData();
+  }, [user?.id]);
+
+  const defaultStatus: Status = "unsolved";
+  const problemStatusMap = new Map<string, string>((backendProgress || []).map((record) => [record.problem_id, record.status]));
+  const problemsWithStatus = (backendProblems || []).map((p) => ({
+    ...p,
+    status: ((problemStatusMap.get(p.id) as Status) ?? progress?.problemStatus?.[p.id] ?? p.status) as Status || defaultStatus,
+  }));
+
+  const allTags = Array.from(new Set((problemsWithStatus || []).flatMap(p => p?.tags || [])));
+
+  const filtered = (problemsWithStatus || []).filter(p => {
+    if (domain !== "All" && p?.domain !== domain) return false;
+    if (difficulty !== "All" && p?.difficulty !== difficulty) return false;
+    if (status !== "All" && (p?.status || defaultStatus) !== status) return false;
+    if (tagFilter && !(p?.tags || []).includes(tagFilter)) return false;
+    if (search && !p?.title?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
   const stats = {
-    total: problems.length,
-    solved: problems.filter(p => p.status === "solved").length,
-    attempted: problems.filter(p => p.status === "attempted").length,
-    easy: problems.filter(p => p.difficulty === "Easy" && p.status === "solved").length,
-    medium: problems.filter(p => p.difficulty === "Medium" && p.status === "solved").length,
-    hard: problems.filter(p => p.difficulty === "Hard" && p.status === "solved").length,
+    total: (problemsWithStatus || []).length,
+    solved: (problemsWithStatus || []).filter(p => p?.status === "solved").length,
+    attempted: (problemsWithStatus || []).filter(p => p?.status === "attempted").length,
+    easy: (problemsWithStatus || []).filter(p => p?.difficulty === "Easy" && p?.status === "solved").length,
+    medium: (problemsWithStatus || []).filter(p => p?.difficulty === "Medium" && p?.status === "solved").length,
+    hard: (problemsWithStatus || []).filter(p => p?.difficulty === "Hard" && p?.status === "solved").length,
   };
 
   const selectStyle = {
@@ -207,9 +260,10 @@ export default function Problems() {
             </div>
           ) : (
             filtered.map((problem, idx) => {
-              const sc = statusConfig[problem.status];
-              const dc = diffColors[problem.difficulty];
-              const StatusIcon = sc.icon;
+              const safeStatus = (problem.status && statusConfig[problem.status]) ? problem.status : defaultStatus;
+              const sc = statusConfig[safeStatus];
+              const dc = diffColors[problem.difficulty] || diffColors.Easy;
+              const StatusIcon = sc?.icon ?? Code2;
               return (
                 <motion.div
                   key={problem.id}
@@ -228,9 +282,9 @@ export default function Problems() {
                   {/* Status */}
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{ background: sc.bg }}
+                    style={{ background: sc?.bg || 'rgba(255,255,255,0.04)' }}
                   >
-                    <StatusIcon className="w-4 h-4" style={{ color: sc.color }} />
+                    <StatusIcon className="w-4 h-4" style={{ color: sc?.color || '#4a5568' }} />
                   </div>
 
                   {/* Title + Tags */}
@@ -244,7 +298,7 @@ export default function Problems() {
                       </span>
                     </div>
                     <div className="flex gap-1.5 mt-1 flex-wrap">
-                      {problem.tags.slice(0, 2).map(t => (
+                      {(problem.tags || []).slice(0, 2).map(t => (
                         <span
                           key={t}
                           className="px-1.5 py-0.5 rounded"
@@ -296,7 +350,7 @@ export default function Problems() {
       </motion.div>
 
       <div className="mt-3 text-center" style={{ fontSize: '12px', color: '#4a5568' }}>
-        Showing <span style={{ color: '#ff6500', fontWeight: 700 }}>{filtered.length}</span> of {problems.length} problems
+        Showing <span style={{ color: '#ff6500', fontWeight: 700 }}>{filtered.length}</span> of {backendProblems.length} problems
       </div>
     </div>
   );

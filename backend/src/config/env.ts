@@ -74,7 +74,9 @@ export interface Environment {
   GEMINI_MODEL?: string;
   JDOODLE_CLIENT_ID?: string;
   JDOODLE_CLIENT_SECRET?: string;
-
+  // Auth / Database
+  DATABASE_URL: string;
+  JWT_SECRET: string;
   // Optional
   ONBOARDING_PROMPT_PREFIX?: string;
 }
@@ -89,6 +91,8 @@ const REQUIRED_VARS: (keyof Environment)[] = [
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
   "AI_PROVIDER",
+  "DATABASE_URL",
+  "JWT_SECRET",
 ];
 
 /**
@@ -97,6 +101,7 @@ const REQUIRED_VARS: (keyof Environment)[] = [
  */
 function validateEnvironment(): void {
   const missing: string[] = [];
+  const invalid: string[] = [];
 
   for (const varName of REQUIRED_VARS) {
     const value = process.env[varName];
@@ -104,6 +109,37 @@ function validateEnvironment(): void {
     if (!value || value.trim() === "") {
       missing.push(varName);
     }
+    
+    // Check for placeholder values that haven't been replaced
+    if (varName === "DATABASE_URL" && value) {
+      if (value.includes("<YOUR_DB_PASSWORD>") || value.includes("<YOUR_PROJECT_REF>")) {
+        invalid.push(`${varName} - still contains placeholders (e.g., <YOUR_DB_PASSWORD>)`);
+      }
+    }
+    
+    if (varName === "JWT_SECRET" && value === "your_super_secret_jwt_key_change_this_in_production_123456789") {
+      invalid.push(`${varName} - using default placeholder, please set a unique value`);
+    }
+  }
+
+  if (invalid.length > 0) {
+    console.error(
+      "\n❌ FATAL ERROR: Invalid environment variable values!\n",
+    );
+    console.error("The following variables need to be updated:\n");
+
+    invalid.forEach((msg) => {
+      console.error(`   • ${msg}`);
+    });
+
+    console.error("\n📋 How to fix:\n");
+    console.error("   1. Open Backend/.env\n");
+    console.error("   2. Replace placeholder values with actual values:\n");
+    console.error("      - DATABASE_URL: Paste your full Postgres connection string from Supabase\n");
+    console.error("      - JWT_SECRET: Use a strong random secret\n");
+    console.error("   3. Restart the server\n");
+
+    process.exit(1);
   }
 
   if (missing.length > 0) {
@@ -124,6 +160,8 @@ function validateEnvironment(): void {
       "      - SUPABASE_URL: Get from Supabase Dashboard → Settings → API",
     );
     console.error("      - SUPABASE_ANON_KEY: Get from above");
+    console.error("      - DATABASE_URL: Set the full Postgres connection string used by Prisma");
+    console.error("      - JWT_SECRET: Use a strong secret for signing authentication tokens");
     console.error('      - AI_PROVIDER: Set to "groq", "openai" or "gemini"');
     console.error("      - GROQ_API_KEY: Get from Groq AI Dashboard\n");
     console.error("      - OPENAI_API_KEY: Get from OpenAI Dashboard\n");
@@ -158,6 +196,10 @@ function parseEnvironment(): Environment {
     JDOODLE_CLIENT_ID: process.env.JDOODLE_CLIENT_ID,
     JDOODLE_CLIENT_SECRET: process.env.JDOODLE_CLIENT_SECRET,
 
+    // Auth / Database
+    DATABASE_URL: process.env.DATABASE_URL || "",
+    JWT_SECRET: process.env.JWT_SECRET || "",
+
     // Optional
     ONBOARDING_PROMPT_PREFIX: process.env.ONBOARDING_PROMPT_PREFIX,
   };
@@ -182,6 +224,9 @@ function logConfiguration(env: Environment): void {
   );
   console.log(
     `   • SUPABASE_ANON_KEY: ${env.SUPABASE_ANON_KEY ? "✓ configured" : "✗ MISSING"}`,
+  );
+  console.log(
+    `   • DATABASE_URL: ${env.DATABASE_URL ? "✓ configured" : "✗ MISSING"}`,
   );
 
   console.log(`\n   [AI PROVIDER]`);

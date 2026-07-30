@@ -77,7 +77,7 @@ export const resetGroqChat = (): void => {
 // ─── Code Explanation (Line-by-Line) ──────────────────────────────────
 
 interface CodeLineExplanation {
-  lineNumber: number;
+  lineNumber: number; 
   code: string;
   explanation: string;
 }

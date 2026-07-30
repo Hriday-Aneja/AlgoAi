@@ -8,13 +8,13 @@ const router = Router();
  * @desc    Get today's daily challenge and completion status
  * @access  Private (requires auth)
  */
-router.get('/', getDailyChallengeHandler);
+router.get('/', getDailyChallengeHandler as any);
 
 /**
  * @route   POST /api/daily-challenge/complete
  * @desc    Mark today's challenge as completed
  * @access  Private (requires auth)
  */
-router.post('/complete', completeDailyChallengeHandler);
+router.post('/complete', completeDailyChallengeHandler as any);
 
 export default router;

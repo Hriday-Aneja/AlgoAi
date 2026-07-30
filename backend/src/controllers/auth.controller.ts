@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/database";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -69,6 +70,26 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error("Registration error:", error);
+
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      res.status(502).json({
+        status: "error",
+        message: "Unable to connect to the database. Please try again later.",
+      });
+      return;
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      res.status(409).json({
+        status: "error",
+        message: "A user with this email already exists.",
+      });
+      return;
+    }
+
     res.status(500).json({
       status: "error",
       message: "Internal server error",
@@ -137,6 +158,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error("Login error:", error);
+
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      res.status(502).json({
+        status: "error",
+        message: "Unable to connect to the database. Please try again later.",
+      });
+      return;
+    }
+
     res.status(500).json({
       status: "error",
       message: "Internal server error",

@@ -19,8 +19,7 @@ const steps = ["Profile", "Goals", "Topics", "Mini Test", "Roadmap"];
 
 const levels = [
   { id: "beginner", label: "Complete Beginner", desc: "Never coded algorithms before", emoji: "🌱" },
-  { id: "basic", label: "Basic DSA", desc: "Know arrays, basic sorting", emoji: "📚" },
-  { id: "intermediate", label: "Intermediate", desc: "Comfortable with trees, graphs", emoji: "⚡" },
+  { id: "intermediate", label: "Basic DSA", desc: "Know arrays, basic sorting", emoji: "📚" },
   { id: "advanced", label: "Advanced", desc: "Solved 200+ LeetCode problems", emoji: "🔥" },
 ];
 
@@ -33,10 +32,25 @@ const goals = [
 ];
 
 const topics = [
-  "Arrays", "Linked List", "Trees", "Graphs",
-  "Dynamic Programming", "Recursion", "Binary Search",
-  "Stack & Queue", "Heaps", "Greedy", "Backtracking",
-  "Strings", "Bit Manipulation", "System Design"
+  { id: "arrays", label: "Arrays" },
+  { id: "strings", label: "Strings" },
+  { id: "linked-list", label: "Linked List" },
+  { id: "stack", label: "Stack" },
+  { id: "queue", label: "Queue" },
+  { id: "hashing", label: "Hashing" },
+  { id: "two-pointers", label: "Two Pointers" },
+  { id: "sliding-window", label: "Sliding Window" },
+  { id: "binary-search", label: "Binary Search" },
+  { id: "recursion", label: "Recursion" },
+  { id: "backtracking", label: "Backtracking" },
+  { id: "trees", label: "Trees" },
+  { id: "bst", label: "BST" },
+  { id: "heaps", label: "Heaps" },
+  { id: "greedy", label: "Greedy" },
+  { id: "graphs", label: "Graphs" },
+  { id: "dp", label: "Dynamic Programming" },
+  { id: "trie", label: "Trie" },
+  { id: "bit-manipulation", label: "Bit Manipulation" },
 ];
 
 const timeOptions = [
@@ -83,8 +97,8 @@ export default function Onboarding() {
   const [time, setTime] = useState("");
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
   const [testScore, setTestScore] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const toggleTopic = (t: string) => {
     setSelectedTopics(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
@@ -104,12 +118,14 @@ export default function Onboarding() {
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setSubmitError(null);
+
     try {
       const score = calculateScore();
       setTestScore(score);
 
       // Submit onboarding data to backend
-      await submitOnboarding({
+      const response = await submitOnboarding({
         experienceLevel: level,
         goals: goal,
         preferredTopics: selectedTopics,
@@ -117,17 +133,20 @@ export default function Onboarding() {
         testScore: score,
       });
 
-      // Simulate generation delay
-      await new Promise(r => setTimeout(r, 1500));
-      setGenerating(false);
-      setGenerated(true);
-      setStep(4);
-    } catch (error) {
+      const authToken = localStorage.getItem('authToken');
+      const guestUserId = response?.userId;
+
+      if (!authToken && guestUserId) {
+        localStorage.setItem('guestUserId', guestUserId);
+      }
+
+      // Redirect to roadmap after successful onboarding
+      navigate('/roadmap', { replace: true });
+    } catch (error: any) {
       console.error('Failed to submit onboarding data:', error);
+      setSubmitError(error?.message || 'Unable to submit onboarding. Please try again.');
+    } finally {
       setGenerating(false);
-      // Still proceed to show roadmap even if submission fails
-      setGenerated(true);
-      setStep(4);
     }
   };
 
@@ -264,18 +283,18 @@ export default function Onboarding() {
                 </div>
                 <p className="text-[#8b949e] mb-5" style={{ fontSize: '14px' }}>Choose at least 3 topics. (Selected: {selectedTopics.length})</p>
                 <div className="flex flex-wrap gap-2">
-                  {topics.map(t => (
+                  {topics.map((topic) => (
                     <button
-                      key={t}
-                      onClick={() => toggleTopic(t)}
+                      key={topic.id}
+                      onClick={() => toggleTopic(topic.id)}
                       className={`px-4 py-2 rounded-lg border transition-all ${
-                        selectedTopics.includes(t)
+                        selectedTopics.includes(topic.id)
                           ? "border-orange-500 bg-orange-500/10 text-orange-300"
                           : "border-[#30363d] bg-[#21262d] text-[#8b949e] hover:border-[#8b949e] hover:text-white"
                       }`}
                       style={{ fontSize: '13px' }}
                     >
-                      {selectedTopics.includes(t) ? "✓ " : ""}{t}
+                      {selectedTopics.includes(topic.id) ? "✓ " : ""}{topic.label}
                     </button>
                   ))}
                 </div>
@@ -354,11 +373,11 @@ export default function Onboarding() {
                   ))}
                 </div>
                 <button
-                  onClick={() => navigate("/dashboard")}
+                  onClick={() => navigate("/roadmap")}
                   className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl py-3 flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20"
                   style={{ fontSize: '15px', fontWeight: 700 }}
                 >
-                  Start My Journey <ArrowRight className="w-5 h-5" />
+                  View My Roadmap <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
             )}
@@ -367,53 +386,60 @@ export default function Onboarding() {
 
         {/* Footer Buttons */}
         {step < 4 && (
-          <div className="flex items-center justify-between px-6 sm:px-8 py-4 border-t border-[#30363d] bg-[#0d1117]">
-            <button
-              onClick={() => step > 0 && setStep(s => s - 1)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                step === 0 ? "text-[#30363d] cursor-not-allowed" : "text-[#8b949e] hover:text-white hover:bg-[#21262d]"
-              }`}
-              disabled={step === 0}
-              style={{ fontSize: '13px' }}
-            >
-              <ChevronLeft className="w-4 h-4" /> Back
-            </button>
-
-            {step < 3 ? (
-              <button
-                onClick={() => canNext() && setStep(s => s + 1)}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${
-                  canNext()
-                    ? "bg-orange-500 hover:bg-orange-600 text-white"
-                    : "bg-[#21262d] text-[#8b949e] cursor-not-allowed"
-                }`}
-                style={{ fontSize: '13px', fontWeight: 600 }}
-              >
-                Next <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={() => canNext() && !generating && handleGenerate()}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${
-                  canNext() && !generating
-                    ? "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20"
-                    : "bg-[#21262d] text-[#8b949e] cursor-not-allowed"
-                }`}
-                style={{ fontSize: '13px', fontWeight: 600 }}
-              >
-                {generating ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate My Roadmap
-                  </>
-                )}
-              </button>
+          <div className="px-6 sm:px-8 py-4 border-t border-[#30363d] bg-[#0d1117]">
+            {submitError && (
+              <div className="mb-3 rounded-xl bg-[#3b1715] border border-[#832525] p-3 text-sm text-[#fca5a5]">
+                {submitError}
+              </div>
             )}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                onClick={() => step > 0 && setStep(s => s - 1)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  step === 0 ? "text-[#30363d] cursor-not-allowed" : "text-[#8b949e] hover:text-white hover:bg-[#21262d]"
+                }`}
+                disabled={step === 0}
+                style={{ fontSize: '13px' }}
+              >
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+
+              {step < 3 ? (
+                <button
+                  onClick={() => canNext() && setStep(s => s + 1)}
+                  className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${
+                    canNext()
+                      ? "bg-orange-500 hover:bg-orange-600 text-white"
+                      : "bg-[#21262d] text-[#8b949e] cursor-not-allowed"
+                  }`}
+                  style={{ fontSize: '13px', fontWeight: 600 }}
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => canNext() && !generating && handleGenerate()}
+                  className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${
+                    canNext() && !generating
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20"
+                      : "bg-[#21262d] text-[#8b949e] cursor-not-allowed"
+                  }`}
+                  style={{ fontSize: '13px', fontWeight: 600 }}
+                >
+                  {generating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Generate My Roadmap
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -3,13 +3,17 @@ import { validateCreateProgress } from '../utils/progressValidator';
 import { upsertProgress, getProgressByUser } from '../services/progress.service';
 import { CreateProgressDto } from '../types/progress.types';
 
+const getRequestUserId = (req: Request): string | undefined => {
+  return (req as any).user?.id;
+};
+
 // ─── POST /api/progress ───────────────────────────────────────────────────────
 
 /**
  * Add or update a user's problem progress.
  *
  * Body: CreateProgressDto
- * Returns 201 on create, 200 on update (Supabase upsert returns the final row).
+ * Returns 201 on create, 200 on update.
  */
 export const createOrUpdateProgress = async (
   req: Request,
@@ -17,7 +21,6 @@ export const createOrUpdateProgress = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // 1. Validate
     const { valid, errors } = validateCreateProgress(req.body);
 
     if (!valid) {
@@ -29,11 +32,20 @@ export const createOrUpdateProgress = async (
       return;
     }
 
-    // 2. Delegate to service
+    const authUserId = getRequestUserId(req);
     const dto = req.body as CreateProgressDto;
-    const result = await upsertProgress(dto);
+    const userId = authUserId || dto.user_id;
 
-    // 3. Respond
+    if (!userId) {
+      res.status(401).json({
+        status: 'error',
+        message: 'Authentication required when saving progress.',
+      });
+      return;
+    }
+
+    const result = await upsertProgress({ ...dto, user_id: userId });
+
     res.status(201).json({
       status: 'success',
       message: 'Progress saved.',
@@ -58,13 +70,22 @@ export const getUserProgress = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { userId } = req.params;
+    const requestedUserId = req.params.userId?.trim();
+    const authUserId = getRequestUserId(req);
+    const userId = requestedUserId || authUserId;
 
-    // Basic param guard
-    if (!userId || userId.trim().length === 0) {
+    if (!userId) {
       res.status(400).json({
         status: 'error',
         message: 'userId URL parameter is required.',
+      });
+      return;
+    }
+
+    if (authUserId && requestedUserId && authUserId !== requestedUserId) {
+      res.status(403).json({
+        status: 'error',
+        message: 'Forbidden: userId does not match authenticated user.',
       });
       return;
     }

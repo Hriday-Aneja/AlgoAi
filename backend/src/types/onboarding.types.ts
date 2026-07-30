@@ -9,6 +9,8 @@ export interface RoadmapDay {
   topic: string;
   tasks: string[];
   difficulty: string;
+  completed?: boolean;
+  isLocked?: boolean;
 }
 
 export interface OnboardingResponse {

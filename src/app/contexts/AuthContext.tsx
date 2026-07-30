@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, []);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3008/api";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3005/api";
 
   const register = async (email: string, password: string, name: string) => {
     try {
@@ -62,6 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(newUser);
       localStorage.setItem("authToken", newToken);
       localStorage.setItem("user", JSON.stringify(newUser));
+      localStorage.removeItem("guestUserId");
     } catch (error) {
       console.error("Registration error:", error);
       throw error;
@@ -92,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(newUser);
       localStorage.setItem("authToken", newToken);
       localStorage.setItem("user", JSON.stringify(newUser));
+      localStorage.removeItem("guestUserId");
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -103,6 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     localStorage.removeItem("authToken");
     localStorage.removeItem("user");
+    localStorage.removeItem("guestUserId");
   };
 
   const value: AuthContextType = {

@@ -11,7 +11,7 @@ export const createVisualizationHistory = async (params: {
       userId: params.userId,
       code: params.code,
       input: params.input,
-      output: params.output as object,
+      output: JSON.stringify(params.output),
     },
   });
 };

@@ -1,0 +1,591 @@
+{
+  "users": [
+    {
+      "email": "Test4@gmail.com",
+      "password": "$2b$10$r.y19pB0XeWMvlR924KXAOH0.ymJvnASntCiyF.pU5Qh8IzD6B0nu",
+      "name": "TestUser4",
+      "id": "baf811f4-f7c1-45ec-8bab-282b399aca97",
+      "createdAt": "2026-07-02T13:21:37.792Z",
+      "updatedAt": "2026-07-02T13:21:37.792Z"
+    },
+    {
+      "email": "Test5@gmail.com",
+      "password": "$2b$10$k4klvTKity5WoU.lxqjxVuONKZfLeJHW/TNSyHg.mMv4E6nF2qhoe",
+      "name": "TestUser5",
+      "id": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "createdAt": "2026-07-29T18:05:19.438Z",
+      "updatedAt": "2026-07-29T18:05:19.438Z"
+    },
+    {
+      "email": "Test6@gmail.com",
+      "password": "$2b$10$uRiITjNH7dFGoCmitrJRNuYo5ya6NLjSuT5R1K6b3ZU0JLQp7HONK",
+      "name": "TestUser6",
+      "id": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "createdAt": "2026-07-30T06:48:35.998Z",
+      "updatedAt": "2026-07-30T06:48:35.998Z"
+    }
+  ],
+  "onboardingProfiles": [
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "experienceLevel": "intermediate",
+      "preferredTopics": "[\"stack\",\"heaps\",\"bit-manipulation\"]",
+      "goals": "competitive",
+      "id": "44c6951f-3f2d-484d-95d2-ec9f3da40c78",
+      "createdAt": "2026-07-29T18:31:36.552Z",
+      "updatedAt": "2026-07-29T18:31:36.553Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "experienceLevel": "advanced",
+      "preferredTopics": "[\"sliding-window\",\"greedy\",\"recursion\"]",
+      "goals": "startup",
+      "id": "9d968cfa-58a3-4e0b-bbf0-382210b140b2",
+      "createdAt": "2026-07-29T18:32:37.071Z",
+      "updatedAt": "2026-07-29T18:32:37.071Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "experienceLevel": "beginner",
+      "preferredTopics": "[\"linked-list\",\"backtracking\",\"arrays\"]",
+      "goals": "faang",
+      "id": "7dd33f55-9f4c-4cfa-8b25-9e233cb14672",
+      "createdAt": "2026-07-29T19:03:16.147Z",
+      "updatedAt": "2026-07-30T06:41:07.320Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "experienceLevel": "beginner",
+      "preferredTopics": "[\"linked-list\",\"trie\",\"dp\"]",
+      "goals": "faang",
+      "id": "02154c6f-a90e-4052-a9c6-0d9dba6147d7",
+      "createdAt": "2026-07-30T06:48:49.156Z",
+      "updatedAt": "2026-07-30T06:48:49.156Z"
+    }
+  ],
+  "roadmaps": [
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 1,
+      "topic": "stack",
+      "tasks": "[\"Revise stack fundamentals for 30-45 minutes.\",\"Solve 2 stack practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "e272e78e-f233-4d2c-94c9-3b8c56da8821",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 2,
+      "topic": "heaps",
+      "tasks": "[\"Revise heaps fundamentals for 30-45 minutes.\",\"Solve 2 heaps practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "c82e8ff7-98e7-480f-a4d8-a824a848cd43",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 3,
+      "topic": "bit-manipulation",
+      "tasks": "[\"Revise bit-manipulation fundamentals for 30-45 minutes.\",\"Solve 2 bit-manipulation practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "17c5ce4e-429f-40c1-b923-65fced05390c",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 4,
+      "topic": "arrays",
+      "tasks": "[\"Revise arrays fundamentals for 30-45 minutes.\",\"Solve 2 arrays practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "9c4d7b5c-b74f-4a02-92b1-035570f7db53",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 5,
+      "topic": "strings",
+      "tasks": "[\"Revise strings fundamentals for 30-45 minutes.\",\"Solve 2 strings practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "b92e83d5-9bd1-4efc-9b57-a5453e77d625",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 6,
+      "topic": "hashing",
+      "tasks": "[\"Revise hashing fundamentals for 30-45 minutes.\",\"Solve 2 hashing practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "305e0db5-b1cb-4e94-9329-8df504aa1a6b",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 7,
+      "topic": "two-pointers",
+      "tasks": "[\"Revise two-pointers fundamentals for 30-45 minutes.\",\"Solve 2 two-pointers practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "69d573ee-e747-4ba4-9f3d-cd258b11a188",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 8,
+      "topic": "sliding-window",
+      "tasks": "[\"Revise sliding-window fundamentals for 30-45 minutes.\",\"Solve 2 sliding-window practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "6f61160c-192d-41e3-a60c-822cbb59bebe",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 9,
+      "topic": "binary-search",
+      "tasks": "[\"Revise binary-search fundamentals for 30-45 minutes.\",\"Solve 2 binary-search practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "ba9d464e-66ec-41c8-b22b-473201e49afc",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349896487_y6mt7p4t2",
+      "day": 10,
+      "topic": "recursion",
+      "tasks": "[\"Revise recursion fundamentals for 30-45 minutes.\",\"Solve 2 recursion practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "7961a67b-042a-4d1b-89c7-94bb1c1993e3",
+      "createdAt": "2026-07-29T18:31:37.064Z",
+      "updatedAt": "2026-07-29T18:31:37.064Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 1,
+      "topic": "sliding-window",
+      "tasks": "[\"Revise sliding-window fundamentals for 30-45 minutes.\",\"Solve 2 sliding-window practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "3372e740-4e46-4959-b1b1-13c6c6180143",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 2,
+      "topic": "greedy",
+      "tasks": "[\"Revise greedy fundamentals for 30-45 minutes.\",\"Solve 2 greedy practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "medium",
+      "completed": false,
+      "id": "0ffd54d8-b3cb-4611-85b4-b781e7662a0c",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 3,
+      "topic": "recursion",
+      "tasks": "[\"Revise recursion fundamentals for 30-45 minutes.\",\"Solve 2 recursion practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "hard",
+      "completed": false,
+      "id": "5a034eb3-317f-455f-a51c-fc3c86089f8a",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 4,
+      "topic": "arrays",
+      "tasks": "[\"Revise arrays fundamentals for 30-45 minutes.\",\"Solve 2 arrays practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "hard",
+      "completed": false,
+      "id": "1a88af6d-d24e-4e03-9f13-6205b830380b",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 5,
+      "topic": "strings",
+      "tasks": "[\"Revise strings fundamentals for 30-45 minutes.\",\"Solve 2 strings practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "hard",
+      "completed": false,
+      "id": "de4eb61d-1d9b-461a-85a0-2b9f3038aeb3",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 6,
+      "topic": "hashing",
+      "tasks": "[\"Revise hashing fundamentals for 30-45 minutes.\",\"Solve 2 hashing practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "hard",
+      "completed": false,
+      "id": "b19e06e0-6ef1-4975-846b-622b52070d93",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "guest_1785349957069_caw0b4a3p",
+      "day": 7,
+      "topic": "two-pointers",
+      "tasks": "[\"Revise two-pointers fundamentals for 30-45 minutes.\",\"Solve 2 two-pointers practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "hard",
+      "completed": false,
+      "id": "7fa26a26-4b16-4634-9a44-84fd9129ef37",
+      "createdAt": "2026-07-29T18:32:37.099Z",
+      "updatedAt": "2026-07-29T18:32:37.099Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 1,
+      "topic": "linked-list",
+      "tasks": "[\"Revise linked-list fundamentals for 30-45 minutes.\",\"Solve 2 linked-list practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "803b074c-dd5e-4f7b-aeaf-839dee95abaf",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 2,
+      "topic": "backtracking",
+      "tasks": "[\"Revise backtracking fundamentals for 30-45 minutes.\",\"Solve 2 backtracking practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "9e49f539-708c-450f-9d09-425f3666dc23",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 3,
+      "topic": "arrays",
+      "tasks": "[\"Revise arrays fundamentals for 30-45 minutes.\",\"Solve 2 arrays practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "9a3abc94-dcae-441e-bd40-ef2c3ba8751a",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 4,
+      "topic": "strings",
+      "tasks": "[\"Revise strings fundamentals for 30-45 minutes.\",\"Solve 2 strings practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "f50aa8a3-dbfe-4ba4-b6cd-f6ff9f0b033d",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 5,
+      "topic": "hashing",
+      "tasks": "[\"Revise hashing fundamentals for 30-45 minutes.\",\"Solve 2 hashing practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "ecfaeac2-a745-4bfe-9fe2-347b4fd02c45",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 6,
+      "topic": "two-pointers",
+      "tasks": "[\"Revise two-pointers fundamentals for 30-45 minutes.\",\"Solve 2 two-pointers practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "8868de7b-bad4-42e5-a5a4-5be911dc5c4a",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 7,
+      "topic": "sliding-window",
+      "tasks": "[\"Revise sliding-window fundamentals for 30-45 minutes.\",\"Solve 2 sliding-window practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "7320ceee-2964-4fca-a587-ee8c28af292d",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 8,
+      "topic": "binary-search",
+      "tasks": "[\"Revise binary-search fundamentals for 30-45 minutes.\",\"Solve 2 binary-search practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "46887c91-7f48-47fd-97ec-afb0905556b0",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 9,
+      "topic": "recursion",
+      "tasks": "[\"Revise recursion fundamentals for 30-45 minutes.\",\"Solve 2 recursion practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "aa898584-5d7d-47bf-83a6-321b750eb193",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 10,
+      "topic": "trees",
+      "tasks": "[\"Revise trees fundamentals for 30-45 minutes.\",\"Solve 2 trees practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "593dc4df-4a09-41c0-840a-93cfab34d257",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 11,
+      "topic": "graphs",
+      "tasks": "[\"Revise graphs fundamentals for 30-45 minutes.\",\"Solve 2 graphs practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "5ef2a3b0-ed1f-41aa-a736-7cdc77cd6827",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 12,
+      "topic": "dp",
+      "tasks": "[\"Revise dp fundamentals for 30-45 minutes.\",\"Solve 2 dp practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "94821a82-ede6-4880-a54d-4489d5753950",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 13,
+      "topic": "linked-list",
+      "tasks": "[\"Revise linked-list fundamentals for 30-45 minutes.\",\"Solve 2 linked-list practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "03f42298-aea1-4670-911e-6137d8c80dd7",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "day": 14,
+      "topic": "backtracking",
+      "tasks": "[\"Revise backtracking fundamentals for 30-45 minutes.\",\"Solve 2 backtracking practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "49672b06-88e3-4889-8c5d-b15e71479698",
+      "createdAt": "2026-07-30T06:41:07.545Z",
+      "updatedAt": "2026-07-30T06:41:07.545Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 1,
+      "topic": "linked-list",
+      "tasks": "[\"Revise linked-list fundamentals for 30-45 minutes.\",\"Solve 2 linked-list practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "70215079-bb70-47f2-8be6-3cd4355afb5f",
+      "createdAt": "2026-07-30T06:48:49.290Z",
+      "updatedAt": "2026-07-30T06:48:49.290Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 2,
+      "topic": "trie",
+      "tasks": "[\"Revise trie fundamentals for 30-45 minutes.\",\"Solve 2 trie practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "db0f1b1e-ee96-44c6-a767-4ddb1be6bbdd",
+      "createdAt": "2026-07-30T06:48:49.290Z",
+      "updatedAt": "2026-07-30T06:48:49.290Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 3,
+      "topic": "dp",
+      "tasks": "[\"Revise dp fundamentals for 30-45 minutes.\",\"Solve 2 dp practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "12b9eb1a-5aba-4635-8069-bbf5c6d10406",
+      "createdAt": "2026-07-30T06:48:49.290Z",
+      "updatedAt": "2026-07-30T06:48:49.290Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 4,
+      "topic": "arrays",
+      "tasks": "[\"Revise arrays fundamentals for 30-45 minutes.\",\"Solve 2 arrays practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "bbc39730-153e-43b7-9bca-6f72b2dc2446",
+      "createdAt": "2026-07-30T06:48:49.290Z",
+      "updatedAt": "2026-07-30T06:48:49.290Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 5,
+      "topic": "strings",
+      "tasks": "[\"Revise strings fundamentals for 30-45 minutes.\",\"Solve 2 strings practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "3873f0c6-a79a-49e4-833e-fa196fe68921",
+      "createdAt": "2026-07-30T06:48:49.290Z",
+      "updatedAt": "2026-07-30T06:48:49.290Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 6,
+      "topic": "hashing",
+      "tasks": "[\"Revise hashing fundamentals for 30-45 minutes.\",\"Solve 2 hashing practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "cfbec94c-a41a-45e6-b877-30324ebf060e",
+      "createdAt": "2026-07-30T06:48:49.290Z",
+      "updatedAt": "2026-07-30T06:48:49.290Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 7,
+      "topic": "two-pointers",
+      "tasks": "[\"Revise two-pointers fundamentals for 30-45 minutes.\",\"Solve 2 two-pointers practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "7c0a0c72-6917-4ddc-ae0e-8775ceff17bf",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 8,
+      "topic": "sliding-window",
+      "tasks": "[\"Revise sliding-window fundamentals for 30-45 minutes.\",\"Solve 2 sliding-window practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "1a3f3629-9d2c-4dbb-a813-7fd504d4c666",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 9,
+      "topic": "binary-search",
+      "tasks": "[\"Revise binary-search fundamentals for 30-45 minutes.\",\"Solve 2 binary-search practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "a0a45931-8ab0-4b2e-9d45-642c6b4bb2f2",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 10,
+      "topic": "recursion",
+      "tasks": "[\"Revise recursion fundamentals for 30-45 minutes.\",\"Solve 2 recursion practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "67500c0f-a408-4d8f-a970-14a746fab2b3",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 11,
+      "topic": "trees",
+      "tasks": "[\"Revise trees fundamentals for 30-45 minutes.\",\"Solve 2 trees practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "786e0d83-722d-4571-bd4c-5c6cdb4ce2ea",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 12,
+      "topic": "graphs",
+      "tasks": "[\"Revise graphs fundamentals for 30-45 minutes.\",\"Solve 2 graphs practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "5153a3ad-c1f6-416c-bfe2-e7d89160abe6",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 13,
+      "topic": "linked-list",
+      "tasks": "[\"Revise linked-list fundamentals for 30-45 minutes.\",\"Solve 2 linked-list practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "b1ab72d8-9b0e-4df5-9f2f-3709f8807b60",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "day": 14,
+      "topic": "trie",
+      "tasks": "[\"Revise trie fundamentals for 30-45 minutes.\",\"Solve 2 trie practice problems and write complexity notes.\",\"Write a short reflection on mistakes and improvement points.\"]",
+      "difficulty": "easy",
+      "completed": false,
+      "id": "f718101b-812d-43c8-bbdf-b2cd926285cc",
+      "createdAt": "2026-07-30T06:48:49.291Z",
+      "updatedAt": "2026-07-30T06:48:49.291Z"
+    }
+  ],
+  "userProgresses": [
+    {
+      "userId": "baf811f4-f7c1-45ec-8bab-282b399aca97",
+      "data": "{\"userId\":\"baf811f4-f7c1-45ec-8bab-282b399aca97\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":0,\"longestStreak\":0,\"lastLoginDate\":\"2026-07-02\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
+      "id": "f121dcd9-fe4c-4172-a15d-a2e588780817",
+      "createdAt": "2026-07-02T13:21:37.849Z",
+      "updatedAt": "2026-07-02T13:21:37.849Z"
+    },
+    {
+      "userId": "8fbc8cba-285f-4fa6-b4dd-869b2902c3f3",
+      "data": "{\"userId\":\"8fbc8cba-285f-4fa6-b4dd-869b2902c3f3\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":1,\"longestStreak\":1,\"lastLoginDate\":\"2026-07-30\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
+      "id": "f698ddb4-3e66-49e6-8f80-2af279a9fd3d",
+      "createdAt": "2026-07-29T18:05:19.534Z",
+      "updatedAt": "2026-07-30T06:12:26.136Z"
+    },
+    {
+      "userId": "ea5208c2-d559-49e8-a203-c792e64b4464",
+      "data": "{\"userId\":\"ea5208c2-d559-49e8-a203-c792e64b4464\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":0,\"longestStreak\":0,\"lastLoginDate\":\"2026-07-30\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
+      "id": "c128c587-d1d5-4a13-b809-e303913aae0a",
+      "createdAt": "2026-07-30T06:48:36.038Z",
+      "updatedAt": "2026-07-30T06:48:36.038Z"
+    }
+  ],
+  "userProblemProgresses": [],
+  "submissions": [],
+  "hints": [],
+  "visualizations": [],
+  "streaks": []
+}

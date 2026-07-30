@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -22,6 +22,7 @@ model User {
   visualizations    Visualization[]
   streak            Streak?
   progress          UserProgress?
+  problemProgress   UserProblemProgress[]
 
   @@map("users")
 }
@@ -147,7 +148,7 @@ model DailyChallengeCompletion {
 model UserProgress {
   id        String   @id @default(cuid())
   userId    String   @unique
-  data      String   // Store the complete progress object as JSON
+  data      Json     // Store the complete progress object as JSON
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -156,4 +157,23 @@ model UserProgress {
 
   @@index([userId])
   @@map("user_progress")
+}
+
+model UserProblemProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  problemId   String
+  topic       String[]
+  difficulty  String
+  status      String
+  timeTaken   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, problemId])
+  @@index([userId])
+  @@map("user_problem_progress")
 }

@@ -11,26 +11,48 @@ import {
   RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
-import { userStats, roadmap, dailyChallenge, topicStrengths, problems } from "../data/mockData";
-import { getHealth, getUserProgress, getWeakTopics, getAdvancedRecommendations } from "../../services/api";
+import { getHealth, getUserProgress, getWeakTopics, getAdvancedRecommendations, getAllProblems, getUserRoadmap, getUserAnalytics, getWeeklyActivity, type ProgressRecord, type RoadmapDay, type RoadmapMeta, type ProblemRecord, type WeeklyActivityDay } from "../../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useUserProgress } from "../contexts/UserProgressContext";
 
-const activityData = [
-  [0,1,0,2,1,0,0],[1,0,2,1,0,1,2],[0,2,1,0,1,2,1],[2,1,0,1,2,0,1],
-  [0,1,2,1,0,2,1],[1,2,1,0,1,0,2],[0,1,0,2,1,2,0],[2,0,1,1,0,1,2],
-  [1,2,0,1,2,1,0],[0,1,2,0,1,2,1],[2,1,0,2,1,0,1],[1,0,2,1,0,2,0]
+interface DashboardRoadmapDay extends RoadmapDay {
+  completed: boolean;
+}
+
+const defaultWeeklyActivity: WeeklyActivityDay[] = [
+  { day: 'Mon', solved: 0 },
+  { day: 'Tue', solved: 0 },
+  { day: 'Wed', solved: 0 },
+  { day: 'Thu', solved: 0 },
+  { day: 'Fri', solved: 0 },
+  { day: 'Sat', solved: 0 },
+  { day: 'Sun', solved: 0 },
 ];
 
-const weeklyData = [
-  { day: "Mon", solved: 3, xp: 150 },
-  { day: "Tue", solved: 5, xp: 280 },
-  { day: "Wed", solved: 2, xp: 120 },
-  { day: "Thu", solved: 8, xp: 450 },
-  { day: "Fri", solved: 4, xp: 200 },
-  { day: "Sat", solved: 6, xp: 340 },
-  { day: "Sun", solved: 7, xp: 390 },
-];
+const buildActivityHeatmap = (progressRecords: ProgressRecord[]) => {
+  const today = new Date();
+  const dates = Array.from({ length: 84 }).map((_, index) => {
+    const day = new Date(today);
+    day.setDate(today.getDate() - (83 - index));
+    return day.toISOString().slice(0, 10);
+  });
+
+  const counts = dates.reduce<Record<string, number>>((acc, date) => {
+    acc[date] = 0;
+    return acc;
+  }, {});
+
+  progressRecords.forEach((record) => {
+    const day = record.created_at.slice(0, 10);
+    if (counts[day] !== undefined) {
+      counts[day] += 1;
+    }
+  });
+
+  return Array.from({ length: 12 }).map((_, weekIndex) => {
+    return dates.slice(weekIndex * 7, weekIndex * 7 + 7).map((date) => counts[date] ?? 0);
+  });
+};
 
 const newFeatureCards = [
   { icon: Eye, label: "Code Visualizer", desc: "Step-by-step execution flow", path: "/visualizer", color: "#00d4ff", gradient: "from-cyan-500/20 to-blue-500/10" },
@@ -104,6 +126,15 @@ export default function Dashboard() {
   const { user, isAuthenticated } = useAuth();
   const { progress, checkAndUpdateStreak } = useUserProgress();
   const [activeTab, setActiveTab] = useState<"roadmap" | "recent">("roadmap");
+  const [backendProblems, setBackendProblems] = useState<ProblemRecord[]>([]);
+  const [backendProgress, setBackendProgress] = useState<ProgressRecord[]>([]);
+  const [backendRoadmap, setBackendRoadmap] = useState<DashboardRoadmapDay[]>([]);
+  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyActivityDay[]>(defaultWeeklyActivity);
+  const [weeklyActivityLoading, setWeeklyActivityLoading] = useState(true);
+  const [weeklyActivityError, setWeeklyActivityError] = useState<string | null>(null);
+  const [roadmapMeta, setRoadmapMeta] = useState<RoadmapMeta | null>(null);
+  const [dashboardAnalytics, setDashboardAnalytics] = useState<any>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -150,25 +181,61 @@ export default function Dashboard() {
     error?: string;
   }>({ status: 'loading' });
 
-  const solvedPct = Math.round((userStats.totalSolved / 200) * 100);
+  // Safe defaults for all computed values
+  const safeBackendProgress = backendProgress || [];
+  const safeBackendProblems = backendProblems || [];
+  const safeBackendRoadmap = backendRoadmap || [];
+
+  const progressStatusMap = new Map((safeBackendProgress).map((record) => [record.problem_id, record.status]));
+  const problemsWithStatus = (safeBackendProblems).map((p) => ({
+    ...p,
+    status: progressStatusMap.get(p.id) ?? p.status,
+  }));
+
+  const totalProblems = dashboardAnalytics?.totalProblems ?? backendProblems?.length ?? 0;
+  const solvedProblems = (problemsWithStatus || []).filter((p) => p.status === 'solved');
+  const touchedProblems = (problemsWithStatus || []).filter((p) => p.status === 'solved' || p.status === 'attempted');
+
+  const solvedPct = totalProblems > 0 ? Math.round(((solvedProblems?.length ?? 0) / totalProblems) * 100) : 0;
   const diffData = [
-    { name: "Easy", value: userStats.easy, fill: "#22c55e" },
-    { name: "Medium", value: userStats.medium, fill: "#f59e0b" },
-    { name: "Hard", value: userStats.hard, fill: "#ef4444" },
+    { name: "Easy", value: (solvedProblems || []).filter((p) => String(p.difficulty).toLowerCase() === "easy").length, fill: "#22c55e" },
+    { name: "Medium", value: (solvedProblems || []).filter((p) => String(p.difficulty).toLowerCase() === "medium").length, fill: "#f59e0b" },
+    { name: "Hard", value: (solvedProblems || []).filter((p) => String(p.difficulty).toLowerCase() === "hard").length, fill: "#ef4444" },
   ];
 
-  // Use real user progress data when available, fallback to mock data
-  const displayTotalSolved = progress?.questionsSolved || userStats.totalSolved;
-  const displayTotalAttempted = progress?.questionsAttempted || userStats.totalAttempted || userStats.totalSolved;
-  const displayCurrentStreak = progress?.currentStreak || 0;
-  const displayLongestStreak = progress?.longestStreak || 0;
-  const displayTotalXp = progress?.totalXp || 0;
-  const displayLevel = progress?.level || 1;
+  const displayTotalSolved = dashboardAnalytics?.solvedQuestions ?? solvedProblems?.length ?? 0;
+  const displayTotalAttempted = dashboardAnalytics?.totalQuestions ?? touchedProblems?.length ?? 0;
+  const displayCurrentStreak = Math.max(1, progress?.currentStreak ?? dashboardAnalytics?.currentStreak ?? 1);
+  const displayLongestStreak = Math.max(1, progress?.longestStreak ?? dashboardAnalytics?.longestStreak ?? 1);
+  const displayTotalXp = dashboardAnalytics?.totalXp ?? progress?.totalXp ?? 0;
+  const displayLevel = dashboardAnalytics?.level ?? progress?.level ?? 1;
 
-  const recentProblems = problems.filter(p => p.status === "solved").slice(0, 6);
-  const sortedTopics = [...topicStrengths].sort((a, b) => b.strength - a.strength);
-  const topStrong = sortedTopics.slice(0, 3);
-  const topWeak = [...topicStrengths].sort((a, b) => a.strength - b.strength).slice(0, 3);
+  const weeklyChartData = weeklyActivity.length > 0 ? weeklyActivity : defaultWeeklyActivity;
+  const activityHeatmap = safeBackendProgress.length > 0 ? buildActivityHeatmap(safeBackendProgress) : [];
+
+  const recentProblems = (problemsWithStatus || []).filter((p) => p.status === "solved").slice(0, 6);
+  const nextRoadmapDay = roadmapMeta?.currentRoadmapDay
+    ? Math.min(roadmapMeta.currentRoadmapDay, safeBackendRoadmap.length || roadmapMeta.currentRoadmapDay, 15)
+    : (safeBackendRoadmap?.length ?? 0) > 0
+      ? safeBackendRoadmap.find((day) => !day.completed)?.day ?? (safeBackendRoadmap?.length ?? 1)
+      : 1;
+  const topicStrengthsList = progress?.topicStrengths
+    ? Object.entries(progress.topicStrengths).map(([topic, strength]) => ({ topic, strength }))
+    : [];
+
+  const topStrong = [...topicStrengthsList]
+    .sort((a, b) => (b.strength ?? 0) - (a.strength ?? 0))
+    .slice(0, 3);
+
+  const topWeak = [...topicStrengthsList]
+    .sort((a, b) => (a.strength ?? 0) - (b.strength ?? 0))
+    .slice(0, 3);
+
+  const todayChallenge = problemsWithStatus.find((p) => p.status !== 'solved') || backendProblems[0] || null;
+  const challengeDifficulty = todayChallenge?.difficulty
+    ? String(todayChallenge.difficulty).charAt(0).toUpperCase() + String(todayChallenge.difficulty).slice(1)
+    : 'Medium';
+  const challengeTags = todayChallenge?.tags?.length ? todayChallenge.tags : todayChallenge ? [todayChallenge.topic] : ['Practice'];
 
   // Health check API call
   useEffect(() => {
@@ -192,6 +259,63 @@ export default function Dashboard() {
 
     checkHealth();
   }, []);
+
+  // Load dashboard progress and problems from backend
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      if (!user?.id) return;
+      setDashboardLoading(true);
+      try {
+        const [problemResponse, progressResponse, roadmapResponse, analyticsResponse, weeklyActivityResponse] = await Promise.all([
+          getAllProblems(),
+          getUserProgress(user.id),
+          getUserRoadmap(),
+          getUserAnalytics(),
+          getWeeklyActivity(),
+        ]);
+
+        setBackendProblems(problemResponse.data || []);
+        setBackendProgress(progressResponse.data || []);
+        setBackendRoadmap(
+          (roadmapResponse?.roadmap ?? []).map((item) => ({
+            ...item,
+            completed: Boolean(item.completed),
+          })),
+        );
+        setRoadmapMeta(roadmapResponse?.roadmapMeta ?? null);
+        setDashboardAnalytics(analyticsResponse || null);
+        setWeeklyActivity(weeklyActivityResponse.length ? weeklyActivityResponse : defaultWeeklyActivity);
+        setWeeklyActivityError(null);
+      } catch (error) {
+        console.error('Dashboard: failed to load backend data', error);
+        setWeeklyActivityError('Failed to load weekly activity');
+      } finally {
+        setDashboardLoading(false);
+        setWeeklyActivityLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, [user?.id]);
+
+  useEffect(() => {
+    const refreshWeeklyActivity = async () => {
+      if (!user?.id) return;
+      setWeeklyActivityLoading(true);
+      try {
+        const activity = await getWeeklyActivity();
+        setWeeklyActivity(activity.length ? activity : defaultWeeklyActivity);
+        setWeeklyActivityError(null);
+      } catch (error: any) {
+        console.error('Dashboard: failed to refresh weekly activity', error);
+        setWeeklyActivityError(error?.message || 'Could not load weekly activity');
+      } finally {
+        setWeeklyActivityLoading(false);
+      }
+    };
+
+    refreshWeeklyActivity();
+  }, [user?.id, progress?.questionsSolved, progress?.questionsAttempted]);
 
   // Weak topics API call
   useEffect(() => {
@@ -279,14 +403,14 @@ export default function Dashboard() {
               </span>
             </div>
             <h1 className="text-white mb-2" style={{ fontSize: '22px', fontWeight: 800 }}>
-              {userStats.name.split(" ")[0]}, let's conquer today! 🚀
+              {user?.name?.split(" ")[0] ?? "Champion"}, let's conquer today! 🚀
             </h1>
             <p style={{ fontSize: '13px', color: '#6b7280' }}>
               You're on a{" "}
-              <span style={{ color: '#ff6500', fontWeight: 700 }}>{userStats.streak}-day streak</span>
-              {" "}— Rank{" "}
-              <span style={{ color: '#a855f7', fontWeight: 700 }}>#{userStats.rank.toLocaleString()}</span>
-              {" "}globally. Keep it up!
+              <span style={{ color: '#ff6500', fontWeight: 700 }}>{displayCurrentStreak}-day streak</span>
+              {" "}— Level{" "}
+              <span style={{ color: '#a855f7', fontWeight: 700 }}>{displayLevel}</span>
+              {" "}with {displayTotalXp} XP. Keep it up!
             </p>
 
             {/* Health Status Indicator */}
@@ -354,8 +478,8 @@ export default function Dashboard() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={Code2} label="Problems Solved" value={String(displayTotalSolved)} sub={`/ 200 target`} color="#00d4ff" delay={0} />
-        <StatCard icon={Target} label="Problems Attempted" value={String(displayTotalAttempted)} sub="Total attempts" color="#22c55e" delay={1} />
+        <StatCard icon={Code2} label="Problems Solved" value={String(displayTotalSolved)} sub={`of ${totalProblems} problems`} color="#00d4ff" delay={0} />
+        <StatCard icon={Target} label="Problems Attempted" value={String(displayTotalAttempted)} sub={`out of ${totalProblems}`} color="#22c55e" delay={1} />
         <StatCard icon={Flame} label="Current Streak" value={`${displayCurrentStreak}d`} sub={`Best: ${displayLongestStreak}d`} color="#ff6500" delay={2} />
         <StatCard icon={Star} label="Total XP" value={String(displayTotalXp)} sub={`Level ${displayLevel}`} color="#f59e0b" delay={3} />
       </div>
@@ -453,7 +577,7 @@ export default function Dashboard() {
                 </RadialBarChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-white" style={{ fontSize: '24px', fontWeight: 800 }}>{userStats.totalSolved}</span>
+                <span className="text-white" style={{ fontSize: '24px', fontWeight: 800 }}>{displayTotalSolved}</span>
                 <span style={{ fontSize: '10px', color: '#4a5568' }}>Solved</span>
               </div>
               <div className="absolute inset-0 rounded-full" style={{ boxShadow: '0 0 30px rgba(255,101,0,0.15)', pointerEvents: 'none' }} />
@@ -469,7 +593,7 @@ export default function Dashboard() {
                 <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(value / userStats.totalSolved) * 100}%` }}
+                    animate={{ width: `${totalProblems > 0 ? (value / totalProblems) * 100 : 0}%` }}
                     transition={{ duration: 1, delay: 0.5 }}
                     className="h-full rounded-full"
                     style={{ backgroundColor: fill, boxShadow: `0 0 6px ${fill}` }}
@@ -502,19 +626,19 @@ export default function Dashboard() {
               className="rounded-lg px-2 py-0.5"
               style={{
                 fontSize: '10px', fontWeight: 700,
-                background: 'rgba(245,158,11,0.15)',
-                color: '#f59e0b',
-                border: '1px solid rgba(245,158,11,0.3)'
+                background: challengeDifficulty === 'Easy' ? 'rgba(34,197,94,0.1)' : challengeDifficulty === 'Medium' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                color: challengeDifficulty === 'Easy' ? '#22c55e' : challengeDifficulty === 'Medium' ? '#f59e0b' : '#ef4444',
+                border: challengeDifficulty === 'Easy' ? '1px solid rgba(34,197,94,0.25)' : challengeDifficulty === 'Medium' ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(239,68,68,0.25)'
               }}
             >
-              {dailyChallenge.difficulty}
+              {challengeDifficulty}
             </span>
           </div>
 
           <div className="flex-1 relative">
-            <h4 className="text-white mb-2" style={{ fontSize: '17px', fontWeight: 800 }}>{dailyChallenge.title}</h4>
+            <h4 className="text-white mb-2" style={{ fontSize: '17px', fontWeight: 800 }}>{todayChallenge?.title ?? 'Choose your next challenge'}</h4>
             <div className="flex gap-2 flex-wrap mb-3">
-              {dailyChallenge.tags.map(t => (
+              {challengeTags.map((t) => (
                 <span
                   key={t}
                   className="rounded-md px-2 py-0.5"
@@ -524,13 +648,17 @@ export default function Dashboard() {
                 </span>
               ))}
             </div>
-            <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.6 }}>{dailyChallenge.description}</p>
+            <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.6 }}>
+              {todayChallenge
+                ? `Focus on ${todayChallenge.topic} with a real challenge from your problem set.`
+                : 'Solve a new problem today and keep your streak alive.'}
+            </p>
           </div>
 
           <div className="mt-4 space-y-3 relative">
             <div className="flex items-center justify-between" style={{ fontSize: '11px', color: '#4a5568' }}>
               <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> 25 min</span>
-              <span style={{ color: '#22c55e' }}>🔥 {dailyChallenge.totalSolved} solved today</span>
+              <span style={{ color: '#22c55e' }}>🔥 {displayTotalSolved} problems solved</span>
             </div>
             <motion.button
               whileHover={{ scale: 1.02 }}
@@ -709,7 +837,7 @@ export default function Dashboard() {
           <span style={{ fontSize: '11px', color: '#4a5568' }}>This week</span>
         </div>
         <ResponsiveContainer width="100%" height={140}>
-          <AreaChart data={weeklyData}>
+          <AreaChart data={weeklyChartData}>
             <defs>
               <linearGradient id="solvedGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ff6500" stopOpacity={0.3} />
@@ -750,25 +878,31 @@ export default function Dashboard() {
             <span style={{ fontSize: '11px', color: '#4a5568' }}>Last 12 weeks</span>
           </div>
           <div className="flex gap-1 overflow-x-auto pb-2">
-            {activityData.map((week, wi) => (
-              <div key={wi} className="flex flex-col gap-1">
-                {week.map((count, di) => (
-                  <motion.div
-                    key={di}
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3, delay: (wi * 7 + di) * 0.008 }}
-                    className="w-3 h-3 rounded-sm flex-shrink-0 cursor-pointer"
-                    style={{
-                      backgroundColor: count === 0 ? 'rgba(255,255,255,0.04)' : count === 1 ? 'rgba(255,101,0,0.3)' : '#ff6500',
-                      boxShadow: count === 2 ? '0 0 6px rgba(255,101,0,0.5)' : 'none'
-                    }}
-                    whileHover={{ scale: 1.5 }}
-                    title={`${count} problems`}
-                  />
-                ))}
+            {activityHeatmap.length > 0 ? (
+              activityHeatmap.map((week, wi) => (
+                <div key={wi} className="flex flex-col gap-1">
+                  {week.map((count, di) => (
+                    <motion.div
+                      key={di}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: (wi * 7 + di) * 0.008 }}
+                      className="w-3 h-3 rounded-sm flex-shrink-0 cursor-pointer"
+                      style={{
+                        backgroundColor: count === 0 ? 'rgba(255,255,255,0.04)' : count === 1 ? 'rgba(255,101,0,0.3)' : '#ff6500',
+                        boxShadow: count > 1 ? '0 0 6px rgba(255,101,0,0.5)' : 'none'
+                      }}
+                      whileHover={{ scale: 1.5 }}
+                      title={`${count} problems`}
+                    />
+                  ))}
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-center w-full py-12 text-[#8b949e] text-sm">
+                No activity heatmap available yet.
               </div>
-            ))}
+            )}
           </div>
           <div className="flex items-center gap-2 mt-3">
             <span style={{ fontSize: '10px', color: '#4a5568' }}>Less</span>
@@ -810,47 +944,54 @@ export default function Dashboard() {
             </button>
           </div>
           <div className="space-y-2">
-            {roadmap.slice(0, 5).map((day, i) => (
-              <motion.div
-                key={day.day}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 + 0.7 }}
-                className="flex items-center gap-3 p-2.5 rounded-xl transition-all cursor-pointer group"
-                style={{
-                  background: day.completed ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.03)',
-                  border: day.completed ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.06)'
-                }}
-                whileHover={{ x: 4 }}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            {(safeBackendRoadmap && safeBackendRoadmap.length > 0 ? safeBackendRoadmap : []).slice(0, 5).map((day, i) => {
+              const isLocked = day?.isLocked ?? false;
+              return (
+                <motion.div
+                  key={day?.day}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 + 0.7 }}
+                  className={`flex items-center gap-3 p-2.5 rounded-xl transition-all group ${isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                   style={{
-                    background: day.completed ? '#22c55e' : 'rgba(255,255,255,0.06)',
-                    boxShadow: day.completed ? '0 0 12px rgba(34,197,94,0.4)' : 'none'
+                    background: day?.completed ? 'rgba(34,197,94,0.06)' : isLocked ? 'rgba(75,85,99,0.12)' : 'rgba(255,255,255,0.03)',
+                    border: day?.completed ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(255,255,255,0.06)'
                   }}
+                  whileHover={isLocked ? undefined : { x: 4 }}
+                  onClick={() => !isLocked && navigate("/roadmap")}
                 >
-                  {day.completed
-                    ? <CheckCircle2 className="w-4 h-4 text-white" />
-                    : <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280' }}>{day.day}</span>
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-white truncate" style={{ fontSize: '12px', fontWeight: 600 }}>Day {day.day}: {day.topic}</div>
-                  <div className="truncate" style={{ fontSize: '10px', color: '#4a5568' }}>{day.problems.join(", ")}</div>
-                </div>
-                <span
-                  className="rounded-lg px-2 py-0.5 flex-shrink-0"
-                  style={{
-                    fontSize: '10px', fontWeight: 600,
-                    background: day.difficulty === "Easy" ? 'rgba(34,197,94,0.1)' : day.difficulty === "Medium" ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
-                    color: day.difficulty === "Easy" ? '#22c55e' : day.difficulty === "Medium" ? '#f59e0b' : '#ef4444'
-                  }}
-                >
-                  {day.difficulty}
-                </span>
-              </motion.div>
-            ))}
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: day?.completed ? '#22c55e' : isLocked ? '#4b5563' : 'rgba(255,255,255,0.06)',
+                      boxShadow: day?.completed ? '0 0 12px rgba(34,197,94,0.4)' : 'none'
+                    }}
+                  >
+                    {day?.completed ? (
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                    ) : isLocked ? (
+                      <Lock className="w-4 h-4 text-[#d1d5db]" />
+                    ) : (
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280' }}>{day?.day || i + 1}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white truncate" style={{ fontSize: '12px', fontWeight: 600 }}>Day {day?.day || i + 1}: {day?.topic || "Loading..."}</div>
+                    <div className="truncate" style={{ fontSize: '10px', color: '#4a5568' }}>{((day?.tasks) || []).slice(0, 2).join(", ") || "No tasks"}</div>
+                  </div>
+                  <span
+                    className="rounded-lg px-2 py-0.5 flex-shrink-0"
+                    style={{
+                      fontSize: '10px', fontWeight: 600,
+                      background: day?.difficulty === "Easy" ? 'rgba(34,197,94,0.1)' : day?.difficulty === "Medium" ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: day?.difficulty === "Easy" ? '#22c55e' : day?.difficulty === "Medium" ? '#f59e0b' : '#ef4444'
+                    }}
+                  >
+                    {isLocked ? 'Locked' : day?.difficulty || "N/A"}
+                  </span>
+                </motion.div>
+              );
+            })}
           </div>
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -865,7 +1006,7 @@ export default function Dashboard() {
               boxShadow: '0 0 20px rgba(255,101,0,0.25)'
             }}
           >
-            Continue Day 5 <ChevronRight className="w-3.5 h-3.5" />
+            Continue Day {nextRoadmapDay} <ChevronRight className="w-3.5 h-3.5" />
           </motion.button>
         </motion.div>
       </div>
@@ -888,44 +1029,63 @@ export default function Dashboard() {
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {recentProblems.map((p, i) => (
-            <motion.div
-              key={p.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.08 + 0.8 }}
-              onClick={() => navigate(`/problems/${p.id}`)}
-              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all group"
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)'
-              }}
-              whileHover={{ scale: 1.02, borderColor: 'rgba(255,101,0,0.3)' }}
-            >
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#22c55e' }} />
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-white truncate transition-colors group-hover:text-[#ff6500]"
-                  style={{ fontSize: '12px', fontWeight: 600 }}
-                >
-                  {p.title}
-                </div>
-                <div className="flex gap-2 mt-0.5">
-                  {p.tags.slice(0, 2).map(t => (
-                    <span key={t} style={{ fontSize: '10px', color: '#4a5568' }}>{t}</span>
-                  ))}
-                </div>
-              </div>
-              <span
+          {(recentProblems && recentProblems.length > 0) ? (
+            recentProblems.map((p, i) => (
+              <motion.div
+                key={p?.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.08 + 0.8 }}
+                onClick={() => navigate(`/problems/${p?.id}`)}
+                className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all group"
                 style={{
-                  fontSize: '10px', fontWeight: 700, flexShrink: 0,
-                  color: p.difficulty === "Easy" ? '#22c55e' : p.difficulty === "Medium" ? '#f59e0b' : '#ef4444'
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)'
+                }}
+                whileHover={{ scale: 1.02, borderColor: 'rgba(255,101,0,0.3)' }}
+              >
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#22c55e' }} />
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-white truncate transition-colors group-hover:text-[#ff6500]"
+                    style={{ fontSize: '12px', fontWeight: 600 }}
+                  >
+                    {p?.title || "Untitled"}
+                  </div>
+                  <div className="flex gap-2 mt-0.5">
+                    {(p?.tags || []).slice(0, 2).map(t => (
+                      <span key={t} style={{ fontSize: '10px', color: '#4a5568' }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: '10px', fontWeight: 700, flexShrink: 0,
+                    color: p?.difficulty === "Easy" ? '#22c55e' : p?.difficulty === "Medium" ? '#f59e0b' : '#ef4444'
+                  }}
+                >
+                  {p?.difficulty || "N/A"}
+                </span>
+              </motion.div>
+            ))
+          ) : (
+            <div className="col-span-full flex flex-col items-center justify-center py-8 text-center">
+              <CheckCircle2 className="w-8 h-8 mx-auto mb-3" style={{ color: '#4a5568' }} />
+              <p style={{ fontSize: '13px', color: '#6b7280', fontWeight: 500 }}>No solved problems yet</p>
+              <p style={{ fontSize: '12px', color: '#4a5568', marginTop: '4px' }}>Start solving to see your progress here!</p>
+              <button
+                onClick={() => navigate("/problems")}
+                className="mt-4 px-4 py-2 rounded-lg text-sm font-600"
+                style={{
+                  background: 'rgba(255,101,0,0.2)',
+                  color: '#ff6500',
+                  border: '1px solid rgba(255,101,0,0.3)'
                 }}
               >
-                {p.difficulty}
-              </span>
-            </motion.div>
-          ))}
+                Browse Problems
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
 

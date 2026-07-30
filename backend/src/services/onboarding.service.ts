@@ -10,6 +10,7 @@ import {
   RoadmapDay,
 } from "../types/onboarding.types";
 import { generateRoadmapWithAI } from "../utils/ai";
+import prisma from "../utils/prisma";
 
 const FUNDAMENTAL_TOPICS = [
   "arrays",
@@ -23,6 +24,73 @@ const FUNDAMENTAL_TOPICS = [
   "graphs",
   "dp",
 ];
+
+const normalizeToUtcMidnight = (date: Date | string | number) => {
+  const parsedDate = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(parsedDate.getTime())) {
+    throw new Error("Invalid date passed to normalizeToUtcMidnight");
+  }
+
+  return new Date(Date.UTC(parsedDate.getUTCFullYear(), parsedDate.getUTCMonth(), parsedDate.getUTCDate()));
+};
+
+export const getRoadmapMeta = async (userId: string, roadmapLength: number) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      createdAt: true,
+      onboardingProfile: {
+        select: {
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  const startDate = user?.onboardingProfile?.createdAt ?? user?.createdAt;
+  if (!startDate) {
+    return {
+      startDate: null,
+      daysSinceStart: 0,
+      currentRoadmapDay: 1,
+      roadmapLength,
+      unlockedDays: 0,
+      lockedDays: roadmapLength,
+      unlockedDayNumbers: [],
+      lockedDayNumbers: Array.from({ length: roadmapLength }, (_, idx) => idx + 1),
+    };
+  }
+
+  const parsedStartDate = startDate instanceof Date ? startDate : new Date(startDate);
+  if (Number.isNaN(parsedStartDate.getTime())) {
+    throw new Error("Invalid startDate value in onboarding metadata");
+  }
+
+  const today = normalizeToUtcMidnight(new Date());
+  const startedAt = normalizeToUtcMidnight(parsedStartDate);
+  let daysSinceStart = Math.floor((today.getTime() - startedAt.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysSinceStart < 0) {
+    daysSinceStart = 0;
+  }
+
+  const maxRoadmapDays = roadmapLength > 0 ? Math.min(roadmapLength, 15) : 0;
+  const unlockedDays = Math.max(Math.min(daysSinceStart + 1, maxRoadmapDays), 0);
+  const lockedDays = Math.max(maxRoadmapDays - unlockedDays, 0);
+  const unlockedDayNumbers = Array.from({ length: unlockedDays }, (_, idx) => idx + 1);
+  const lockedDayNumbers = Array.from({ length: lockedDays }, (_, idx) => unlockedDays + idx + 1);
+  const currentRoadmapDay = maxRoadmapDays > 0 ? Math.min(daysSinceStart + 1, maxRoadmapDays) : 1;
+
+  return {
+    startDate: parsedStartDate.toISOString(),
+    daysSinceStart,
+    currentRoadmapDay,
+    roadmapLength: maxRoadmapDays,
+    unlockedDays,
+    lockedDays,
+    unlockedDayNumbers,
+    lockedDayNumbers,
+  };
+};
 
 const sanitizeRoadmap = (value: unknown): RoadmapDay[] => {
   if (!Array.isArray(value) || value.length === 0) {
@@ -164,8 +232,9 @@ export const fetchRoadmap = async (userId: string): Promise<RoadmapDay[]> => {
   return rows.map((row) => ({
     day: row.day,
     topic: row.topic,
-    tasks: Array.isArray(row.tasks) ? row.tasks.map((p) => String(p)) : [],
+    tasks: Array.isArray(row.tasks) ? (row.tasks as any[]).map((p) => String(p)) : [],
     difficulty: row.difficulty,
+    completed: Boolean(row.completed),
   }));
 };
 

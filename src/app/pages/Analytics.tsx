@@ -5,7 +5,7 @@ import {
   LineChart, Line
 } from "recharts";
 import { TrendingUp, TrendingDown, Target, ArrowRight, AlertCircle } from "lucide-react";
-import { topicStrengths, userStats } from "../data/mockData";
+import { topicStrengths } from "../data/mockData";
 import { useUserProgress } from "../contexts/UserProgressContext";
 
 const weeklyData = [
@@ -29,16 +29,23 @@ const submissionData = [
 export default function Analytics() {
   const navigate = useNavigate();
   const { progress } = useUserProgress();
-  const radarData = topicStrengths.map(t => ({ subject: t.topic, strength: t.strength }));
+  const topicStrengthsData = progress
+    ? Object.entries(progress.topicStrengths).map(([topic, strength]) => ({
+        topic,
+        strength,
+        problems: 0,
+        correct: 0,
+      }))
+    : topicStrengths;
+  const radarData = topicStrengthsData.map(t => ({ subject: t.topic, strength: t.strength }));
 
-  const strongTopics = topicStrengths.filter(t => t.strength >= 70).sort((a, b) => b.strength - a.strength);
-  const weakTopics = topicStrengths.filter(t => t.strength < 50).sort((a, b) => a.strength - b.strength);
+  const strongTopics = topicStrengthsData.filter(t => t.strength >= 70).sort((a, b) => b.strength - a.strength);
+  const weakTopics = topicStrengthsData.filter(t => t.strength < 50).sort((a, b) => a.strength - b.strength);
 
-  // Use real user data when available
-  const displayTotalSolved = progress?.questionsSolved || userStats.totalSolved;
-  const displayEasySolved = progress?.topicStrengths?.['Arrays'] ? Math.round((progress.topicStrengths['Arrays'] / 100) * 50) : userStats.easy;
-  const displayMediumSolved = progress?.topicStrengths?.['Dynamic Programming'] ? Math.round((progress.topicStrengths['Dynamic Programming'] / 100) * 30) : userStats.medium;
-  const displayHardSolved = progress?.topicStrengths?.['Graphs'] ? Math.round((progress.topicStrengths['Graphs'] / 100) * 10) : userStats.hard;
+  const displayTotalSolved = progress?.questionsSolved ?? 0;
+  const displayEasySolved = progress?.topicStrengths?.['Arrays'] !== undefined ? Math.round((progress.topicStrengths['Arrays'] / 100) * 50) : 0;
+  const displayMediumSolved = progress?.topicStrengths?.['Dynamic Programming'] !== undefined ? Math.round((progress.topicStrengths['Dynamic Programming'] / 100) * 30) : 0;
+  const displayHardSolved = progress?.topicStrengths?.['Graphs'] !== undefined ? Math.round((progress.topicStrengths['Graphs'] / 100) * 10) : 0;
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">

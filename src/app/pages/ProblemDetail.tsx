@@ -27,7 +27,9 @@ import {
 import Editor from "@monaco-editor/react";
 import { executeCode } from "../../../compiler";
 import { problems } from "../data/mockData";
+import { useAuth } from "../contexts/AuthContext";
 import { useUserProgress } from "../contexts/UserProgressContext";
+import { postProgressRecord } from "../../services/api";
 
 const diffConfig: Record<
   string,
@@ -56,10 +58,28 @@ const diffConfig: Record<
 export default function ProblemDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { incrementQuestionsAttempted, incrementQuestionsSolved, updateTopicStrength } = useUserProgress();
+  const { user } = useAuth();
+  const { progress, incrementQuestionsAttempted, incrementQuestionsSolved, updateTopicStrength, setProblemStatus } = useUserProgress();
   const problem = problems.find((p) => p.id === id) || problems[0];
+  const currentStatus = progress?.problemStatus?.[problem.id] ?? problem.status;
 
   const [code, setCode] = useState(problem.starterCode);
+
+  const saveProblemProgress = async (status: "attempted" | "solved") => {
+    if (!user) return;
+
+    try {
+      await postProgressRecord({
+        user_id: user.id,
+        problem_id: problem.id,
+        topic: problem.tags,
+        difficulty: problem.difficulty.toLowerCase() as "easy" | "medium" | "hard",
+        status,
+      });
+    } catch (error) {
+      console.error("Failed to persist problem progress:", error);
+    }
+  };
   const [activeTab, setActiveTab] = useState<
     "description" | "solution" | "notes"
   >("description");
@@ -101,28 +121,45 @@ export default function ProblemDetail() {
     setRunResult(null);
     setCompilerOutput(null);
 
-    // Increment attempts when user tries to run code
-    incrementQuestionsAttempted();
-
     const testCases = problem.testCases ?? [];
+    const isFirstProblemAttempt = currentStatus === 'unsolved' || currentStatus === 'bookmarked';
+
     try {
       if (testCases.length === 0) {
         const result = await executeCode(code, language);
         if (result.error) {
+          if (isFirstProblemAttempt) {
+            incrementQuestionsAttempted();
+            setProblemStatus(problem.id, 'attempted');
+            await saveProblemProgress('attempted');
+          }
+
           setRunResult("error");
           setCompilerOutput(`❌ Error: ${result.error}`);
         } else if (result.stderr) {
+          if (isFirstProblemAttempt) {
+            incrementQuestionsAttempted();
+            setProblemStatus(problem.id, 'attempted');
+            await saveProblemProgress('attempted');
+          }
+
           setRunResult("error");
           setCompilerOutput(`⚠️ Runtime Error:\n${result.stderr}`);
         } else {
-          setCompilerOutput(result.stdout || "(no output)");
           setRunResult("success");
+          setCompilerOutput(result.stdout || "(no output)");
 
-          // Update user progress for solved problem
-          incrementQuestionsSolved(10); // 10 XP for solving
-          // Update topic strength
+          if (currentStatus !== 'solved') {
+            if (isFirstProblemAttempt) {
+              incrementQuestionsAttempted();
+            }
+            incrementQuestionsSolved(10); // 10 XP for solving
+            setProblemStatus(problem.id, 'solved');
+            await saveProblemProgress('solved');
+          }
+
           const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
-          updateTopicStrength(problem.topic[0], strengthIncrease);
+          updateTopicStrength(problem.tags[0], strengthIncrease);
         }
         return;
       }
@@ -130,11 +167,23 @@ export default function ProblemDetail() {
       for (const testCase of testCases) {
         const result = await executeCode(code, language, testCase.input);
         if (result.error) {
+          if (isFirstProblemAttempt) {
+            incrementQuestionsAttempted();
+            setProblemStatus(problem.id, 'attempted');
+            await saveProblemProgress('attempted');
+          }
+
           setRunResult("error");
           setCompilerOutput(`❌ Error: ${result.error}`);
           return;
         }
         if (result.stderr) {
+          if (isFirstProblemAttempt) {
+            incrementQuestionsAttempted();
+            setProblemStatus(problem.id, 'attempted');
+            await saveProblemProgress('attempted');
+          }
+
           setRunResult("error");
           setCompilerOutput(`⚠️ Runtime Error:\n${result.stderr}`);
           return;
@@ -144,6 +193,12 @@ export default function ProblemDetail() {
         const expected = testCase.output.trim();
 
         if (actual !== expected) {
+          if (isFirstProblemAttempt) {
+            incrementQuestionsAttempted();
+            setProblemStatus(problem.id, 'attempted');
+            await saveProblemProgress('attempted');
+          }
+
           setRunResult("error");
           setCompilerOutput(
             `Input: ${testCase.input}\nExpected: ${expected}\nActual: ${actual}`,
@@ -157,11 +212,18 @@ export default function ProblemDetail() {
         `Passed ${testCases.length} test case${testCases.length === 1 ? "" : "s"}.`,
       );
 
-      // Update user progress for solved problem
-      incrementQuestionsSolved(10); // 10 XP for solving
-      // Update topic strength (simplified - in real app would be based on difficulty and time)
+      if (currentStatus !== 'solved') {
+        if (isFirstProblemAttempt) {
+          incrementQuestionsAttempted();
+        }
+
+        incrementQuestionsSolved(10); // 10 XP for solving
+        setProblemStatus(problem.id, 'solved');
+        await saveProblemProgress('solved');
+      }
+
       const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
-      updateTopicStrength(problem.topic[0], strengthIncrease);
+      updateTopicStrength(problem.tags[0], strengthIncrease);
     } catch (error) {
       setRunResult("error");
       setCompilerOutput(

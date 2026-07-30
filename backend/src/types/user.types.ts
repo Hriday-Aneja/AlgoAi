@@ -24,12 +24,18 @@ export interface UserProgress {
   roadmapProgress: {
     [topicId: string]: RoadmapProgress;
   };
+  problemStatus: {
+    [problemId: string]: 'solved' | 'attempted' | 'unsolved' | 'bookmarked';
+  };
   topicStrengths: {
     [topic: string]: number; // 0-100 score
   };
   dailyStats: DailyStat[];
   weeklyGoal: number;
   monthlyGoal: number;
+  attemptedProblems?: string[];
+  solvedProblems?: string[];
+  submissions?: Array<{ id: string; problemId: string; status: string; createdAt: string }>;
   achievements: string[];
 }
 

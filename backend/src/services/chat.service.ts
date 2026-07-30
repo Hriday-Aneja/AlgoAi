@@ -72,14 +72,25 @@ const getUserContext = async (userId: string): Promise<UserContext> => {
     const weakTopicsData = await getWeakTopics(userId);
     const weakTopics = weakTopicsData.map((wt: any) => wt.topic);
 
-    const { data: recentProgress } = await supabase
-      .from('user_progress')
+    let { data: recentProgress, error } = await supabase
+      .from('user_problem_progress')
       .select('problem_id, topic, status, time_taken, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+      .eq('userId', userId)
+      .order('createdAt', { ascending: false })
       .limit(10);
 
-    return { weakTopics, recentProgress: recentProgress || [] };
+    if (error && error.message.includes('userId')) {
+      const fallback = await supabase
+        .from('user_problem_progress')
+        .select('problem_id, topic, status, time_taken, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      recentProgress = fallback.data;
+    }
+
+    return { weakTopics, recentProgress: Array.isArray(recentProgress) ? recentProgress : [] };
   } catch {
     // Supabase not configured or user not in DB — return empty context
     return { weakTopics: [], recentProgress: [] };

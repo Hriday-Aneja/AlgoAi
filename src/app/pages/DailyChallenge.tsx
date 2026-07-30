@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Flame, Clock, CheckCircle2, Trophy, Target, Play, ChevronRight, Star, Zap } from "lucide-react";
-import { dailyChallenge, userStats } from "../data/mockData";
+import { useAuth } from "../contexts/AuthContext";
+import { dailyChallenge } from "../data/mockData";
 import { useUserProgress } from "../contexts/UserProgressContext";
 
 const weekStreak = [
@@ -16,6 +17,7 @@ const weekStreak = [
 
 export default function DailyChallenge() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { progress, incrementQuestionsSolved, addDailyStat } = useUserProgress();
   const [timeLeft, setTimeLeft] = useState(dailyChallenge.timeLimit);
   const [timerActive, setTimerActive] = useState(false);
@@ -27,7 +29,9 @@ export default function DailyChallenge() {
 
   // Use real user data
   const displayStreak = progress?.currentStreak || 0;
-  const displayTotalSolved = progress?.questionsSolved || 0;
+  const displayTotalSolved = progress?.questionsSolved ?? 0;
+  const solvedStreak = solved ? displayStreak + 1 : displayStreak;
+  const displayUserName = user?.name?.split(" ")[0] || "You";
 
   useEffect(() => {
     if (!timerActive || timeLeft <= 0) return;
@@ -187,12 +191,12 @@ export default function DailyChallenge() {
             <CheckCircle2 className="w-10 h-10 text-green-400" />
           </div>
           <h2 className="text-white mb-2" style={{ fontSize: '24px', fontWeight: 800 }}>Challenge Complete! 🎉</h2>
-          <p className="text-[#8b949e] mb-6" style={{ fontSize: '14px' }}>You solved today's challenge. Streak extended to {userStats.streak + 1} days!</p>
+          <p className="text-[#8b949e] mb-6" style={{ fontSize: '14px' }}>You solved today's challenge. Streak extended to {solvedStreak} days!</p>
 
           <div className="flex gap-4 mb-8">
             {[
               { label: "XP Earned", value: "+50 XP", color: "text-purple-400", bg: "bg-purple-500/10" },
-              { label: "Streak", value: `🔥 ${userStats.streak + 1}d`, color: "text-orange-400", bg: "bg-orange-500/10" },
+              { label: "Streak", value: `🔥 ${solvedStreak}d`, color: "text-orange-400", bg: "bg-orange-500/10" },
               { label: "Time Used", value: `${25 - mins}m ${60 - secs}s`, color: "text-blue-400", bg: "bg-blue-500/10" },
             ].map(({ label, value, color, bg }) => (
               <div key={label} className={`${bg} border border-[#30363d] rounded-xl p-4 text-center w-28`}>
@@ -232,7 +236,7 @@ export default function DailyChallenge() {
             { rank: 1, name: "Priya Mehta", time: "4m 32s", emoji: "🥇" },
             { rank: 2, name: "Rohan Kumar", time: "6m 15s", emoji: "🥈" },
             { rank: 3, name: "Aditya Singh", time: "8m 44s", emoji: "🥉" },
-            { rank: 47, name: "You (Arjun)", time: "—", emoji: "👤", isYou: true },
+            { rank: 47, name: `You (${displayUserName})`, time: "—", emoji: "👤", isYou: true },
           ].map(({ rank, name, time, emoji, isYou }) => (
             <div key={rank} className={`flex items-center gap-3 p-3 rounded-lg ${isYou ? "bg-orange-500/5 border border-orange-500/20" : "bg-[#21262d]"}`}>
               <span className="w-6 text-center" style={{ fontSize: '16px' }}>{emoji}</span>

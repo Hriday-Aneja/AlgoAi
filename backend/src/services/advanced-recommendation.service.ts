@@ -1,4 +1,5 @@
 import supabase from '../config/supabase';
+import { prisma } from '../config/database';
 import { getProblemsByTopics } from '../repositories/problem.repository';
 import {
   UserProgressRecord,
@@ -19,38 +20,63 @@ import { Difficulty } from '../types/progress.types';
  */
 export const getUserProgressRecords = async (userId: string): Promise<UserProgressRecord[]> => {
   try {
-    // First, get all progress records for the user
-    const { data: progressData, error: progressError } = await supabase
-      .from('user_progress')
+    const prismaRecords = await prisma.userProblemProgress.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (prismaRecords && prismaRecords.length > 0) {
+      return prismaRecords.map((record) => ({
+        user_id: record.userId,
+        problem_id: record.problemId,
+        topic: Array.isArray(record.topic) ? record.topic[0] : record.topic,
+        difficulty: record.difficulty,
+        status: record.status,
+        attempts_count: record.status === 'attempted' ? 3 : 1,
+        time_taken: record.timeTaken ? Math.round(record.timeTaken / 60) : 0,
+        created_at: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
+      }));
+    }
+
+    let { data: progressData, error: progressError } = await supabase
+      .from('user_problem_progress')
       .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .eq('userId', userId)
+      .order('createdAt', { ascending: false });
+
+    if (progressError && progressError.message.includes('userId')) {
+      const fallback = await supabase
+        .from('user_problem_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      progressData = fallback.data;
+      progressError = fallback.error;
+    }
 
     if (progressError) {
-      console.warn('Progress query failed, using mock data:', progressError.message);
-      return getMockProgressData(userId);
+      console.warn('Progress query failed, returning empty progress:', progressError.message);
+      return [];
     }
 
     if (!progressData || progressData.length === 0) {
       return [];
     }
 
-    // Convert to our format and calculate attempts count
-    // Note: Since we don't have a direct attempts_count field, we'll estimate based on status
-    // In a real implementation, you'd want to track attempts separately
-    return progressData.map(record => ({
-      user_id: record.user_id,
-      problem_id: record.problem_id,
-      topic: Array.isArray(record.topic) ? record.topic[0] : record.topic, // Take first topic
+    return progressData.map((record: any) => ({
+      user_id: record.user_id ?? record.userId,
+      problem_id: record.problem_id ?? record.problemId,
+      topic: Array.isArray(record.topic) ? record.topic[0] : record.topic,
       difficulty: record.difficulty,
       status: record.status,
-      attempts_count: record.status === 'attempted' ? 3 : 1, // Estimate attempts
-      time_taken: record.time_taken ? Math.round(record.time_taken / 60) : 0, // Convert to minutes
-      created_at: record.created_at,
+      attempts_count: record.status === 'attempted' ? 3 : 1,
+      time_taken: record.time_taken ?? record.timeTaken ? Math.round((record.time_taken ?? record.timeTaken) / 60) : 0,
+      created_at: record.created_at ?? record.createdAt,
     }));
   } catch (error) {
     console.error('Error fetching user progress:', error);
-    return getMockProgressData(userId);
+    return [];
   }
 };
 

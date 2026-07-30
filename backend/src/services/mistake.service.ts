@@ -10,7 +10,7 @@ import {
   AIReadyMistakeData,
 } from '../types/mistake.types';
 
-const TABLE = 'user_progress';
+const TABLE = 'user_problem_progress';
 
 // ─── Database Row Interfaces (for proper TypeScript typing) ──────────────────
 
@@ -45,11 +45,22 @@ export const getTopicStatistics = async (
   userId: string
 ): Promise<TopicStatistics[]> => {
   // Query to get all user progress (no aggregation in query - we do it in JS)
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(TABLE)
     .select('topic, status, time_taken')
-    .eq('user_id', userId)
+    .eq('userId', userId)
     .neq('topic', null) as any; // Type assertion needed because Supabase typing is loose
+
+  if (error && error.message.includes('userId')) {
+    const fallback = await supabase
+      .from(TABLE)
+      .select('topic, status, time_taken')
+      .eq('user_id', userId)
+      .neq('topic', null) as any;
+
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   // Type-safe error handling
   if (error) {
@@ -111,12 +122,24 @@ export const getTopicStatistics = async (
  * Returns only problems with status = 'attempted' (not solved).
  */
 export const getFailedProblems = async (userId: string): Promise<ProblemMistake[]> => {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(TABLE)
     .select('problem_id, topic, difficulty, status, time_taken, created_at')
-    .eq('user_id', userId)
+    .eq('userId', userId)
     .eq('status', 'attempted')
-    .order('created_at', { ascending: false }) as any; // Type assertion for Supabase response
+    .order('createdAt', { ascending: false }) as any; // Type assertion for Supabase response
+
+  if (error && error.message.includes('userId')) {
+    const fallback = await supabase
+      .from(TABLE)
+      .select('problem_id, topic, difficulty, status, time_taken, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'attempted')
+      .order('created_at', { ascending: false }) as any;
+
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(`Database error [getFailedProblems]: ${error.message}`);
@@ -165,7 +188,7 @@ export const detectWeakPatterns = async (
 export const detectTimeEfficiencyIssues = async (
   userId: string
 ): Promise<WeakPattern[]> => {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(TABLE)
     .select(
       `
@@ -175,9 +198,28 @@ export const detectTimeEfficiencyIssues = async (
         status
       `
     )
-    .eq('user_id', userId)
+    .eq('userId', userId)
     .eq('status', 'solved')
-    .gt('time_taken', 0) as any; // Type assertion for Supabase response
+    .gt('timeTaken', 0) as any; // Type assertion for Supabase response
+
+  if (error && error.message.includes('userId')) {
+    const fallback = await supabase
+      .from(TABLE)
+      .select(
+        `
+          topic,
+          difficulty,
+          time_taken,
+          status
+        `
+      )
+      .eq('user_id', userId)
+      .eq('status', 'solved')
+      .gt('time_taken', 0) as any;
+
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(`Database error [detectTimeEfficiencyIssues]: ${error.message}`);

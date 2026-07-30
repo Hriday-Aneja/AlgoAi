@@ -1,6 +1,24 @@
 import { Request, Response } from 'express';
+import { getAllProblems } from '../repositories/problem.repository';
 import { UserProgress } from '../types/user.types';
 import { prisma } from '../config/database';
+
+const parseUserProgressData = (rawData: unknown): UserProgress => {
+  if (typeof rawData === 'string') {
+    return JSON.parse(rawData) as UserProgress;
+  }
+
+  return rawData as unknown as UserProgress;
+};
+
+const getWeekStartMonday = (date: Date): Date => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = (day + 6) % 7; // Monday = 0, Sunday = 6
+  d.setDate(d.getDate() - diff);
+  return d;
+};
 
 // Get user progress
 export const getUserProgress = async (req: Request, res: Response) => {
@@ -18,8 +36,8 @@ export const getUserProgress = async (req: Request, res: Response) => {
         userId,
         questionsAttempted: 0,
         questionsSolved: 0,
-        currentStreak: 0,
-        longestStreak: 0,
+        currentStreak: 1,
+        longestStreak: 1,
         lastLoginDate: new Date().toISOString().split('T')[0],
         totalXp: 0,
         level: 1,
@@ -44,6 +62,10 @@ export const getUserProgress = async (req: Request, res: Response) => {
         dailyStats: [],
         weeklyGoal: 7,
         monthlyGoal: 30,
+        problemStatus: {},
+        attemptedProblems: [],
+        solvedProblems: [],
+        submissions: [],
         achievements: []
       };
 
@@ -55,10 +77,66 @@ export const getUserProgress = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ progress: JSON.parse(userProgress.data) });
+    // Parse the JSON string stored in database
+    const parsedProgress = parseUserProgressData(userProgress.data);
+    res.json({ 
+      success: true,
+      progress: parsedProgress 
+    });
   } catch (error) {
     console.error('Error getting user progress:', error);
-    res.status(500).json({ error: 'Failed to get user progress' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to get user progress' 
+    });
+  }
+};
+
+export const getWeeklyActivity = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    if (!userId) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    }
+
+    const today = new Date();
+    const weekStart = getWeekStartMonday(today);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
+
+    const weekSubmissions = await prisma.submission.findMany({
+      where: {
+        userId,
+        status: 'solved',
+        createdAt: {
+          gte: weekStart,
+          lt: weekEnd,
+        },
+      },
+      select: {
+        createdAt: true,
+      },
+    });
+
+    const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const counts = orderedDays.reduce<Record<string, number>>((acc, day) => {
+      acc[day] = 0;
+      return acc;
+    }, {} as Record<string, number>);
+
+    weekSubmissions.forEach((submission) => {
+      const date = new Date(submission.createdAt);
+      const dayIndex = (date.getDay() + 6) % 7;
+      const dayLabel = orderedDays[dayIndex] ?? orderedDays[0];
+      counts[dayLabel] = (counts[dayLabel] ?? 0) + 1;
+    });
+
+    const activity = orderedDays.map((day) => ({ day, solved: counts[day] ?? 0 }));
+
+    res.status(200).json({ success: true, activity });
+  } catch (error) {
+    console.error('Error getting weekly activity:', error);
+    res.status(500).json({ success: false, message: 'Failed to get weekly activity' });
   }
 };
 
@@ -92,10 +170,18 @@ export const saveUserProgress = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({ progress: JSON.parse(userProgress.data) });
+    // Parse and return the saved data
+    const parsedProgress = parseUserProgressData(userProgress.data);
+    res.json({ 
+      success: true,
+      progress: parsedProgress 
+    });
   } catch (error) {
     console.error('Error saving user progress:', error);
-    res.status(500).json({ error: 'Failed to save user progress' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to save user progress' 
+    });
   }
 };
 
@@ -113,8 +199,8 @@ export const updateUserStats = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User progress not found' });
     }
 
-    const currentData = JSON.parse(userProgress.data) as UserProgress;
-    const updatedData = { ...currentData };
+    const currentData = parseUserProgressData(userProgress.data);
+    const updatedData: any = { ...currentData };
 
     // Apply updates
     if (updates.questionsAttempted !== undefined) {
@@ -154,7 +240,7 @@ export const updateUserStats = async (req: Request, res: Response) => {
     // Add daily stats if provided
     if (updates.dailyStats) {
       const today = new Date().toISOString().split('T')[0];
-      const existingIndex = updatedData.dailyStats.findIndex(stat => stat.date === today);
+      const existingIndex = updatedData.dailyStats.findIndex((stat: any) => stat.date === today);
 
       if (existingIndex >= 0) {
         updatedData.dailyStats[existingIndex] = {
@@ -174,6 +260,26 @@ export const updateUserStats = async (req: Request, res: Response) => {
 
       // Keep only last 30 days
       updatedData.dailyStats = updatedData.dailyStats.slice(-30);
+    }
+
+    // Sync attempted/solved problem ids and submission records when provided
+    if (updates.attemptedProblems) {
+      updatedData.attemptedProblems = Array.from(
+        new Set([...(updatedData.attemptedProblems ?? []), ...updates.attemptedProblems])
+      );
+    }
+
+    if (updates.solvedProblems) {
+      updatedData.solvedProblems = Array.from(
+        new Set([...(updatedData.solvedProblems ?? []), ...updates.solvedProblems])
+      );
+    }
+
+    if (updates.submissions) {
+      updatedData.submissions = [
+        ...(updatedData.submissions ?? []),
+        ...updates.submissions,
+      ];
     }
 
     await prisma.userProgress.update({
@@ -204,18 +310,37 @@ export const getUserAnalytics = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User progress not found' });
     }
 
-    const data = JSON.parse(userProgress.data) as UserProgress;
+    const data = parseUserProgressData(userProgress.data);
 
-    // Calculate analytics
+    const progressRecords = await prisma.userProblemProgress.findMany({
+      where: { userId },
+      select: { problemId: true, status: true },
+    });
+
+    const attemptedProblemIds = progressRecords.map((record) => record.problemId);
+    const solvedProblemIds = progressRecords
+      .filter((record) => record.status === 'solved')
+      .map((record) => record.problemId);
+
+    const submissions = await prisma.submission.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, problemId: true, status: true, createdAt: true },
+    });
+
     const analytics = {
-      totalQuestions: data.questionsAttempted,
-      solvedQuestions: data.questionsSolved,
-      solveRate: data.questionsAttempted > 0 ? (data.questionsSolved / data.questionsAttempted) * 100 : 0,
+      totalQuestions: attemptedProblemIds.length,
+      solvedQuestions: solvedProblemIds.length,
+      attemptedProblems: attemptedProblemIds,
+      solvedProblems: solvedProblemIds,
+      submissions,
+      totalProblems: getAllProblems().length,
+      solveRate: attemptedProblemIds.length > 0 ? (solvedProblemIds.length / attemptedProblemIds.length) * 100 : 0,
       currentStreak: data.currentStreak,
       longestStreak: data.longestStreak,
       totalXp: data.totalXp,
       level: data.level,
-      completedTopics: Object.values(data.roadmapProgress).filter(p => p.completed).length,
+      completedTopics: Object.values(data.roadmapProgress).filter((p: any) => p.completed).length,
       totalTopics: Object.keys(data.roadmapProgress).length,
       topicStrengths: data.topicStrengths,
       weeklyProgress: data.dailyStats.slice(-7),

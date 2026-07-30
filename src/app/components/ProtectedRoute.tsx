@@ -18,6 +18,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
+    const guestUserId = typeof window !== 'undefined' ? localStorage.getItem('guestUserId') : null;
+
+    if (guestUserId && location.pathname.startsWith('/roadmap')) {
+      return <>{children}</>;
+    }
+
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

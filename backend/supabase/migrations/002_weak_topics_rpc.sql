@@ -51,10 +51,10 @@ as $$
       2
     )                                                           as avg_time_seconds
 
-  from  public.user_progress up,
+  from  public.user_problem_progress up,
         lateral unnest(up.topic) as t(topic)   -- explode array into rows
 
-  where up.user_id = p_user_id
+  where up."userId" = p_user_id
 
   group by t.topic;
 $$;

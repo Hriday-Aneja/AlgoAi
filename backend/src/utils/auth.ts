@@ -57,6 +57,40 @@ export const requireAuth = (
  * and returns a standard Express RequestHandler.
  * This allows TypeScript to properly type handlers used after requireAuth middleware.
  */
+export const optionalAuth = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const authHeader = req.header("Authorization");
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    next();
+    return;
+  }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    next(new Error("JWT_SECRET is not configured."));
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret) as AuthTokenPayload;
+    const userId = decoded.userId ?? decoded.sub;
+
+    if (userId && userId.trim().length > 0) {
+      req.auth = { userId };
+    }
+  } catch (error) {
+    console.warn("[Auth] optional auth token invalid", error);
+  }
+
+  next();
+};
+
 export const withAuth = (
   handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void> | void
 ): RequestHandler => {

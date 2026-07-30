@@ -9,8 +9,8 @@ import {
   Eye, AlertTriangle, Shield, Shuffle, Users, Activity, Dna,
   ChevronDown, Sparkles, Lightbulb, LogOut
 } from "lucide-react";
-import { userStats } from "../data/mockData";
 import { useAuth } from "../contexts/AuthContext";
+import { useUserProgress } from "../contexts/UserProgressContext";
 
 const mainNav = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", color: "#ff6500" },
@@ -45,6 +45,24 @@ export default function Layout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { progress } = useUserProgress();
+
+  const displayName = user?.name?.trim() || user?.email?.split("@")[0] || "User";
+  const avatarText = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0].toUpperCase())
+    .join("") || "U";
+  const displayLevel = progress?.level ?? 1;
+  const displayTotalXp = progress?.totalXp ?? 0;
+  const xpInCurrentLevel = displayTotalXp - (displayLevel - 1) * 100;
+  const xpProgress = Math.max(0, Math.min(100, xpInCurrentLevel));
+  const streakPct = xpProgress;
+  const displayStreak = Math.max(1, progress?.currentStreak ?? 1);
+  const displayLongestStreak = Math.max(1, progress?.longestStreak ?? 1);
+  const displayTotalSolved = progress?.questionsSolved ?? 0;
+  const nextLevelXp = 100;
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -58,8 +76,6 @@ export default function Layout() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [profileOpen]);
-
-  const streakPct = (userStats.xp / userStats.nextLevelXp) * 100;
 
   const handleLogout = () => {
     try {
@@ -355,21 +371,22 @@ export default function Layout() {
                       boxShadow: '0 0 12px rgba(255,101,0,0.4)'
                     }}
                   >
-                    <span className="text-white" style={{ fontSize: '10px', fontWeight: 800 }}>{userStats.avatar}</span>
+                    <span className="text-white" style={{ fontSize: '10px', fontWeight: 800 }}>{avatarText}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-white truncate" style={{ fontSize: '12px', fontWeight: 700 }}>{userStats.name}</div>
-                    <div style={{ fontSize: '10px', color: '#4a5568' }}>{userStats.level}</div>
+                    <div className="text-white truncate" style={{ fontSize: '12px', fontWeight: 700 }}>{displayName}</div>
+                    <div style={{ fontSize: '10px', color: '#4a5568' }}>Level {displayLevel}</div>
+                    <div style={{ fontSize: '9px', color: '#8b949e' }}>{displayTotalSolved} solved · Longest streak {displayLongestStreak}d</div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Flame className="w-3.5 h-3.5" style={{ color: '#ff6500' }} />
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#ff6500' }}>{userStats.streak}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#ff6500' }}>{displayStreak}d</span>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between mb-1">
                     <span style={{ fontSize: '10px', color: '#4a5568' }}>Level Progress</span>
-                    <span style={{ fontSize: '10px', color: '#ff6500', fontWeight: 600 }}>{userStats.xp}/{userStats.nextLevelXp} XP</span>
+                    <span style={{ fontSize: '10px', color: '#ff6500', fontWeight: 600 }}>{xpProgress}/{nextLevelXp} XP</span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                     <motion.div
@@ -460,7 +477,7 @@ export default function Layout() {
               }}
             >
               <Flame className="w-4 h-4" style={{ color: '#ff6500' }} />
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#ff6500' }}>{userStats.streak}d</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#ff6500' }}>{displayStreak}d</span>
             </div>
 
             {/* XP */}
@@ -472,7 +489,7 @@ export default function Layout() {
               }}
             >
               <Star className="w-4 h-4" style={{ color: '#f59e0b' }} />
-              <span className="text-white" style={{ fontSize: '12px', fontWeight: 600 }}>{userStats.totalSolved} solved</span>
+              <span className="text-white" style={{ fontSize: '12px', fontWeight: 600 }}>{displayTotalSolved} solved</span>
             </div>
 
             <button

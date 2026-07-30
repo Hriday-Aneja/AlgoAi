@@ -1,10 +1,13 @@
 import supabase from '../config/supabase';
+import { prisma } from '../config/database';
 import {
   THRESHOLDS,
   TopicStatsRow,
   WeakTopic,
   WeaknessLevel,
 } from '../types/weakTopic.types';
+
+const PROBLEM_PROGRESS_TABLE = 'user_problem_progress';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -75,58 +78,113 @@ const compareByWeakness = (a: WeakTopic, b: WeakTopic): number => {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-/**
- * Fetches per-topic stats for a user via a PostgreSQL RPC (aggregated server-side),
- * filters to weak topics only, classifies severity, and sorts weakest-first.
- *
- * The heavy GROUP BY + unnest aggregation runs entirely in Postgres —
- * this function only receives the small already-aggregated result set.
- */
+const aggregateTopicStats = (rows: Array<{ topic: string | string[] | null; status: string; time_taken: number | null }>): TopicStatsRow[] => {
+  const topicMap = new Map<string, { total_attempted: number; total_solved: number; total_time: number; count: number }>();
+
+  for (const row of rows) {
+    const topics = Array.isArray(row.topic) ? row.topic : row.topic ? [row.topic] : [];
+
+    for (const topic of topics) {
+      if (!topic) continue;
+
+      const current = topicMap.get(topic) ?? {
+        total_attempted: 0,
+        total_solved: 0,
+        total_time: 0,
+        count: 0,
+      };
+
+      current.total_attempted += 1;
+      if (row.status === 'solved') current.total_solved += 1;
+      if (row.time_taken != null) {
+        current.total_time += row.time_taken;
+        current.count += 1;
+      }
+
+      topicMap.set(topic, current);
+    }
+  }
+
+  return Array.from(topicMap.entries()).map(([topic, stats]) => ({
+    topic,
+    total_attempted: stats.total_attempted,
+    total_solved: stats.total_solved,
+    accuracy:
+      stats.total_attempted > 0
+        ? Math.round((stats.total_solved / stats.total_attempted) * 10000) / 100
+        : 0,
+    avg_time_seconds:
+      stats.count > 0
+        ? Math.round((stats.total_time / stats.count) * 100) / 100
+        : 0,
+  }));
+};
+
+const getWeakTopicsFromPrisma = async (userId: string): Promise<WeakTopic[]> => {
+  try {
+    const rows = await prisma.userProblemProgress.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    const aggregated = aggregateTopicStats(
+      rows.map((row) => ({
+        topic: Array.isArray(row.topic) ? row.topic : row.topic ? row.topic : null,
+        status: row.status,
+        time_taken: typeof row.timeTaken === 'number' ? row.timeTaken : null,
+      }))
+    );
+
+    const weakRows = aggregated.filter((row) => {
+      const avgTimeSeconds = row.avg_time_seconds ?? 0;
+      const accuracy = row.accuracy ?? 0;
+      return (
+        accuracy < THRESHOLDS.ACCURACY_WEAK ||
+        avgTimeSeconds > THRESHOLDS.AVG_TIME_WEAK_SECONDS
+      );
+    });
+
+    return weakRows
+      .map(toWeakTopic)
+      .filter((topic): topic is WeakTopic => topic !== null)
+      .sort(compareByWeakness);
+  } catch (error) {
+    console.error('[getWeakTopics] Prisma fallback error:', error);
+    return [];
+  }
+};
+
 export const getWeakTopics = async (userId: string): Promise<WeakTopic[]> => {
   try {
     console.log('[getWeakTopics] Starting for user:', userId);
 
-    // ── 1. Aggregate in the database ──────────────────────────────────────────
     const { data, error } = await supabase.rpc('get_topic_stats', {
       p_user_id: userId,
     });
 
     if (error) {
-      console.error('[getWeakTopics] RPC error:', error.message);
-      
-      // If RPC function doesn't exist or user has no data, return empty array
-      if (
-        error.message.includes("function") ||
-        error.message.includes("does not exist") ||
-        error.message.includes("Could not find") ||
-        error.message.includes("relation") ||
-        error.message.includes("get_topic_stats") ||
-        error.code === "42883" // PostgreSQL: undefined_function
-      ) {
-        console.warn('[getWeakTopics] RPC function not available, returning empty array');
-        return [];
-      }
-      
-      throw new Error(`Database error [getWeakTopics]: ${error.message}`);
+      console.warn('[getWeakTopics] RPC error, using Prisma fallback:', error.message);
+      return getWeakTopicsFromPrisma(userId);
     }
 
-    // ── 2. Handle empty data ──────────────────────────────────────────────────
     if (!data || !Array.isArray(data) || data.length === 0) {
-      console.log('[getWeakTopics] No data returned from RPC, returning empty array');
-      return [];
+      console.log('[getWeakTopics] No data returned from RPC, using Prisma fallback');
+      return getWeakTopicsFromPrisma(userId);
     }
 
     const rows = data as TopicStatsRow[];
     console.log('[getWeakTopics] Received rows:', rows.length);
 
-    // ── 3. Filter to weak topics only ─────────────────────────────────────────
-    //    A topic is weak if accuracy < 60% OR avg_time > 20 min.
     const weakRows = rows.filter((row) => {
       if (!row || !row.topic) return false;
-      
+
       const avgTimeSeconds = row.avg_time_seconds ?? 0;
       const accuracy = row.accuracy ?? 0;
-      
+
       return (
         accuracy < THRESHOLDS.ACCURACY_WEAK ||
         avgTimeSeconds > THRESHOLDS.AVG_TIME_WEAK_SECONDS
@@ -135,21 +193,17 @@ export const getWeakTopics = async (userId: string): Promise<WeakTopic[]> => {
 
     console.log('[getWeakTopics] Filtered weak rows:', weakRows.length);
 
-    // ── 4. Transform → WeakTopic DTO (safe conversion) ────────────────────────
     const weakTopics = weakRows
       .map(toWeakTopic)
-      .filter((topic): topic is WeakTopic => topic !== null); // Remove null conversions
+      .filter((topic): topic is WeakTopic => topic !== null);
 
     console.log('[getWeakTopics] Transformed topics:', weakTopics.length);
 
-    // ── 5. Sort weakest first ─────────────────────────────────────────────────
     const sorted = weakTopics.sort(compareByWeakness);
     console.log('[getWeakTopics] Returning', sorted.length, 'weak topics');
-    
     return sorted;
   } catch (err) {
     console.error('[getWeakTopics] Caught exception:', err);
-    // Return empty array on error instead of crashing
-    return [];
+    return getWeakTopicsFromPrisma(userId);
   }
 };

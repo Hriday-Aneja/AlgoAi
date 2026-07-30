@@ -111,6 +111,5 @@
 
   { "id": "two-sum",                             "title": "Two Sum",                               "topic": "hash_table",           "difficulty": "easy",   "url": "https://leetcode.com/problems/two-sum/" },
   { "id": "contains-duplicate",                  "title": "Contains Duplicate",                    "topic": "hash_table",           "difficulty": "easy",   "url": "https://leetcode.com/problems/contains-duplicate/" },
-  { "id": "group-anagrams",                      "title": "Group Anagrams",                        "topic": "hash_table",           "difficulty": "medium", "url": "https://leetcode.com/problems/group-anagrams/" },
-  { "id": "top-k-frequent-elements",             "title": "Top K Frequent Elements",               "topic": "hash_table",           "difficulty": "medium", "url": "https://leetcode.com/problems/top-k-frequent-elements/" }
+  { "id": "group-anagrams",                      "title": "Group Anagrams",                        "topic": "hash_table",           "difficulty": "medium", "url": "https://leetcode.com/problems/group-anagrams/" }
 ]
