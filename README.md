@@ -232,7 +232,7 @@ JDOODLE_CLIENT_SECRET=
 ```
 ### APIs & Tools
 - JDoodle API (Code Execution)
-- AI APIs (OpenAI / Gemini - future scope)
+- Groq API (Chat, Feedback, Roadmap Generation)
 
 ---
 
