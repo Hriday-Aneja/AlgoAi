@@ -581,6 +581,13 @@
       "id": "c128c587-d1d5-4a13-b809-e303913aae0a",
       "createdAt": "2026-07-30T06:48:36.038Z",
       "updatedAt": "2026-07-30T06:48:36.038Z"
+    },
+    {
+      "userId": "813ea604-3160-4c97-a1f4-3e032d7b7981",
+      "data": "{\"userId\":\"813ea604-3160-4c97-a1f4-3e032d7b7981\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":1,\"longestStreak\":1,\"lastLoginDate\":\"2026-08-04\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0,\"Array\":2},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
+      "id": "7ec4f3b3-8a02-4e24-9774-df4ea640ded8",
+      "createdAt": "2026-08-04T14:19:46.452Z",
+      "updatedAt": "2026-08-04T19:53:49.322Z"
     }
   ],
   "userProblemProgresses": [],

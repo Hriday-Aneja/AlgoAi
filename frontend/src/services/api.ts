@@ -511,22 +511,7 @@ const normalizePreferredTopics = (topics: string[]): string[] => {
   );
 };
 
-export const submitOnboarding = async (data: {
-  experienceLevel: string;
-  goals: string;
-  preferredTopics: string[];
-  timeCommitment: string;
-  testScore: number;
-}): Promise<any> => {
-  const normalizedData = {
-    ...data,
-    experienceLevel: normalizeExperienceLevel(data.experienceLevel),
-    preferredTopics: normalizePreferredTopics(data.preferredTopics),
-  };
 
-  const response = await api.post('/onboarding', normalizedData);
-  return response.data;
-};
 
 /*
 import api from '@/services/api';
@@ -555,3 +540,39 @@ try {
   }
 }
 */
+// ... existing code ...
+export const submitOnboarding = async (data: {
+  experienceLevel: string;
+  goals: string;
+  preferredTopics: string[];
+  timeCommitment: string;
+  testScore: number;
+}): Promise<any> => {
+  const normalizedData = {
+    ...data,
+    experienceLevel: normalizeExperienceLevel(data.experienceLevel),
+    preferredTopics: normalizePreferredTopics(data.preferredTopics),
+  };
+
+  const response = await api.post('/onboarding', normalizedData);
+  return response.data;
+};
+
+/**
+ * Execute code using backend Judge0 proxy
+ */
+export const runCode = async (sourceCode: string, language: string, stdin: string = ""): Promise<any> => {
+  try {
+    const response = await api.post('/execute', {
+      language: language,
+      version: "*",
+      files: [{ content: sourceCode }],
+      stdin: stdin
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Execution API error:', error);
+    throw error;
+  }
+};
+

@@ -72,8 +72,7 @@ export interface Environment {
   OPENAI_MODEL?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
-  JDOODLE_CLIENT_ID?: string;
-  JDOODLE_CLIENT_SECRET?: string;
+  JUDGE0_API_URL?: string;
   // Auth / Database
   DATABASE_URL: string;
   JWT_SECRET: string;
@@ -193,8 +192,7 @@ function parseEnvironment(): Environment {
     OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4-turbo",
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-1.5-flash",
-    JDOODLE_CLIENT_ID: process.env.JDOODLE_CLIENT_ID,
-    JDOODLE_CLIENT_SECRET: process.env.JDOODLE_CLIENT_SECRET,
+    JUDGE0_API_URL: process.env.JUDGE0_API_URL,
 
     // Auth / Database
     DATABASE_URL: process.env.DATABASE_URL || "",
@@ -255,10 +253,7 @@ function logConfiguration(env: Environment): void {
 
   console.log(`\n   [EXECUTION]`);
   console.log(
-    `   • JDOODLE_CLIENT_ID: ${env.JDOODLE_CLIENT_ID ? "✓ configured" : "✗ MISSING"}`,
-  );
-  console.log(
-    `   • JDOODLE_CLIENT_SECRET: ${env.JDOODLE_CLIENT_SECRET ? "✓ configured" : "✗ MISSING"}`,
+    `   • JUDGE0_API_URL: ${env.JUDGE0_API_URL ? env.JUDGE0_API_URL : "✗ using default GCP instance"}`,
   );
 
   console.log(`\n   [OPTIONAL]`);

@@ -1,17 +1,14 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   Play,
   CheckCircle2,
   XCircle,
   Lightbulb,
-  Bot,
-  Clock,
   ThumbsUp,
   BookOpen,
-  Zap,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -24,12 +21,17 @@ import {
   Brain,
   Send,
 } from "lucide-react";
+
+// @ts-ignore
 import Editor from "@monaco-editor/react";
-import { executeCode } from "../../../compiler";
+// @ts-ignore
+import { runCode, postProgressRecord } from "../../services/api";
+// @ts-ignore
 import { problems } from "../data/mockData";
+// @ts-ignore
 import { useAuth } from "../contexts/AuthContext";
+// @ts-ignore
 import { useUserProgress } from "../contexts/UserProgressContext";
-import { postProgressRecord } from "../../services/api";
 
 const diffConfig: Record<
   string,
@@ -60,19 +62,19 @@ export default function ProblemDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { progress, incrementQuestionsAttempted, incrementQuestionsSolved, updateTopicStrength, setProblemStatus } = useUserProgress();
-  const problem = problems.find((p) => p.id === id) || problems[0];
+  
+  const problem = problems.find((p: any) => p.id === id) || problems[0];
   const currentStatus = progress?.problemStatus?.[problem.id] ?? problem.status;
 
-  const [code, setCode] = useState(problem.starterCode);
+  const [code, setCode] = useState(problem.starterCode || "");
 
   const saveProblemProgress = async (status: "attempted" | "solved") => {
     if (!user) return;
-
     try {
       await postProgressRecord({
         user_id: user.id,
         problem_id: problem.id,
-        topic: problem.tags,
+        topic: problem.tags || [],
         difficulty: problem.difficulty.toLowerCase() as "easy" | "medium" | "hard",
         status,
       });
@@ -80,9 +82,8 @@ export default function ProblemDetail() {
       console.error("Failed to persist problem progress:", error);
     }
   };
-  const [activeTab, setActiveTab] = useState<
-    "description" | "solution" | "notes"
-  >("description");
+
+  const [activeTab, setActiveTab] = useState<"description" | "solution" | "notes">("description");
   const [rightTab, setRightTab] = useState<"code" | "ai">("code");
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState(0);
@@ -93,9 +94,7 @@ export default function ProblemDetail() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<
-    { role: "user" | "ai"; content: string }[]
-  >([
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; content: string }[]>([
     {
       role: "ai",
       content: `Hey! I'm your AI tutor for "${problem.title}". Ask me anything — hints, approach, complexity, or interview tips! 🎯`,
@@ -103,20 +102,19 @@ export default function ProblemDetail() {
   ]);
   const [notes, setNotes] = useState("");
   const [bookmarked, setBookmarked] = useState(problem.status === "bookmarked");
-  const [language, setLanguage] = useState("typescript");
+  const [language, setLanguage] = useState("javascript");
 
-  const diff = diffConfig[problem.difficulty];
+  const diff = diffConfig[problem.difficulty] || diffConfig["Easy"];
   const displayExamples = (
     problem.examples?.length
       ? problem.examples
-      : (problem.testCases?.map((tc) => ({
+      : (problem.testCases?.map((tc: any) => ({
           input: tc.input,
           output: tc.output,
         })) ?? [])
   ) as { input: string; output: string; explanation?: string }[];
 
   const handleRun = async () => {
-    console.log("handleRun called");
     setIsRunning(true);
     setRunResult(null);
     setCompilerOutput(null);
@@ -126,70 +124,47 @@ export default function ProblemDetail() {
 
     try {
       if (testCases.length === 0) {
-        const result = await executeCode(code, language);
-        if (result.error) {
+        const result: any = await runCode(code, language, "");
+        if (!result.success || result.run?.code !== 0) {
           if (isFirstProblemAttempt) {
             incrementQuestionsAttempted();
             setProblemStatus(problem.id, 'attempted');
             await saveProblemProgress('attempted');
           }
-
           setRunResult("error");
-          setCompilerOutput(`❌ Error: ${result.error}`);
-        } else if (result.stderr) {
-          if (isFirstProblemAttempt) {
-            incrementQuestionsAttempted();
-            setProblemStatus(problem.id, 'attempted');
-            await saveProblemProgress('attempted');
-          }
-
-          setRunResult("error");
-          setCompilerOutput(`⚠️ Runtime Error:\n${result.stderr}`);
+          setCompilerOutput(`❌ Error: ${result.run?.stderr || result.message || "Execution Failed"}`);
         } else {
           setRunResult("success");
-          setCompilerOutput(result.stdout || "(no output)");
+          setCompilerOutput(result.run?.stdout || "(no output)");
 
           if (currentStatus !== 'solved') {
             if (isFirstProblemAttempt) {
               incrementQuestionsAttempted();
             }
-            incrementQuestionsSolved(10); // 10 XP for solving
+            incrementQuestionsSolved(10);
             setProblemStatus(problem.id, 'solved');
             await saveProblemProgress('solved');
           }
-
           const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
-          updateTopicStrength(problem.tags[0], strengthIncrease);
+          if (problem.tags?.[0]) updateTopicStrength(problem.tags[0], strengthIncrease);
         }
         return;
       }
 
       for (const testCase of testCases) {
-        const result = await executeCode(code, language, testCase.input);
-        if (result.error) {
+        const result: any = await runCode(code, language, testCase.input);
+        if (!result.success || result.run?.code !== 0) {
           if (isFirstProblemAttempt) {
             incrementQuestionsAttempted();
             setProblemStatus(problem.id, 'attempted');
             await saveProblemProgress('attempted');
           }
-
           setRunResult("error");
-          setCompilerOutput(`❌ Error: ${result.error}`);
-          return;
-        }
-        if (result.stderr) {
-          if (isFirstProblemAttempt) {
-            incrementQuestionsAttempted();
-            setProblemStatus(problem.id, 'attempted');
-            await saveProblemProgress('attempted');
-          }
-
-          setRunResult("error");
-          setCompilerOutput(`⚠️ Runtime Error:\n${result.stderr}`);
+          setCompilerOutput(`❌ Error: ${result.run?.stderr || result.message || "Execution Failed"}`);
           return;
         }
 
-        const actual = result.stdout.trim();
+        const actual = (result.run?.stdout || "").trim();
         const expected = testCase.output.trim();
 
         if (actual !== expected) {
@@ -198,73 +173,40 @@ export default function ProblemDetail() {
             setProblemStatus(problem.id, 'attempted');
             await saveProblemProgress('attempted');
           }
-
           setRunResult("error");
-          setCompilerOutput(
-            `Input: ${testCase.input}\nExpected: ${expected}\nActual: ${actual}`,
-          );
+          setCompilerOutput(`Input: ${testCase.input}\nExpected: ${expected}\nActual: ${actual}`);
           return;
         }
       }
 
       setRunResult("success");
-      setCompilerOutput(
-        `Passed ${testCases.length} test case${testCases.length === 1 ? "" : "s"}.`,
-      );
+      setCompilerOutput(`Passed ${testCases.length} test case${testCases.length === 1 ? "" : "s"}.`);
 
       if (currentStatus !== 'solved') {
         if (isFirstProblemAttempt) {
           incrementQuestionsAttempted();
         }
-
-        incrementQuestionsSolved(10); // 10 XP for solving
+        incrementQuestionsSolved(10);
         setProblemStatus(problem.id, 'solved');
         await saveProblemProgress('solved');
       }
-
       const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
-      updateTopicStrength(problem.tags[0], strengthIncrease);
-    } catch (error) {
+      if (problem.tags?.[0]) updateTopicStrength(problem.tags[0], strengthIncrease);
+
+    } catch (error: any) {
       setRunResult("error");
-      setCompilerOutput(
-        error instanceof Error
-          ? error.message
-          : "Unknown error while running code.",
-      );
+      setCompilerOutput(error.message || "Unknown error while connecting to server.");
     } finally {
       setIsRunning(false);
     }
   };
-
   const handleAiAnalysis = async () => {
     setIsAnalyzing(true);
     setAiAnalysis("");
     setRightTab("ai");
     await new Promise((r) => setTimeout(r, 2000));
     setIsAnalyzing(false);
-    setAiAnalysis(`🤖 AI Code Review
-
-❌ Issue Detected:
-Your current approach has a potential inefficiency. You're not using an optimal data structure for O(1) lookup.
-
-⏱ Complexity Analysis:
-• Time: O(n²) — Nested iteration detected
-• Space: O(1) — Only constant extra space used
-
-💡 Suggested Approach (O(n)):
-Use a HashMap for complement lookup:
-
-const map = new Map();
-for (let i = 0; i < nums.length; i++) {
-  const complement = target - nums[i];
-  if (map.has(complement)) return [map.get(complement), i];
-  map.set(nums[i], i);
-}
-
-🎯 Key Insight:
-For each number, check if its complement (target - num) has been seen before. HashMap gives O(1) lookup vs O(n) linear scan.
-
-✅ Optimized: O(n) time, O(n) space`);
+    setAiAnalysis(`🤖 AI Code Review\n\n❌ Issue Detected:\nYour current approach has a potential inefficiency. You're not using an optimal data structure for O(1) lookup.\n\n⏱ Complexity Analysis:\n• Time: O(n²) — Nested iteration detected\n• Space: O(1) — Only constant extra space used\n\n💡 Suggested Approach (O(n)):\nUse a HashMap for complement lookup:\n\nconst map = new Map();\nfor (let i = 0; i < nums.length; i++) {\n  const complement = target - nums[i];\n  if (map.has(complement)) return [map.get(complement), i];\n  map.set(nums[i], i);\n}\n\n🎯 Key Insight:\nFor each number, check if its complement (target - num) has been seen before. HashMap gives O(1) lookup vs O(n) linear scan.\n\n✅ Optimized: O(n) time, O(n) space`);
   };
 
   const handleChat = async () => {
@@ -275,13 +217,15 @@ For each number, check if its complement (target - num) has been seen before. Ha
     await new Promise((r) => setTimeout(r, 1200));
 
     const lower = userMsg.toLowerCase();
-    let response = `Great question! The key insight for "${problem.title}" is: ${problem.hints[0]}. Try implementing it and come back if you're stuck! 💪`;
-    if (lower.includes("hint"))
-      response = `Here's hint ${Math.min(revealedHints + 1, problem.hints.length)}: ${problem.hints[revealedHints] || problem.hints[problem.hints.length - 1]}`;
-    else if (lower.includes("complex"))
-      response = `📊 Complexity:\n• Time: ${problem.timeComplexity}\n• Space: ${problem.spaceComplexity}\n\nThis leverages ${problem.tags[0]} optimally.`;
-    else if (lower.includes("interview"))
-      response = `🎯 Interview approach: "This is a ${problem.tags[0]} problem. I'd ${problem.hints[0].toLowerCase()}. Time: ${problem.timeComplexity}, Space: ${problem.spaceComplexity}."`;
+    let response = `Great question! The key insight for "${problem.title}" is: ${problem.hints?.[0] || "Think about optimal data structures."}. Try implementing it and come back if you're stuck! 💪`;
+    
+    if (lower.includes("hint")) {
+      response = `Here's hint ${Math.min(revealedHints + 1, problem.hints?.length || 1)}: ${problem.hints?.[revealedHints] || "Check the tags!"}`;
+    } else if (lower.includes("complex")) {
+      response = `📊 Complexity:\n• Time: ${problem.timeComplexity}\n• Space: ${problem.spaceComplexity}\n\nThis leverages ${problem.tags?.[0]} optimally.`;
+    } else if (lower.includes("interview")) {
+      response = `🎯 Interview approach: "This is a ${problem.tags?.[0]} problem. Time: ${problem.timeComplexity}, Space: ${problem.spaceComplexity}."`;
+    }
 
     setChatMessages((prev) => [...prev, { role: "ai", content: response }]);
   };
@@ -338,7 +282,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
             style={{ fontSize: "12px", color: "#4a5568" }}
           >
             <ThumbsUp className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
-            <span>{problem.likes.toLocaleString()}</span>
+            <span>{problem.likes?.toLocaleString() || "0"}</span>
           </div>
           <button
             onClick={() => setBookmarked(!bookmarked)}
@@ -402,7 +346,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
               <div className="p-5 space-y-5">
                 {/* Tags */}
                 <div className="flex flex-wrap gap-2">
-                  {problem.tags.map((t) => (
+                  {problem.tags?.map((t: string) => (
                     <span
                       key={t}
                       className="rounded-lg px-2.5 py-1"
@@ -545,7 +489,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
                     Constraints
                   </h3>
                   <ul className="space-y-1.5">
-                    {problem.constraints.map((c, i) => (
+                    {problem.constraints?.map((c: string, i: number) => (
                       <li
                         key={i}
                         className="flex items-start gap-2"
@@ -596,7 +540,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
                       className="ml-auto"
                       style={{ fontSize: "11px", color: "#4a5568" }}
                     >
-                      {revealedHints}/{problem.hints.length}
+                      {revealedHints}/{problem.hints?.length || 0}
                     </span>
                     {showHints ? (
                       <ChevronUp
@@ -619,7 +563,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
                         className="overflow-hidden"
                       >
                         <div className="p-4 space-y-3">
-                          {problem.hints.map((hint, i) => (
+                          {problem.hints?.map((hint: string, i: number) => (
                             <div key={i}>
                               {i < revealedHints ? (
                                 <motion.div
@@ -939,7 +883,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
                   <option value="cpp">C++</option>
                 </select>
                 <button
-                  onClick={() => setCode(problem.starterCode)}
+                  onClick={() => setCode(problem.starterCode || "")}
                   className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all"
                   style={{ fontSize: "12px", color: "#4a5568" }}
                   onMouseEnter={(e) =>
@@ -985,7 +929,7 @@ For each number, check if its complement (target - num) has been seen before. Ha
                   height="100%"
                   language={language}
                   value={code}
-                  onChange={(v) => setCode(v || "")}
+                  onChange={(v: string | undefined) => setCode(v || "")}
                   theme="vs-dark"
                   options={{
                     minimap: { enabled: false },
