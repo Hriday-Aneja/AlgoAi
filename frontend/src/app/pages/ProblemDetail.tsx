@@ -25,13 +25,14 @@ import {
 // @ts-ignore
 import Editor from "@monaco-editor/react";
 // @ts-ignore
-import { runCode, postProgressRecord } from "../../services/api";
+import { runCode} from "../../services/api";
 // @ts-ignore
 import { problems } from "../data/mockData";
 // @ts-ignore
 import { useAuth } from "../contexts/AuthContext";
 // @ts-ignore
 import { useUserProgress } from "../contexts/UserProgressContext";
+import { postProgressRecord, getHint, recordSubmission } from "../../services/api";
 
 const diffConfig: Record<
   string,
@@ -87,6 +88,10 @@ export default function ProblemDetail() {
   const [rightTab, setRightTab] = useState<"code" | "ai">("code");
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState(0);
+  const [aiHints, setAiHints] = useState<string[]>([]);
+const [isHintLoading, setIsHintLoading] = useState(false);
+const [hintNotice, setHintNotice] = useState<string | null>(null);
+const MAX_HINTS = 3;
   const [runResult, setRunResult] = useState<null | "success" | "error">(null);
   const [isRunning, setIsRunning] = useState(false);
   const [compilerOutput, setCompilerOutput] = useState<string | null>(null);
@@ -115,89 +120,224 @@ export default function ProblemDetail() {
   ) as { input: string; output: string; explanation?: string }[];
 
   const handleRun = async () => {
-    setIsRunning(true);
-    setRunResult(null);
-    setCompilerOutput(null);
+  setIsRunning(true);
+  setRunResult(null);
+  setCompilerOutput(null);
 
-    const testCases = problem.testCases ?? [];
-    const isFirstProblemAttempt = currentStatus === 'unsolved' || currentStatus === 'bookmarked';
+  const testCases = problem.testCases ?? [];
+  const isFirstProblemAttempt =
+    currentStatus === "unsolved" || currentStatus === "bookmarked";
 
-    try {
-      if (testCases.length === 0) {
-        const result: any = await runCode(code, language, "");
-        if (!result.success || result.run?.code !== 0) {
-          if (isFirstProblemAttempt) {
-            incrementQuestionsAttempted();
-            setProblemStatus(problem.id, 'attempted');
-            await saveProblemProgress('attempted');
-          }
-          setRunResult("error");
-          setCompilerOutput(`❌ Error: ${result.run?.stderr || result.message || "Execution Failed"}`);
-        } else {
-          setRunResult("success");
-          setCompilerOutput(result.run?.stdout || "(no output)");
+  try {
+    // ─────────────────────────────────────────────
+    // No test cases
+    // ─────────────────────────────────────────────
+    if (testCases.length === 0) {
+      const result: any = await runCode(code, language, "");
 
-          if (currentStatus !== 'solved') {
-            if (isFirstProblemAttempt) {
-              incrementQuestionsAttempted();
-            }
-            incrementQuestionsSolved(10);
-            setProblemStatus(problem.id, 'solved');
-            await saveProblemProgress('solved');
-          }
-          const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
-          if (problem.tags?.[0]) updateTopicStrength(problem.tags[0], strengthIncrease);
+      if (!result.success || result.run?.code !== 0) {
+        // RECORD FAILED ATTEMPT
+        await recordSubmission({
+          problemId: problem.id,
+          status: "failed",
+        });
+
+        if (isFirstProblemAttempt) {
+          incrementQuestionsAttempted();
+          setProblemStatus(problem.id, "attempted");
+          await saveProblemProgress("attempted");
         }
+
+        setRunResult("error");
+        setCompilerOutput(
+          `❌ Error: ${
+            result.run?.stderr ||
+            result.message ||
+            "Execution Failed"
+          }`
+        );
+
         return;
       }
 
-      for (const testCase of testCases) {
-        const result: any = await runCode(code, language, testCase.input);
-        if (!result.success || result.run?.code !== 0) {
-          if (isFirstProblemAttempt) {
-            incrementQuestionsAttempted();
-            setProblemStatus(problem.id, 'attempted');
-            await saveProblemProgress('attempted');
-          }
-          setRunResult("error");
-          setCompilerOutput(`❌ Error: ${result.run?.stderr || result.message || "Execution Failed"}`);
-          return;
-        }
-
-        const actual = (result.run?.stdout || "").trim();
-        const expected = testCase.output.trim();
-
-        if (actual !== expected) {
-          if (isFirstProblemAttempt) {
-            incrementQuestionsAttempted();
-            setProblemStatus(problem.id, 'attempted');
-            await saveProblemProgress('attempted');
-          }
-          setRunResult("error");
-          setCompilerOutput(`Input: ${testCase.input}\nExpected: ${expected}\nActual: ${actual}`);
-          return;
-        }
-      }
+      // RECORD SUCCESSFUL ATTEMPT
+      await recordSubmission({
+        problemId: problem.id,
+        status: "passed",
+      });
 
       setRunResult("success");
-      setCompilerOutput(`Passed ${testCases.length} test case${testCases.length === 1 ? "" : "s"}.`);
+      setCompilerOutput(result.run?.stdout || "(no output)");
 
-      if (currentStatus !== 'solved') {
+      if (currentStatus !== "solved") {
         if (isFirstProblemAttempt) {
           incrementQuestionsAttempted();
         }
-        incrementQuestionsSolved(10);
-        setProblemStatus(problem.id, 'solved');
-        await saveProblemProgress('solved');
-      }
-      const strengthIncrease = problem.difficulty === 'Easy' ? 2 : problem.difficulty === 'Medium' ? 3 : 5;
-      if (problem.tags?.[0]) updateTopicStrength(problem.tags[0], strengthIncrease);
 
-    } catch (error: any) {
-      setRunResult("error");
-      setCompilerOutput(error.message || "Unknown error while connecting to server.");
+        incrementQuestionsSolved(10);
+        setProblemStatus(problem.id, "solved");
+        await saveProblemProgress("solved");
+      }
+
+      const strengthIncrease =
+        problem.difficulty === "Easy"
+          ? 2
+          : problem.difficulty === "Medium"
+          ? 3
+          : 5;
+
+      if (problem.tags?.[0]) {
+        updateTopicStrength(problem.tags[0], strengthIncrease);
+      }
+
+      return;
+    }
+
+    // ─────────────────────────────────────────────
+    // Run test cases
+    // ─────────────────────────────────────────────
+    for (const testCase of testCases) {
+      const result: any = await runCode(
+        code,
+        language,
+        testCase.input
+      );
+
+      // Compilation / runtime failure
+      if (!result.success || result.run?.code !== 0) {
+        await recordSubmission({
+          problemId: problem.id,
+          status: "failed",
+        });
+
+        if (isFirstProblemAttempt) {
+          incrementQuestionsAttempted();
+          setProblemStatus(problem.id, "attempted");
+          await saveProblemProgress("attempted");
+        }
+
+        setRunResult("error");
+
+        setCompilerOutput(
+          `❌ Error: ${
+            result.run?.stderr ||
+            result.message ||
+            "Execution Failed"
+          }`
+        );
+
+        return;
+      }
+
+      const actual = (result.run?.stdout || "").trim();
+      const expected = testCase.output.trim();
+
+      // Wrong answer
+      if (actual !== expected) {
+        await recordSubmission({
+          problemId: problem.id,
+          status: "failed",
+        });
+
+        if (isFirstProblemAttempt) {
+          incrementQuestionsAttempted();
+          setProblemStatus(problem.id, "attempted");
+          await saveProblemProgress("attempted");
+        }
+
+        setRunResult("error");
+
+        setCompilerOutput(
+          `Input: ${testCase.input}
+Expected: ${expected}
+Actual: ${actual}`
+        );
+
+        return;
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // ALL TEST CASES PASSED
+    // ─────────────────────────────────────────────
+
+    await recordSubmission({
+      problemId: problem.id,
+      status: "passed",
+    });
+
+    setRunResult("success");
+
+    setCompilerOutput(
+      `Passed ${testCases.length} test case${
+        testCases.length === 1 ? "" : "s"
+      }.`
+    );
+
+    if (currentStatus !== "solved") {
+      if (isFirstProblemAttempt) {
+        incrementQuestionsAttempted();
+      }
+
+      incrementQuestionsSolved(10);
+
+      setProblemStatus(problem.id, "solved");
+
+      await saveProblemProgress("solved");
+    }
+
+    const strengthIncrease =
+      problem.difficulty === "Easy"
+        ? 2
+        : problem.difficulty === "Medium"
+        ? 3
+        : 5;
+
+    if (problem.tags?.[0]) {
+      updateTopicStrength(
+        problem.tags[0],
+        strengthIncrease
+      );
+    }
+  } catch (error: any) {
+    setRunResult("error");
+
+    setCompilerOutput(
+      error.message ||
+        "Unknown error while connecting to server."
+    );
+  } finally {
+    setIsRunning(false);
+  }
+};
+
+  const handleRevealHint = async () => {
+    if (isHintLoading || revealedHints >= MAX_HINTS) return;
+
+    setIsHintLoading(true);
+    setHintNotice(null);
+
+    try {
+      const result = await getHint({
+        problemId: problem.id,
+        problemTitle: problem.title,
+        problemDescription: problem.description ?? "",
+        language,
+        code,
+      });
+
+      if (result.success && result.hint) {
+        setAiHints((prev) => [...prev, result.hint as string]);
+        setRevealedHints((prev) => prev + 1);
+      } else {
+        setHintNotice(
+          result.message || "Hint not available right now. Keep trying!",
+        );
+      }
+    } catch (error) {
+      setHintNotice("Couldn't fetch a hint right now. Please try again.");
     } finally {
-      setIsRunning(false);
+      setIsHintLoading(false);
     }
   };
   const handleAiAnalysis = async () => {
@@ -509,309 +649,205 @@ export default function ProblemDetail() {
                 </div>
 
                 {/* Smart Hints */}
-                <div
-                  className="rounded-xl overflow-hidden"
-                  style={{ border: "1px solid rgba(245,158,11,0.2)" }}
-                >
-                  <button
-                    onClick={() => setShowHints(!showHints)}
-                    className="w-full flex items-center gap-3 p-4 transition-all"
-                    style={{ background: "rgba(245,158,11,0.06)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(245,158,11,0.1)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(245,158,11,0.06)")
-                    }
-                  >
-                    <Lightbulb
-                      className="w-4 h-4"
-                      style={{ color: "#f59e0b" }}
-                    />
-                    <span
-                      className="text-white"
-                      style={{ fontSize: "13px", fontWeight: 600 }}
-                    >
-                      Smart Hints
-                    </span>
-                    <span
-                      className="ml-auto"
-                      style={{ fontSize: "11px", color: "#4a5568" }}
-                    >
-                      {revealedHints}/{problem.hints?.length || 0}
-                    </span>
-                    {showHints ? (
-                      <ChevronUp
-                        className="w-4 h-4"
-                        style={{ color: "#4a5568" }}
-                      />
-                    ) : (
-                      <ChevronDown
-                        className="w-4 h-4"
-                        style={{ color: "#4a5568" }}
-                      />
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {showHints && (
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: "auto" }}
-                        exit={{ height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="p-4 space-y-3">
-                          {problem.hints?.map((hint: string, i: number) => (
-                            <div key={i}>
-                              {i < revealedHints ? (
-                                <motion.div
-                                  initial={{ opacity: 0, y: -10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  className="flex items-start gap-3 p-3 rounded-xl"
-                                  style={{
-                                    background: "rgba(245,158,11,0.08)",
-                                    border: "1px solid rgba(245,158,11,0.2)",
-                                  }}
-                                >
-                                  <span
-                                    className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{
-                                      background: "#f59e0b20",
-                                      fontSize: "10px",
-                                      fontWeight: 700,
-                                      color: "#f59e0b",
-                                    }}
-                                  >
-                                    {i + 1}
-                                  </span>
-                                  <p
-                                    style={{
-                                      fontSize: "13px",
-                                      color: "#d4d4d8",
-                                      lineHeight: 1.6,
-                                    }}
-                                  >
-                                    {hint}
-                                  </p>
-                                </motion.div>
-                              ) : i === revealedHints ? (
-                                <button
-                                  onClick={() => setRevealedHints(i + 1)}
-                                  className="w-full flex items-center gap-2 p-3 rounded-xl transition-all"
-                                  style={{
-                                    fontSize: "12px",
-                                    color: "#f59e0b",
-                                    border: "1px dashed rgba(245,158,11,0.3)",
-                                    background: "rgba(245,158,11,0.04)",
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "rgba(245,158,11,0.08)")
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "rgba(245,158,11,0.04)")
-                                  }
-                                >
-                                  <Eye className="w-3.5 h-3.5" /> Reveal Hint{" "}
-                                  {i + 1}
-                                </button>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                    {/* Smart Hints */}
+<div
+  className="rounded-xl overflow-hidden"
+  style={{ border: "1px solid rgba(245,158,11,0.2)" }}
+>
+  <button
+    onClick={() => setShowHints(!showHints)}
+    className="w-full flex items-center gap-3 p-4 transition-all"
+    style={{ background: "rgba(245,158,11,0.06)" }}
+    onMouseEnter={(e) =>
+      (e.currentTarget.style.background = "rgba(245,158,11,0.1)")
+    }
+    onMouseLeave={(e) =>
+      (e.currentTarget.style.background = "rgba(245,158,11,0.06)")
+    }
+  >
+    <Lightbulb
+      className="w-4 h-4"
+      style={{ color: "#f59e0b" }}
+    />
 
-                {/* Complexity */}
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    {
-                      label: "Time Complexity",
-                      value: problem.timeComplexity,
-                      color: "#00d4ff",
-                    },
-                    {
-                      label: "Space Complexity",
-                      value: problem.spaceComplexity,
-                      color: "#a855f7",
-                    },
-                  ].map((c) => (
-                    <div
-                      key={c.label}
-                      className="rounded-xl p-3"
-                      style={{
-                        background: `${c.color}08`,
-                        border: `1px solid ${c.color}20`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#4a5568",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        {c.label}
-                      </div>
-                      <code
-                        style={{
-                          fontSize: "18px",
-                          fontWeight: 800,
-                          color: c.color,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {c.value}
-                      </code>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+    <span
+      className="text-white"
+      style={{ fontSize: "13px", fontWeight: 600 }}
+    >
+      Smart AI Hints
+    </span>
 
-            {activeTab === "solution" && (
-              <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3
-                    className="text-white"
-                    style={{ fontSize: "15px", fontWeight: 700 }}
-                  >
-                    Official Solution
-                  </h3>
-                  <button
-                    onClick={() => setShowSolution(!showSolution)}
-                    className="flex items-center gap-2 transition-all"
-                    style={{ fontSize: "12px", color: "#ff6500" }}
-                  >
-                    {showSolution ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                    {showSolution ? "Hide" : "Reveal"}
-                  </button>
-                </div>
-                {showSolution ? (
+    <span
+      className="ml-auto"
+      style={{ fontSize: "11px", color: "#4a5568" }}
+    >
+      {revealedHints}/{MAX_HINTS}
+    </span>
+
+    {showHints ? (
+      <ChevronUp
+        className="w-4 h-4"
+        style={{ color: "#4a5568" }}
+      />
+    ) : (
+      <ChevronDown
+        className="w-4 h-4"
+        style={{ color: "#4a5568" }}
+      />
+    )}
+  </button>
+
+  <AnimatePresence>
+    {showHints && (
+      <motion.div
+        initial={{ height: 0 }}
+        animate={{ height: "auto" }}
+        exit={{ height: 0 }}
+        className="overflow-hidden"
+      >
+        <div className="p-4 space-y-3">
+
+          {/* Generated AI hints */}
+          {aiHints.map((hint, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-start gap-3 p-3 rounded-xl"
+              style={{
+                background: "rgba(245,158,11,0.08)",
+                border: "1px solid rgba(245,158,11,0.2)",
+              }}
+            >
+              <span
+                className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: "#f59e0b20",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "#f59e0b",
+                }}
+              >
+                {i + 1}
+              </span>
+
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "#d4d4d8",
+                  lineHeight: 1.6,
+                }}
+              >
+                {hint}
+              </p>
+            </motion.div>
+          ))}
+
+          {/* Reveal next hint */}
+          {revealedHints < MAX_HINTS && (
+            <button
+              onClick={handleRevealHint}
+              disabled={isHintLoading}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl transition-all disabled:opacity-50"
+              style={{
+                fontSize: "12px",
+                color: "#f59e0b",
+                border: "1px dashed rgba(245,158,11,0.3)",
+                background: "rgba(245,158,11,0.04)",
+              }}
+            >
+              {isHintLoading ? (
+                <>
                   <div
-                    className="rounded-xl overflow-hidden"
-                    style={{ border: "1px solid rgba(34,197,94,0.2)" }}
-                  >
-                    <div
-                      className="flex gap-1.5 px-4 py-2"
-                      style={{
-                        background: "#1a1a2e",
-                        borderBottom: "1px solid rgba(255,255,255,0.05)",
-                      }}
-                    >
-                      {["#ef4444", "#f59e0b", "#22c55e"].map((c) => (
-                        <div
-                          key={c}
-                          className="w-3 h-3 rounded-full"
-                          style={{ background: c }}
-                        />
-                      ))}
-                    </div>
-                    <pre
-                      className="p-4 overflow-x-auto"
-                      style={{
-                        fontSize: "12px",
-                        fontFamily: "monospace",
-                        lineHeight: 1.8,
-                        color: "#22c55e",
-                        background: "#0d1117",
-                      }}
-                    >
-                      {problem.solution}
-                    </pre>
-                  </div>
-                ) : (
-                  <div
-                    className="flex flex-col items-center justify-center py-16 rounded-2xl"
+                    className="w-3.5 h-3.5 border-2 rounded-full animate-spin"
                     style={{
-                      border: "1px dashed rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.02)",
+                      borderColor: "rgba(245,158,11,0.3)",
+                      borderTopColor: "#f59e0b",
                     }}
-                  >
-                    <EyeOff
-                      className="w-10 h-10 mb-4"
-                      style={{ color: "#4a5568" }}
-                    />
-                    <p
-                      className="mb-4"
-                      style={{ fontSize: "14px", color: "#4a5568" }}
-                    >
-                      Try solving it yourself first!
-                    </p>
-                    <button
-                      onClick={() => setShowSolution(true)}
-                      className="rounded-xl px-5 py-2 transition-all cyber-btn"
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        background: "rgba(255,101,0,0.1)",
-                        color: "#ff6500",
-                        border: "1px solid rgba(255,101,0,0.3)",
-                      }}
-                    >
-                      I give up, show me
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  />
 
-            {activeTab === "notes" && (
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <BookOpen className="w-4 h-4" style={{ color: "#ff6500" }} />
-                  <h3
-                    className="text-white"
-                    style={{ fontSize: "15px", fontWeight: 700 }}
-                  >
-                    My Notes
-                  </h3>
-                </div>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Write your notes, approach, key insights here..."
-                  className="w-full h-64 text-white placeholder-[#4a5568] focus:outline-none resize-none rounded-xl p-4"
-                  style={{
-                    fontSize: "13px",
-                    lineHeight: 1.7,
-                    fontFamily: "monospace",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                  onFocus={(e) =>
-                    (e.currentTarget.style.borderColor = "rgba(255,101,0,0.4)")
-                  }
-                  onBlur={(e) =>
-                    (e.currentTarget.style.borderColor =
-                      "rgba(255,255,255,0.08)")
-                  }
-                />
-                <button
-                  className="mt-3 rounded-xl px-5 py-2 cyber-btn"
-                  style={{
-                    background: "linear-gradient(135deg, #ff6500, #ff9500)",
-                    color: "white",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    boxShadow: "0 0 15px rgba(255,101,0,0.3)",
-                  }}
-                >
-                  Save Notes
-                </button>
-              </div>
-            )}
-          </div>
+                  Generating Hint...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-3.5 h-3.5" />
+                  Get AI Hint {revealedHints + 1}
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Backend/API notice */}
+          {hintNotice && (
+            <div
+              className="rounded-lg p-3"
+              style={{
+                fontSize: "12px",
+                color: "#f59e0b",
+                background: "rgba(245,158,11,0.06)",
+                border: "1px solid rgba(245,158,11,0.15)",
+              }}
+            >
+              {hintNotice}
+            </div>
+          )}
+
+          {/* All hints used */}
+          {revealedHints >= MAX_HINTS && (
+            <div
+              className="text-center py-2"
+              style={{
+                fontSize: "11px",
+                color: "#6b7280",
+              }}
+            >
+              You've used all 3 hints for this problem.
+            </div>
+          )}
         </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
+    
+
+{/* Close description tab */}
+</div>
+)}
+
+{/* Solution Tab */}
+{activeTab === "solution" && (
+  <div className="p-5">
+    <p style={{ color: "#6b7280", fontSize: "13px" }}>
+      Solution will be available here.
+    </p>
+  </div>
+)}
+
+{/* Notes Tab */}
+{activeTab === "notes" && (
+  <div className="p-5">
+    <textarea
+      value={notes}
+      onChange={(e) => setNotes(e.target.value)}
+      placeholder="Write your notes here..."
+      className="w-full min-h-[300px] rounded-xl p-4 text-white focus:outline-none"
+      style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        fontSize: "13px",
+      }}
+    />
+  </div>
+)}
+
+{/* Close Content */}
+</div>
+
+{/* Close Left Panel */}
+</div>
+
+
 
         {/* Right Panel */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -1280,6 +1316,6 @@ export default function ProblemDetail() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
+  </div>
+  )
+};

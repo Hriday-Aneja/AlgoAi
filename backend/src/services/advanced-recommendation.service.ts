@@ -26,17 +26,32 @@ export const getUserProgressRecords = async (userId: string): Promise<UserProgre
     });
 
     if (prismaRecords && prismaRecords.length > 0) {
-      return prismaRecords.map((record) => ({
-        user_id: record.userId,
-        problem_id: record.problemId,
-        topic: Array.isArray(record.topic) ? record.topic[0] : record.topic,
-        difficulty: record.difficulty,
-        status: record.status,
-        attempts_count: record.status === 'attempted' ? 3 : 1,
-        time_taken: record.timeTaken ? Math.round(record.timeTaken / 60) : 0,
-        created_at: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
-      }));
-    }
+  return prismaRecords.map((record): UserProgressRecord => ({
+    user_id: record.userId,
+    problem_id: record.problemId,
+
+    topic: Array.isArray(record.topic)
+      ? record.topic[0]
+      : record.topic,
+
+    difficulty: record.difficulty.toLowerCase() as Difficulty,
+
+    status: record.status as "solved" | "attempted",
+
+    attempts_count:
+      record.status === "attempted" ? 3 : 1,
+
+    time_taken:
+      record.timeTaken
+        ? Math.round(record.timeTaken / 60)
+        : 0,
+
+    created_at:
+      record.createdAt instanceof Date
+        ? record.createdAt.toISOString()
+        : String(record.createdAt),
+  }));
+}
 
     let { data: progressData, error: progressError } = await supabase
       .from('user_problem_progress')

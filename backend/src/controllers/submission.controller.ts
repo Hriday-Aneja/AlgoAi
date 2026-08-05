@@ -1,10 +1,10 @@
 import { NextFunction, Response } from "express";
 import { ZodError } from "zod";
-import { generateSmartHint } from "../services/hint.service";
-import { hintRequestSchema } from "../validators/hint.validator";
+import { createSubmission } from "../repositories/submission.repository";
+import { submissionRequestSchema } from "../validators/submission.validator";
 import { AuthenticatedRequest } from "../types/express";
 
-export const requestHint = async (
+export const recordSubmission = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
@@ -20,10 +20,17 @@ export const requestHint = async (
       return;
     }
 
-    const payload = hintRequestSchema.parse(req.body);
-    const result = await generateSmartHint(userId, payload);
+    const payload = submissionRequestSchema.parse(req.body);
+    const submission = await createSubmission(
+      userId,
+      payload.problemId,
+      payload.status,
+    );
 
-    res.status(200).json(result);
+    res.status(201).json({
+      success: true,
+      submission,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       res.status(400).json({

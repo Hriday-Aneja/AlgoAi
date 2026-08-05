@@ -429,6 +429,42 @@ export const getWeeklyActivity = async (): Promise<WeeklyActivityDay[]> => {
     return [];
   }
 };
+export interface HintResult {
+  success: boolean;
+  hintLevel?: number;
+  hint?: string;
+  message?: string;
+}
+
+/**
+ * Request a progressive AI hint for a problem.
+ * Backend gates this: only unlocks after enough failed attempts / time stuck.
+ */
+export const getHint = async (payload: {
+  problemId: string;
+  problemTitle: string;
+  problemDescription: string;
+  language: string;
+  code: string;
+}): Promise<HintResult> => {
+  const response = await api.post('/hints', payload);
+  return response.data;
+};
+
+/**
+ * Record a run/submit attempt so the hint feature's stuck-detection
+ * has real data to work with. Fire-and-forget from the caller's perspective.
+ */
+export const recordSubmission = async (payload: {
+  problemId: string;
+  status: 'passed' | 'failed';
+}): Promise<void> => {
+  try {
+    await api.post('/submissions', payload);
+  } catch (error) {
+    console.error('Submission record API error:', error);
+  }
+};
 
 export const sendChatMessage = async (message: string): Promise<{ reply: string }> => {
   if (!message || message.trim().length === 0) {

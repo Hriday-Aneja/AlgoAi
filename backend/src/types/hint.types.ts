@@ -1,5 +1,9 @@
 export interface HintRequestPayload {
   problemId: string;
+  problemTitle: string;
+  problemDescription: string;
+  language: string;
+  code: string;
 }
 
 export interface HintResponse {

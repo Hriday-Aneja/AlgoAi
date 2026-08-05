@@ -23,6 +23,14 @@
       "id": "ea5208c2-d559-49e8-a203-c792e64b4464",
       "createdAt": "2026-07-30T06:48:35.998Z",
       "updatedAt": "2026-07-30T06:48:35.998Z"
+    },
+    {
+      "email": "hridayaneja13@gmail.com",
+      "password": "$2b$10$7/1cAeBBa1YY2R5pc2Xs5.GAbnaEYJe0VeXRIZuI5QAStxryG6yxW",
+      "name": "Hriday Aneja",
+      "id": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "createdAt": "2026-08-05T21:43:17.555Z",
+      "updatedAt": "2026-08-05T21:43:17.555Z"
     }
   ],
   "onboardingProfiles": [
@@ -584,15 +592,220 @@
     },
     {
       "userId": "813ea604-3160-4c97-a1f4-3e032d7b7981",
-      "data": "{\"userId\":\"813ea604-3160-4c97-a1f4-3e032d7b7981\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":1,\"longestStreak\":1,\"lastLoginDate\":\"2026-08-04\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0,\"Array\":2},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
+      "data": "{\"userId\":\"813ea604-3160-4c97-a1f4-3e032d7b7981\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":2,\"longestStreak\":2,\"lastLoginDate\":\"2026-08-05\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0,\"Array\":2},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
       "id": "7ec4f3b3-8a02-4e24-9774-df4ea640ded8",
       "createdAt": "2026-08-04T14:19:46.452Z",
-      "updatedAt": "2026-08-04T19:53:49.322Z"
+      "updatedAt": "2026-08-05T19:33:43.024Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "data": "{\"userId\":\"2056b90b-8b79-474c-a2bc-bd1c35af795e\",\"questionsAttempted\":0,\"questionsSolved\":0,\"currentStreak\":1,\"longestStreak\":1,\"lastLoginDate\":\"2026-08-05\",\"totalXp\":0,\"level\":1,\"roadmapProgress\":{},\"topicStrengths\":{\"Arrays\":0,\"Strings\":0,\"Linked Lists\":0,\"Stacks\":0,\"Queues\":0,\"Trees\":0,\"Graphs\":0,\"Dynamic Programming\":0,\"Greedy\":0,\"Backtracking\":0,\"Sorting\":0,\"Searching\":0,\"Hash Tables\":0,\"Math\":0,\"Bit Manipulation\":0},\"dailyStats\":[],\"weeklyGoal\":7,\"monthlyGoal\":30,\"problemStatus\":{},\"attemptedProblems\":[],\"solvedProblems\":[],\"submissions\":[],\"achievements\":[]}",
+      "id": "71198809-20d7-4ffb-b3cf-310874d02d2a",
+      "createdAt": "2026-08-05T21:43:17.599Z",
+      "updatedAt": "2026-08-05T21:43:17.599Z"
     }
   ],
   "userProblemProgresses": [],
-  "submissions": [],
-  "hints": [],
+  "submissions": [
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "74184125-8fe6-422f-953b-220752410a44",
+      "createdAt": "2026-08-05T23:15:22.158Z",
+      "updatedAt": "2026-08-05T23:15:22.158Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "c1f69750-e10a-4e9c-9919-b4e1b0c3f3bd",
+      "createdAt": "2026-08-05T23:15:23.076Z",
+      "updatedAt": "2026-08-05T23:15:23.076Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "ccc81fd1-2ee9-406b-858d-a31739fb998b",
+      "createdAt": "2026-08-05T23:15:24.016Z",
+      "updatedAt": "2026-08-05T23:15:24.016Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "48d55431-2cc8-436a-baf4-45b99296372b",
+      "createdAt": "2026-08-05T23:15:24.854Z",
+      "updatedAt": "2026-08-05T23:15:24.854Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "76bb0a1b-e684-4056-bf94-dcc22555d012",
+      "createdAt": "2026-08-05T23:15:35.070Z",
+      "updatedAt": "2026-08-05T23:15:35.070Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "af8f0db8-47f2-4fa4-984f-ac9cbb299ca6",
+      "createdAt": "2026-08-05T23:18:04.634Z",
+      "updatedAt": "2026-08-05T23:18:04.634Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "6f2cdb77-daae-44ec-a315-e19deb9060ab",
+      "createdAt": "2026-08-05T23:18:05.961Z",
+      "updatedAt": "2026-08-05T23:18:05.961Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "8f9d1b56-9a1c-4f64-bb87-faa38b0cf840",
+      "createdAt": "2026-08-05T23:18:06.799Z",
+      "updatedAt": "2026-08-05T23:18:06.799Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "652a6f63-4371-421e-8538-b4880cbb93cb",
+      "createdAt": "2026-08-05T23:18:07.748Z",
+      "updatedAt": "2026-08-05T23:18:07.748Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "86174d5d-d753-495f-878c-5e8a4b844e2c",
+      "createdAt": "2026-08-05T23:20:31.475Z",
+      "updatedAt": "2026-08-05T23:20:31.475Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "a11e101b-1d67-4477-8fc4-024fa96fe0db",
+      "createdAt": "2026-08-05T23:20:32.334Z",
+      "updatedAt": "2026-08-05T23:20:32.334Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "e0dcb0c7-5b2f-41cc-a6fa-92362898e3c3",
+      "createdAt": "2026-08-05T23:20:33.144Z",
+      "updatedAt": "2026-08-05T23:20:33.144Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "490683a0-ecd7-48a6-9dbb-ff2ad15359bd",
+      "createdAt": "2026-08-05T23:20:33.866Z",
+      "updatedAt": "2026-08-05T23:20:33.866Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "31c83323-52c4-4fa3-b619-2e27f6cc0736",
+      "createdAt": "2026-08-05T23:23:20.417Z",
+      "updatedAt": "2026-08-05T23:23:20.417Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "9d587a0a-f48d-41ec-aacf-c9f2141372f7",
+      "createdAt": "2026-08-05T23:23:21.167Z",
+      "updatedAt": "2026-08-05T23:23:21.167Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "ad4dee6e-0771-49f4-840a-2a571b3111a5",
+      "createdAt": "2026-08-05T23:23:22.212Z",
+      "updatedAt": "2026-08-05T23:23:22.212Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "3091d5b0-4c7a-4cf5-b33c-708c15622e34",
+      "createdAt": "2026-08-05T23:23:23.000Z",
+      "updatedAt": "2026-08-05T23:23:23.000Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "0d4aade8-894e-409b-8e15-c6ab85d197af",
+      "createdAt": "2026-08-05T23:30:18.809Z",
+      "updatedAt": "2026-08-05T23:30:18.809Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "a6c876f2-81e7-4934-8bde-8b4a9cad051f",
+      "createdAt": "2026-08-05T23:30:20.565Z",
+      "updatedAt": "2026-08-05T23:30:20.565Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "status": "failed",
+      "id": "d6a1e257-ff78-46f8-b0eb-fc55b6ac6802",
+      "createdAt": "2026-08-05T23:30:21.655Z",
+      "updatedAt": "2026-08-05T23:30:21.655Z"
+    }
+  ],
+  "hints": [
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "two-sum",
+      "hintLevel": 1,
+      "hintText": "Let's think about how you can keep track of the numbers you've seen so far and their positions. You might want to use something that allows you to look up a number quickly and find its index.",
+      "id": "3eb66a19-9708-4d14-afd9-e6c344ff6509",
+      "createdAt": "2026-08-05T21:54:17.975Z",
+      "updatedAt": "2026-08-05T21:54:17.975Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "hintLevel": 1,
+      "hintText": "Let's think about how you can keep track of the numbers you've seen so far and their positions. You might want to use something that lets you quickly look up a number and its index, so you can check if its \"partner\" (the number that adds up to the target) has been seen before.",
+      "id": "56ee3858-0a7b-41b2-b280-2be5a4b6c95f",
+      "createdAt": "2026-08-05T22:44:12.504Z",
+      "updatedAt": "2026-08-05T22:44:12.504Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "hintLevel": 2,
+      "hintText": "So, it looks like you're starting from scratch. You can use a hash table to store the numbers you've seen so far and their indices. This approach is similar to the \"hashing\" technique, which can help you solve this problem efficiently.",
+      "id": "f5d8eedc-6d2c-437c-98cb-c6db01fd78ff",
+      "createdAt": "2026-08-05T22:44:19.936Z",
+      "updatedAt": "2026-08-05T22:44:19.936Z"
+    },
+    {
+      "userId": "2056b90b-8b79-474c-a2bc-bd1c35af795e",
+      "problemId": "1",
+      "hintLevel": 3,
+      "hintText": "Let's break it down. \n\n1. You need a way to store the numbers you've seen so far and their indices. \n2. Think about using an object to keep track of this info.\n3. Loop through the array, and for each number, check if its complement (target - current number) is in your object.\n4. If it is, return the indices of these two numbers.\n5. If not, add the current number and its index to your object and move on.",
+      "id": "9d17db02-be7a-403a-814d-46ab66fc5114",
+      "createdAt": "2026-08-05T22:44:28.989Z",
+      "updatedAt": "2026-08-05T22:44:28.989Z"
+    }
+  ],
   "visualizations": [],
   "streaks": []
 }
