@@ -334,7 +334,7 @@ export const getUserAnalytics = async (req: Request, res: Response) => {
       attemptedProblems: attemptedProblemIds,
       solvedProblems: solvedProblemIds,
       submissions,
-      totalProblems: getAllProblems().length,
+      totalProblems: (await getAllProblems()).length,
       solveRate: attemptedProblemIds.length > 0 ? (solvedProblemIds.length / attemptedProblemIds.length) * 100 : 0,
       currentStreak: data.currentStreak,
       longestStreak: data.longestStreak,

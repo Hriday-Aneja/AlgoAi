@@ -177,3 +177,32 @@ model UserProblemProgress {
   @@index([userId])
   @@map("user_problem_progress")
 }
+
+model Problem {
+  id              String   @id
+  title           String
+  topic           String
+  difficulty      String
+
+  description     String
+
+  starterCode     String?
+
+  tags            Json?
+  examples        Json?
+  constraints     Json?
+  hints           Json?
+  testCases       Json?
+
+  acceptance      Float?
+  likes           Int?
+
+  timeComplexity  String?
+  spaceComplexity String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([topic])
+  @@map("problems")
+}

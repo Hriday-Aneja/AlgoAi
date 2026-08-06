@@ -343,6 +343,26 @@ export const getAllProblems = async (): Promise<{
   }
 };
 
+export const getProblemById = async (
+  id: string
+): Promise<{
+  status: string;
+  data: ProblemRecord;
+}> => {
+  try {
+    console.log("Calling problem by id API...", id);
+
+    const response = await api.get(`/problems/${id}`);
+
+    console.log("Problem API response:", response.data);
+
+    return response.data;
+  } catch (error) {
+    console.error("Problem API error:", error);
+    throw error;
+  }
+};
+
 export const postProgressRecord = async (
   payload: {
     user_id: string;

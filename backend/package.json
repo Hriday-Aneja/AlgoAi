@@ -7,12 +7,16 @@
     "dev": "nodemon",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "prisma:seed": "ts-node -P prisma/tsconfig.json prisma/seed.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
+  "prisma": {
+    "seed": "ts-node -P prisma/tsconfig.json prisma/seed.ts"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@prisma/client": "^5.20.0",
+    "@prisma/client": "^6.16.3",
     "@supabase/supabase-js": "^2.45.4",
     "acorn": "^8.16.0",
     "axios": "^1.15.0",
@@ -24,7 +28,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "openai": "^6.34.0",
-    "prisma": "^5.20.0",
+    "prisma": "^6.16.3",
     "uuid": "^13.0.0",
     "zod": "^3.23.8"
   },
