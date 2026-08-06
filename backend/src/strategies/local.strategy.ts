@@ -38,7 +38,7 @@ export class LocalRecommendationStrategy implements RecommendationStrategy {
 
     // ── 2. Pull candidate problems for weak topics ─────────────────────────────
     const topicNames  = weakTopics.map((wt) => wt.topic);
-    const candidates  = getProblemsByTopics(topicNames);
+    const candidates  = await getProblemsByTopics(topicNames);
 
     // ── 3. Exclude already-solved problems ────────────────────────────────────
     const unsolved    = candidates.filter((p) => !solvedProblemIds.has(p.id));
