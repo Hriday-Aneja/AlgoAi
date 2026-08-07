@@ -1,3 +1,4 @@
+import axios from "axios";
 interface SandboxExecutionResult {
   events: any[];
   stdout: string;
@@ -28,16 +29,33 @@ const __vizState = { step: 0, maxSteps: ${maxSteps}, events: [], stack: [] };
 const __vizOutput = [];
 const __vizOriginalLog = console.log.bind(console);
 
+function __vizSnapshot(value) {
+  if (value === undefined) return undefined;
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return String(value);
+  }
+}
+
 function __vizTrack(line, variables) {
   __vizState.step += 1;
+
   if (__vizState.step > __vizState.maxSteps) {
     throw new Error("STEP_LIMIT_EXCEEDED");
+  }
+
+  const snapshot = {};
+
+  for (const [key, value] of Object.entries(variables || {})) {
+    snapshot[key] = __vizSnapshot(value);
   }
 
   __vizState.events.push({
     step: __vizState.step,
     line,
-    variables: variables || {},
+    variables: snapshot,
     stack: [...__vizState.stack],
   });
 }
@@ -134,65 +152,108 @@ export const executeInstrumentedJavaScript = async (params: {
   maxSteps?: number;
 }): Promise<SandboxExecutionResult> => {
   const timeoutMs = params.timeoutMs ?? 3000;
-  const memoryLimitKb = params.memoryLimitKb ?? 128000;
   const maxSteps = params.maxSteps ?? 200;
-  const pistonUrl =
-    process.env.PISTON_URL || "https://emkc.org/api/v2/piston/execute";
 
-  const runTimeout = Math.max(1, Math.floor(timeoutMs / 1000));
+  const JUDGE0_API_URL = (
+    process.env.JUDGE0_API_URL || "http://34.131.178.174:2358"
+  ).replace(/\/+$/, "");
+
   const runnerCode = buildRunnerCode(
-    params.instrumentedCode,
-    params.input,
-    maxSteps,
+  params.instrumentedCode,
+  params.input,
+  maxSteps,
+);
+  try {
+    console.log("[visualizer] Sending to Judge0...");
+    console.log("[visualizer] URL:", JUDGE0_API_URL);
+    console.log("[visualizer] Code length:", runnerCode.length);
+
+    const response = await axios.post(
+      `${JUDGE0_API_URL}/submissions/?base64_encoded=false&wait=true`,
+      {
+        source_code: runnerCode,
+        language_id: 63,
+        stdin: params.input || "",
+      },
+      {
+        timeout: timeoutMs + 10000,
+      },
+    );
+
+    const data = response.data;
+
+    console.log("[visualizer] Judge0 status:", data.status);
+
+    
+
+const stdout = data.stdout ?? "";
+const stderr = data.stderr ?? "";
+const compileOutput = data.compile_output ?? "";
+const status = data.status;
+const exitCode = status?.id === 3 ? 0 : 1;
+
+console.log("[visualizer] Judge0 status:", status);
+console.log("[visualizer] stdout:", stdout);
+console.log("[visualizer] stderr:", stderr);
+console.log("[visualizer] compile_output:", compileOutput);
+
+if (status?.id !== 3) {
+  const errorMessage =
+    stderr ||
+    compileOutput ||
+    status?.description ||
+    "Judge0 execution failed.";
+
+  throw createHttpError(
+    400,
+    `Visualizer execution error: ${errorMessage.trim()}`
   );
+}
 
-  const response = await fetch(pistonUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      language: "javascript",
-      version: "18.15.0",
-      files: [{ content: runnerCode }],
-      run_timeout: runTimeout,
-      run_memory_limit: memoryLimitKb,
-    }),
-  });
+const payload = extractVisualizationPayload(stdout);
+    const events = Array.isArray(payload.events)
+      ? payload.events
+      : [];
 
-  if (!response.ok) {
+    if (payload.runtimeError === "STEP_LIMIT_EXCEEDED") {
+      throw createHttpError(
+        400,
+        `Execution stopped because step limit (${maxSteps}) was exceeded. Possible infinite loop.`,
+      );
+    }
+
+    if (payload.runtimeError) {
+      throw createHttpError(
+        400,
+        `Runtime error: ${payload.runtimeError}`,
+      );
+    }
+
+    return {
+      events,
+      stdout: payload.stdout ?? "",
+      stderr,
+      exitCode,
+    };
+  } catch (error: any) {
+    // Apne createHttpError ko preserve karo
+    if (error?.statusCode) {
+      throw error;
+    }
+
+    console.error(
+      "[visualizer] Judge0 request failed:",
+      error?.response?.status,
+      error?.response?.data || error?.message,
+    );
+
     throw createHttpError(
       502,
-      `Sandbox execution failed with status ${response.status}.`,
+      `Judge0 visualization execution failed: ${
+        error?.response?.data?.message ||
+        error?.message ||
+        "Unknown error"
+      }`,
     );
   }
-
-  const data = (await response.json()) as {
-    run?: { stdout?: string; stderr?: string; code?: number; signal?: string };
-  };
-
-  const stdout = data.run?.stdout ?? "";
-  const stderr = data.run?.stderr ?? "";
-  const exitCode = data.run?.code ?? 1;
-
-  const payload = extractVisualizationPayload(stdout);
-  const events = Array.isArray(payload.events) ? payload.events : [];
-
-  if (payload.runtimeError === "STEP_LIMIT_EXCEEDED") {
-    throw createHttpError(
-      400,
-      `Execution stopped because step limit (${maxSteps}) was exceeded. Possible infinite loop.`,
-    );
-  }
-
-  if (payload.runtimeError && payload.runtimeError !== "STEP_LIMIT_EXCEEDED") {
-    throw createHttpError(400, `Runtime error: ${payload.runtimeError}`);
-  }
-
-  return {
-    events,
-    stdout: payload.stdout ?? "",
-    stderr,
-    exitCode,
-  };
 };

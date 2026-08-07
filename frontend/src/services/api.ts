@@ -617,6 +617,42 @@ export const submitOnboarding = async (data: {
 /**
  * Execute code using backend Judge0 proxy
  */
+export interface ExecutionStep {
+  step: number;
+  line: number;
+  variables: Record<string, unknown>;
+  output?: string;
+  stack?: string[];
+  changedVariables?: string[];
+}
+
+export interface VisualizeResult {
+  success: boolean;
+  execution: ExecutionStep[];
+}
+
+export const visualizeCode = async (
+  code: string,
+  language: string,
+  input: string = ""
+): Promise<VisualizeResult> => {
+  try {
+    const response = await api.post(
+      "/visualize",
+      {
+        code,
+        language,
+        input,
+      },
+      { timeout: 25000 }, // Judge0 execution can take longer than the global 10s default
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Visualization API error:", error);
+    throw error;
+  }
+};
 export const runCode = async (sourceCode: string, language: string, stdin: string = ""): Promise<any> => {
   try {
     const response = await api.post('/execute', {
