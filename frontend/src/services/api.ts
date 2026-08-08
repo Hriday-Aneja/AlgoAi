@@ -567,6 +567,19 @@ export const recordSubmission = async (payload: {
   }
 };
 
+export const getSubmissionActivity = async (): Promise<{ status: string; createdAt: string }[]> => {
+  try {
+    const response = await api.get('/submissions/activity');
+    if (response.data?.success && Array.isArray(response.data.data)) {
+      return response.data.data as { status: string; createdAt: string }[];
+    }
+    return [];
+  } catch (error) {
+    console.error('Submission activity API error:', error);
+    return [];
+  }
+};
+
 export const sendChatMessage = async (message: string): Promise<{ reply: string }> => {
   if (!message || message.trim().length === 0) {
     throw new Error('Message cannot be empty');

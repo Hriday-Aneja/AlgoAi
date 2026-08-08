@@ -11,9 +11,10 @@ import {
   RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid
 } from "recharts";
-import { getHealth, getUserProgress, getWeakTopics, getAdvancedRecommendations, getAllProblems, getUserRoadmap, getUserAnalytics, getWeeklyActivity, type ProgressRecord, type RoadmapDay, type RoadmapMeta, type ProblemRecord, type WeeklyActivityDay } from "../../services/api";
+import { getHealth, getUserProgress, getWeakTopics, getAdvancedRecommendations, getAllProblems, getUserRoadmap, getUserAnalytics, getWeeklyActivity, getSubmissionActivity, type ProgressRecord, type RoadmapDay, type RoadmapMeta, type ProblemRecord, type WeeklyActivityDay } from "../../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useUserProgress } from "../contexts/UserProgressContext";
+import { Tooltip as UiTooltip, TooltipTrigger as UiTooltipTrigger, TooltipContent as UiTooltipContent } from "../components/ui/tooltip";
 
 interface DashboardRoadmapDay extends RoadmapDay {
   completed: boolean;
@@ -210,8 +211,119 @@ export default function Dashboard() {
   const displayTotalXp = dashboardAnalytics?.totalXp ?? progress?.totalXp ?? 0;
   const displayLevel = dashboardAnalytics?.level ?? progress?.level ?? 1;
 
-  const weeklyChartData = weeklyActivity.length > 0 ? weeklyActivity : defaultWeeklyActivity;
   const activityHeatmap = safeBackendProgress.length > 0 ? buildActivityHeatmap(safeBackendProgress) : [];
+  const [submissionRecords, setSubmissionRecords] = useState<{ status: string; createdAt: string }[]>([]);
+  const [submissionLoading, setSubmissionLoading] = useState(true);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    let timerId: any = null;
+    const fetchSubs = async () => {
+      if (!mounted) return;
+      setSubmissionLoading(true);
+      try {
+        const subs = await getSubmissionActivity();
+        if (!mounted) return;
+        setSubmissionRecords(subs || []);
+        setSubmissionError(null);
+      } catch (err: any) {
+        console.error('Failed to load submission activity', err);
+        setSubmissionError(err?.message || 'Could not load submissions');
+        setSubmissionRecords([]);
+      } finally {
+        if (mounted) setSubmissionLoading(false);
+      }
+    };
+    // initial fetch and poll for live updates
+    fetchSubs();
+    timerId = setInterval(fetchSubs, 5000);
+    return () => { mounted = false; if (timerId) clearInterval(timerId); };
+  }, []);
+
+  const toLocalDateKey = (isoOrDate: string | Date) => {
+    const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const buildLast30Activity = () => {
+    const today = new Date();
+    const days = Array.from({ length: 30 }).map((_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (29 - i));
+      return toLocalDateKey(d);
+    });
+
+    const map: Record<string, { total: number; correct: number; incorrect: number }> = {};
+    days.forEach(dt => { map[dt] = { total: 0, correct: 0, incorrect: 0 }; });
+
+    submissionRecords.forEach((s) => {
+      const key = toLocalDateKey(s.createdAt);
+      if (!map[key]) return;
+      map[key].total += 1;
+      const status = (s.status || '').toLowerCase();
+      if (status === 'passed' || status === 'success' || status === 'ok') map[key].correct += 1;
+      else map[key].incorrect += 1;
+    });
+
+    return days.map(d => ({ date: d, total: map[d].total, correct: map[d].correct, incorrect: map[d].incorrect }));
+  };
+
+  function buildWeeklyFromSubmissions(subs: { status: string; createdAt: string }[]) {
+    // Determine current week's Monday date (local)
+    const now = new Date();
+    const monday = new Date(now);
+    const diff = (now.getDay() + 6) % 7; // 0 = Monday
+    monday.setDate(now.getDate() - diff);
+
+    const days = Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d;
+    });
+
+    const keys = days.map(d => toLocalDateKey(d));
+
+    const map: Record<string, { total: number; correct: number; incorrect: number }> = {};
+    keys.forEach(k => { map[k] = { total: 0, correct: 0, incorrect: 0 }; });
+
+    subs.forEach((s) => {
+      const key = toLocalDateKey(s.createdAt);
+      if (map[key]) {
+        map[key].total += 1;
+        const status = (s.status || '').toLowerCase();
+        if (status === 'passed' || status === 'success' || status === 'ok') map[key].correct += 1;
+        else map[key].incorrect += 1;
+      }
+    });
+
+    const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    return labels.map((lab, i) => ({ day: lab, total: map[keys[i]].total, correct: map[keys[i]].correct, incorrect: map[keys[i]].incorrect }));
+  }
+
+  function WeeklyTooltip(props: any) {
+    const { active, payload } = props;
+    if (!active || !payload || !payload.length) return null;
+    const data = payload[0].payload;
+    return (
+      <div style={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 10, color: 'white' }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>{data.day}</div>
+        <div style={{ fontSize: 12 }}>Total Submissions: {data.total}</div>
+        <div style={{ fontSize: 12, color: '#9CA3AF' }}>Correct: {data.correct}</div>
+        <div style={{ fontSize: 12, color: '#9CA3AF' }}>Incorrect: {data.incorrect}</div>
+      </div>
+    );
+  }
+
+  const weeklyChartData = buildWeeklyFromSubmissions(submissionRecords);
+
+  const getColor = (n: number) => {
+    if (n === 0) return 'rgba(255,255,255,0.04)';
+    if (n <= 2) return 'rgba(255,101,0,0.18)';
+    if (n <= 5) return 'rgba(255,101,0,0.32)';
+    if (n <= 9) return 'rgba(255,101,0,0.56)';
+    return '#ff6500';
+  };
 
   const recentProblems = (problemsWithStatus || []).filter((p) => p.status === "solved").slice(0, 6);
   const nextRoadmapDay = roadmapMeta?.currentRoadmapDay
@@ -851,11 +963,8 @@ export default function Dashboard() {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#4a5568' }} axisLine={false} tickLine={false} />
             <YAxis hide />
-            <Tooltip
-              contentStyle={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
-              labelStyle={{ color: '#fff', fontWeight: 700 }}
-            />
-            <Area type="monotone" dataKey="solved" stroke="#ff6500" strokeWidth={2} fill="url(#solvedGrad)" dot={{ fill: '#ff6500', r: 3 }} name="Solved" />
+            <Tooltip content={<WeeklyTooltip />} />
+            <Area type="monotone" dataKey="total" stroke="#ff6500" strokeWidth={2} fill="url(#solvedGrad)" dot={{ fill: '#ff6500', r: 3 }} name="Submissions" />
           </AreaChart>
         </ResponsiveContainer>
       </motion.div>
@@ -874,50 +983,166 @@ export default function Dashboard() {
           }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white" style={{ fontSize: '14px', fontWeight: 700 }}>Activity Heatmap</h3>
-            <span style={{ fontSize: '11px', color: '#4a5568' }}>Last 12 weeks</span>
+            <div>
+              <h3 className="text-white" style={{ fontSize: '14px', fontWeight: 700 }}>Activity Heatmap</h3>
+              <div style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 600, marginTop: 4 }}>{new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div>
+            </div>
+            <span style={{ fontSize: '11px', color: '#4a5568' }}>This Month</span>
           </div>
-          <div className="flex gap-1 overflow-x-auto pb-2">
-            {activityHeatmap.length > 0 ? (
-              activityHeatmap.map((week, wi) => (
-                <div key={wi} className="flex flex-col gap-1">
-                  {week.map((count, di) => (
-                    <motion.div
-                      key={di}
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: (wi * 7 + di) * 0.008 }}
-                      className="w-3 h-3 rounded-sm flex-shrink-0 cursor-pointer"
-                      style={{
-                        backgroundColor: count === 0 ? 'rgba(255,255,255,0.04)' : count === 1 ? 'rgba(255,101,0,0.3)' : '#ff6500',
-                        boxShadow: count > 1 ? '0 0 6px rgba(255,101,0,0.5)' : 'none'
-                      }}
-                      whileHover={{ scale: 1.5 }}
-                      title={`${count} problems`}
-                    />
-                  ))}
-                </div>
-              ))
+
+          {/* Calendar grid for current month */}
+          <div className="overflow-x-auto pb-2">
+            {submissionLoading ? (
+              <div className="flex items-center justify-center w-full py-8 text-[#8b949e] text-sm">Loading activity…</div>
             ) : (
-              <div className="flex items-center justify-center w-full py-12 text-[#8b949e] text-sm">
-                No activity heatmap available yet.
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-3">
-            <span style={{ fontSize: '10px', color: '#4a5568' }}>Less</span>
-            {[0, 1, 2].map(v => (
-              <div
-                key={v}
-                className="w-3 h-3 rounded-sm"
-                style={{
-                  backgroundColor: v === 0 ? 'rgba(255,255,255,0.04)' : v === 1 ? 'rgba(255,101,0,0.3)' : '#ff6500',
-                  boxShadow: v === 2 ? '0 0 6px rgba(255,101,0,0.5)' : 'none'
-                }}
-              />
-            ))}
-            <span style={{ fontSize: '10px', color: '#4a5568' }}>More</span>
-          </div>
+              (() => {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = today.getMonth(); // 0-based
+                const firstOfMonth = new Date(year, month, 1);
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const firstWeekday = (firstOfMonth.getDay() + 6) % 7; // 0 = Monday
+                const totalSlots = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+
+                // build day map for the month
+                const map: Record<string, { total: number; correct: number; incorrect: number }> = {};
+                for (let d = 1; d <= daysInMonth; d++) {
+                  const dt = new Date(year, month, d);
+                  const key = toLocalDateKey(dt);
+                  map[key] = { total: 0, correct: 0, incorrect: 0 };
+                }
+
+                // aggregate submissions
+                submissionRecords.forEach((s) => {
+                  const key = toLocalDateKey(s.createdAt);
+                  if (map[key]) {
+                    map[key].total += 1;
+                    const status = (s.status || '').toLowerCase();
+                    if (status === 'passed' || status === 'success' || status === 'ok') map[key].correct += 1;
+                    else map[key].incorrect += 1;
+                  }
+                });
+
+                const cells: Array<null | { day: number; dateKey: string; total: number; correct: number; incorrect: number }> = [];
+                for (let i = 0; i < totalSlots; i++) {
+                  const dayIndex = i - firstWeekday + 1;
+                  if (dayIndex >= 1 && dayIndex <= daysInMonth) {
+                    const dt = new Date(year, month, dayIndex);
+                    const key = toLocalDateKey(dt);
+                    cells.push({ day: dayIndex, dateKey: key, total: map[key].total, correct: map[key].correct, incorrect: map[key].incorrect });
+                  } else {
+                    cells.push(null);
+                  }
+                }
+
+                
+
+                // render weekday header
+                const weekdays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+                const nRows = totalSlots / 7;
+                const gridTemplateRows = `auto repeat(${nRows}, 1fr)`;
+
+                return (
+                  <div
+                    className="w-full"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gridTemplateRows,
+                      gap: 12,
+                      alignItems: 'center'
+                    }}
+                  >
+                    {/* Weekday header - shares same 7-column grid */}
+                    {weekdays.map(w => (
+                      <div key={`h-${w}`} style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', justifySelf: 'center' }}>{w}</div>
+                    ))}
+
+                    {/* Calendar cells - flow into grid after header */}
+                    {cells.map((c, i) => {
+                      if (!c) return <div key={`c-empty-${i}`} />;
+                      const count = c.total;
+                      return (
+                        <UiTooltip key={c.dateKey}>
+                          <UiTooltipTrigger asChild>
+                            <motion.div
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.28, delay: i * 0.01 }}
+                              className={`cursor-pointer`}
+                              style={{
+                                justifySelf: 'center',
+                                alignSelf: 'center',
+                                width: 'clamp(22px, 4.5vw, 32px)',
+                                height: 'clamp(12px, 1.8vw, 16px)',
+                                borderRadius: 4,
+                                backgroundColor: getColor(count),
+                                boxShadow: count > 2 ? '0 0 6px rgba(255,101,0,0.35)' : 'none'
+                              }}
+                            />
+                          </UiTooltipTrigger>
+                          <UiTooltipContent sideOffset={4}>
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>{new Date(c.dateKey + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                            <div style={{ fontSize: 12 }}>{c.total} submission{c.total !== 1 ? 's' : ''}</div>
+                            <div style={{ fontSize: 12, color: '#9CA3AF' }}>{c.correct} correct</div>
+                            <div style={{ fontSize: 12, color: '#9CA3AF' }}>{c.incorrect} incorrect</div>
+                          </UiTooltipContent>
+                        </UiTooltip>
+                      );
+                    })}
+                  </div>
+                );
+                })()
+              )}
+            </div>
+
+            {/* Legend below the heatmap, left-aligned and compact (inside heatmap container) */}
+            <div style={{ marginTop: 12 }}>
+              {(() => {
+                const maxTest = 20;
+                const ranges: Array<{ color: string; min: number; max: number | null }> = [];
+                let curColor: string | null = null;
+                let rangeStart = 0;
+                for (let n = 0; n <= maxTest; n++) {
+                  const c = getColor(n);
+                  if (curColor === null) { curColor = c; rangeStart = n; continue; }
+                  if (c !== curColor) { ranges.push({ color: curColor, min: rangeStart, max: n - 1 }); curColor = c; rangeStart = n; }
+                }
+                if (curColor !== null) ranges.push({ color: curColor, min: rangeStart, max: null });
+
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: '#4a5568', fontWeight: 700, minWidth: 48, textAlign: 'left' }}>Less</span>
+
+                    <div className="flex items-center" style={{ gap: 8 }}>
+                      {ranges.map((r, idx) => (
+                        <UiTooltip key={`legend-${idx}`}>
+                          <UiTooltipTrigger asChild>
+                            <div
+                              className="rounded-sm"
+                              style={{
+                                width: 'clamp(18px, 3.5vw, 24px)',
+                                height: 'clamp(8px, 1vw, 12px)',
+                                borderRadius: 4,
+                                backgroundColor: r.color,
+                                boxShadow: r.min >= 3 ? '0 0 6px rgba(255,101,0,0.35)' : 'none',
+                                cursor: 'default'
+                              }}
+                            />
+                          </UiTooltipTrigger>
+                          <UiTooltipContent sideOffset={4}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{r.max === null ? `${r.min}+ submissions` : r.min === r.max ? `${r.min} submissions` : `${r.min}–${r.max} submissions`}</div>
+                          </UiTooltipContent>
+                        </UiTooltip>
+                      ))}
+                    </div>
+
+                    <span style={{ fontSize: 11, color: '#4a5568', fontWeight: 700, minWidth: 48, textAlign: 'left' }}>More</span>
+                  </div>
+                );
+              })()}
+            </div>
         </motion.div>
 
         {/* Roadmap Preview */}

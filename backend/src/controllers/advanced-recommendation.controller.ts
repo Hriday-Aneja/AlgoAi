@@ -1,6 +1,7 @@
 import supabase from '../config/supabase';
 import { prisma } from '../config/database';
 import { getProblemsByTopics } from '../repositories/problem.repository';
+
 import {
   UserProgressRecord,
   TopicPerformance,
@@ -11,55 +12,83 @@ import {
   DIFFICULTY_WEIGHTS,
   WEAKNESS_THRESHOLDS,
 } from '../types/advanced-recommendation.types';
+
 import { Difficulty } from '../types/progress.types';
 
-// ─── Database Query Functions ───────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// DATABASE QUERY FUNCTIONS
+// ─────────────────────────────────────────────────────────────
 
 /**
- * Fetches user progress records from database with attempts count
+ * Fetches user progress records from database
  */
-export const getUserProgressRecords = async (userId: string): Promise<UserProgressRecord[]> => {
+export const getUserProgressRecords = async (
+  userId: string
+): Promise<UserProgressRecord[]> => {
   try {
+    console.log('🔍 Fetching progress for user:', userId);
+
+    // First try Prisma
     const prismaRecords = await prisma.userProblemProgress.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
     });
 
+    console.log(
+      '📊 Prisma progress records:',
+      prismaRecords.length
+    );
+
     if (prismaRecords && prismaRecords.length > 0) {
-  return prismaRecords.map((record): UserProgressRecord => ({
-    user_id: record.userId,
-    problem_id: record.problemId,
+      return prismaRecords.map(
+        (record): UserProgressRecord => ({
+          user_id: record.userId,
+          problem_id: record.problemId,
 
-    topic: Array.isArray(record.topic)
-      ? record.topic[0]
-      : record.topic,
+          topic: Array.isArray(record.topic)
+            ? record.topic[0]
+            : record.topic,
 
-    difficulty: record.difficulty.toLowerCase() as Difficulty,
+          difficulty:
+            record.difficulty.toLowerCase() as Difficulty,
 
-    status: record.status as "solved" | "attempted",
+          status: record.status as 'solved' | 'attempted',
 
-    attempts_count:
-      record.status === "attempted" ? 3 : 1,
+          attempts_count:
+            record.status === 'attempted' ? 3 : 1,
 
-    time_taken:
-      record.timeTaken
-        ? Math.round(record.timeTaken / 60)
-        : 0,
+          time_taken: record.timeTaken
+            ? Math.round(record.timeTaken / 60)
+            : 0,
 
-    created_at:
-      record.createdAt instanceof Date
-        ? record.createdAt.toISOString()
-        : String(record.createdAt),
-  }));
-}
+          created_at:
+            record.createdAt instanceof Date
+              ? record.createdAt.toISOString()
+              : String(record.createdAt),
+        })
+      );
+    }
 
-    let { data: progressData, error: progressError } = await supabase
-      .from('user_problem_progress')
-      .select('*')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false });
+    // If Prisma has no records, try Supabase
+    console.log('🔄 No Prisma records. Trying Supabase...');
 
-    if (progressError && progressError.message.includes('userId')) {
+    let { data: progressData, error: progressError } =
+      await supabase
+        .from('user_problem_progress')
+        .select('*')
+        .eq('userId', userId)
+        .order('createdAt', { ascending: false });
+
+    // Fallback for snake_case database columns
+    if (
+      progressError &&
+      progressError.message.includes('userId')
+    ) {
+      console.log(
+        '🔄 Trying snake_case Supabase columns...'
+      );
+
       const fallback = await supabase
         .from('user_problem_progress')
         .select('*')
@@ -71,62 +100,117 @@ export const getUserProgressRecords = async (userId: string): Promise<UserProgre
     }
 
     if (progressError) {
-      console.warn('Progress query failed, returning empty progress:', progressError.message);
+      console.warn(
+        '⚠️ Supabase progress query failed:',
+        progressError.message
+      );
+
       return [];
     }
 
     if (!progressData || progressData.length === 0) {
+      console.log(
+        'ℹ️ No progress found for user:',
+        userId
+      );
+
       return [];
     }
 
+    console.log(
+      '📊 Supabase progress records:',
+      progressData.length
+    );
+
     return progressData.map((record: any) => ({
-      user_id: record.user_id ?? record.userId,
-      problem_id: record.problem_id ?? record.problemId,
-      topic: Array.isArray(record.topic) ? record.topic[0] : record.topic,
-      difficulty: record.difficulty,
-      status: record.status,
-      attempts_count: record.status === 'attempted' ? 3 : 1,
-      time_taken: record.time_taken ?? record.timeTaken ? Math.round((record.time_taken ?? record.timeTaken) / 60) : 0,
-      created_at: record.created_at ?? record.createdAt,
+      user_id:
+        record.user_id ?? record.userId,
+
+      problem_id:
+        record.problem_id ?? record.problemId,
+
+      topic: Array.isArray(record.topic)
+        ? record.topic[0]
+        : record.topic,
+
+      difficulty:
+        record.difficulty?.toLowerCase() as Difficulty,
+
+      status:
+        record.status as 'solved' | 'attempted',
+
+      attempts_count:
+        record.status === 'attempted' ? 3 : 1,
+
+      time_taken:
+        record.time_taken != null
+          ? Math.round(record.time_taken / 60)
+          : record.timeTaken != null
+          ? Math.round(record.timeTaken / 60)
+          : 0,
+
+      created_at:
+        record.created_at ?? record.createdAt,
     }));
   } catch (error) {
-    console.error('Error fetching user progress:', error);
+    console.error(
+      '❌ Error fetching user progress:',
+      error
+    );
+
     return [];
   }
 };
 
-/**
- * Fetches available problems for a topic and difficulty
- */
+
+// ─────────────────────────────────────────────────────────────
+// AVAILABLE PROBLEMS
+// ─────────────────────────────────────────────────────────────
+
 export const getAvailableProblems = async (
   topic: string,
   difficulty: Difficulty,
   excludeSolved: string[]
 ): Promise<RecommendedProblem[]> => {
   try {
-    // Get problems from the repository
-    const allProblems = await getProblemsByTopics([topic]);
+    console.log(
+      `🔎 Getting problems for topic=${topic}, difficulty=${difficulty}`
+    );
 
-    // Filter by difficulty and exclude solved problems
+    const allProblems =
+      await getProblemsByTopics([topic]);
+
     return allProblems
-      .filter(p => p.difficulty === difficulty && !excludeSolved.includes(p.id))
-      .map(p => ({
+      .filter(
+        (p) =>
+          p.difficulty === difficulty &&
+          !excludeSolved.includes(p.id)
+      )
+      .map((p) => ({
         id: p.id,
         title: p.title,
         difficulty: p.difficulty,
         topic: p.topic,
       }))
-      .slice(0, 10); // Limit to 10 problems
+      .slice(0, 10);
   } catch (error) {
-    console.error('Error fetching problems:', error);
+    console.error(
+      '❌ Error fetching available problems:',
+      error
+    );
+
     return [];
   }
 };
 
-/**
- * Mock data for development when database is not available
- */
-const getMockProgressData = (userId: string): UserProgressRecord[] => [
+
+// ─────────────────────────────────────────────────────────────
+// MOCK DATA
+// ─────────────────────────────────────────────────────────────
+
+const getMockProgressData = (
+  userId: string
+): UserProgressRecord[] => [
   {
     user_id: userId,
     problem_id: 'two-sum',
@@ -137,6 +221,7 @@ const getMockProgressData = (userId: string): UserProgressRecord[] => [
     time_taken: 15,
     created_at: '2024-01-15T10:00:00Z',
   },
+
   {
     user_id: userId,
     problem_id: 'linked-list-cycle',
@@ -147,6 +232,7 @@ const getMockProgressData = (userId: string): UserProgressRecord[] => [
     time_taken: 45,
     created_at: '2024-01-14T10:00:00Z',
   },
+
   {
     user_id: userId,
     problem_id: 'binary-tree-max-path',
@@ -159,17 +245,20 @@ const getMockProgressData = (userId: string): UserProgressRecord[] => [
   },
 ];
 
-// ─── Weakness Calculation Functions ──────────────────────────────────────────
 
-/**
- * Groups user progress by topic and calculates performance metrics
- */
-export const calculateTopicPerformance = (progress: UserProgressRecord[]): TopicPerformance[] => {
-  const topicMap = new Map<string, TopicPerformance>();
+// ─────────────────────────────────────────────────────────────
+// TOPIC PERFORMANCE
+// ─────────────────────────────────────────────────────────────
 
-  // Group by topic
-  progress.forEach(record => {
+export const calculateTopicPerformance = (
+  progress: UserProgressRecord[]
+): TopicPerformance[] => {
+  const topicMap =
+    new Map<string, TopicPerformance>();
+
+  progress.forEach((record) => {
     const topic = record.topic;
+
     if (!topicMap.has(topic)) {
       topicMap.set(topic, {
         topic,
@@ -182,36 +271,63 @@ export const calculateTopicPerformance = (progress: UserProgressRecord[]): Topic
       });
     }
 
-    const topicPerf = topicMap.get(topic)!;
+    const topicPerf =
+      topicMap.get(topic)!;
+
     topicPerf.total_attempted += 1;
-    topicPerf.total_attempts += record.attempts_count;
-    topicPerf.total_time += record.time_taken;
+
+    topicPerf.total_attempts +=
+      record.attempts_count;
+
+    topicPerf.total_time +=
+      record.time_taken;
+
     topicPerf.problem_count += 1;
 
     if (record.status === 'solved') {
       topicPerf.total_solved += 1;
     }
 
-    // Check if weakness is recent (within last 7 days)
-    const recordDate = new Date(record.created_at);
+    // Check if weakness is recent
+    const recordDate =
+      new Date(record.created_at);
+
     const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    if (recordDate > weekAgo && record.status === 'attempted') {
+
+    weekAgo.setDate(
+      weekAgo.getDate() - 7
+    );
+
+    if (
+      recordDate > weekAgo &&
+      record.status === 'attempted'
+    ) {
       topicPerf.recent_weakness = true;
     }
   });
 
-  return Array.from(topicMap.values());
+  return Array.from(
+    topicMap.values()
+  );
 };
 
-/**
- * Calculates weakness score for a topic using the specified formula
- * Note: This is a simplified version since we don't have per-difficulty data
- */
-export const calculateWeakness = (performance: TopicPerformance): TopicWeakness => {
-  const { topic, total_attempted, total_solved, total_attempts, total_time, problem_count } = performance;
 
-  // Avoid division by zero
+// ─────────────────────────────────────────────────────────────
+// WEAKNESS CALCULATION
+// ─────────────────────────────────────────────────────────────
+
+export const calculateWeakness = (
+  performance: TopicPerformance
+): TopicWeakness => {
+  const {
+    topic,
+    total_attempted,
+    total_solved,
+    total_attempts,
+    total_time,
+    problem_count,
+  } = performance;
+
   if (total_attempted === 0) {
     return {
       topic,
@@ -225,186 +341,416 @@ export const calculateWeakness = (performance: TopicPerformance): TopicWeakness 
     };
   }
 
-  // Calculate accuracy score: (attempted - solved) / attempted
-  const accuracy_score = (total_attempted - total_solved) / total_attempted;
+  // Accuracy
+  const accuracy_score =
+    (total_attempted - total_solved) /
+    total_attempted;
 
-  // Calculate average time score using overall expected time
-  const avg_time = total_time / problem_count;
-  const expected_time = (EXPECTED_TIME_MINUTES.easy + EXPECTED_TIME_MINUTES.medium + EXPECTED_TIME_MINUTES.hard) / 3;
-  const time_score = Math.max(0, Math.min(2, avg_time / expected_time)); // Cap at 2x expected
+  // Average time
+  const avg_time =
+    total_time / problem_count;
 
-  // Calculate attempts score: average((attempts_count - 1) / 3)
-  const attempts_score = Math.max(0, (total_attempts / problem_count - 1) / 3);
+  const expected_time =
+    (
+      EXPECTED_TIME_MINUTES.easy +
+      EXPECTED_TIME_MINUTES.medium +
+      EXPECTED_TIME_MINUTES.hard
+    ) / 3;
 
-  // Calculate difficulty weight (simplified - using average difficulty)
-  const difficulty_weight = (DIFFICULTY_WEIGHTS.easy + DIFFICULTY_WEIGHTS.medium + DIFFICULTY_WEIGHTS.hard) / 3;
+  const time_score = Math.max(
+    0,
+    Math.min(
+      2,
+      avg_time / expected_time
+    )
+  );
 
-  // Final weakness formula
-  const weakness_score = Math.min(1, Math.max(0,
-    0.4 * accuracy_score +
-    0.2 * time_score +
-    0.2 * attempts_score +
-    0.2 * difficulty_weight
-  ));
+  // Attempts
+  const attempts_score = Math.max(
+    0,
+    (
+      total_attempts /
+        problem_count -
+      1
+    ) / 3
+  );
 
-  // Determine recommended difficulty based on weakness
+  // Difficulty
+  const difficulty_weight =
+    (
+      DIFFICULTY_WEIGHTS.easy +
+      DIFFICULTY_WEIGHTS.medium +
+      DIFFICULTY_WEIGHTS.hard
+    ) / 3;
+
+  // Final weakness score
+  const weakness_score =
+    Math.min(
+      1,
+      Math.max(
+        0,
+        0.4 * accuracy_score +
+        0.2 * time_score +
+        0.2 * attempts_score +
+        0.2 * difficulty_weight
+      )
+    );
+
+  // Recommended difficulty
   let recommended_difficulty: Difficulty;
-  if (weakness_score > WEAKNESS_THRESHOLDS.HIGH) {
+
+  if (
+    weakness_score >
+    WEAKNESS_THRESHOLDS.HIGH
+  ) {
     recommended_difficulty = 'easy';
-  } else if (weakness_score > WEAKNESS_THRESHOLDS.MEDIUM) {
+  } else if (
+    weakness_score >
+    WEAKNESS_THRESHOLDS.MEDIUM
+  ) {
     recommended_difficulty = 'medium';
   } else {
     recommended_difficulty = 'hard';
   }
 
-  // Generate reason
-  const reasons = [];
-  if (accuracy_score > 0.3) reasons.push('Low success rate');
-  if (time_score > 1.2) reasons.push('Taking too long');
-  if (attempts_score > 0.5) reasons.push('Multiple attempts needed');
-  if (performance.recent_weakness) reasons.push('Recent struggles');
+  // Reasons
+  const reasons: string[] = [];
 
-  const reason = reasons.length > 0 ? reasons.join(' + ') : 'General improvement needed';
+  if (accuracy_score > 0.3) {
+    reasons.push('Low success rate');
+  }
+
+  if (time_score > 1.2) {
+    reasons.push('Taking too long');
+  }
+
+  if (attempts_score > 0.5) {
+    reasons.push('Multiple attempts needed');
+  }
+
+  if (performance.recent_weakness) {
+    reasons.push('Recent struggles');
+  }
+
+  const reason =
+    reasons.length > 0
+      ? reasons.join(' + ')
+      : 'General improvement needed';
 
   return {
     topic,
-    weakness_score: Math.round(weakness_score * 100) / 100,
-    accuracy_score: Math.round(accuracy_score * 100) / 100,
-    time_score: Math.round(time_score * 100) / 100,
-    attempts_score: Math.round(attempts_score * 100) / 100,
-    difficulty_weight: Math.round(difficulty_weight * 100) / 100,
+
+    weakness_score:
+      Math.round(
+        weakness_score * 100
+      ) / 100,
+
+    accuracy_score:
+      Math.round(
+        accuracy_score * 100
+      ) / 100,
+
+    time_score:
+      Math.round(
+        time_score * 100
+      ) / 100,
+
+    attempts_score:
+      Math.round(
+        attempts_score * 100
+      ) / 100,
+
+    difficulty_weight:
+      Math.round(
+        difficulty_weight * 100
+      ) / 100,
+
     reason,
+
     recommended_difficulty,
   };
 };
 
-/**
- * Ranks topics by weakness score (descending) and returns top weak topics
- */
-export const getWeakTopics = (topicWeaknesses: TopicWeakness[]): TopicWeakness[] => {
+
+// ─────────────────────────────────────────────────────────────
+// WEAK TOPICS
+// ─────────────────────────────────────────────────────────────
+
+export const getWeakTopics = (
+  topicWeaknesses: TopicWeakness[]
+): TopicWeakness[] => {
   return topicWeaknesses
-    .filter(tw => tw.weakness_score > 0)
-    .sort((a, b) => b.weakness_score - a.weakness_score);
+    .filter(
+      (tw) =>
+        tw.weakness_score > 0
+    )
+    .sort(
+      (a, b) =>
+        b.weakness_score -
+        a.weakness_score
+    );
 };
 
-/**
- * Selects a topic using weighted random selection based on weakness scores
- */
-export const pickTopicWeighted = (weakTopics: TopicWeakness[]): TopicWeakness | null => {
-  if (weakTopics.length === 0) return null;
 
-  // Calculate total weight (sum of weakness scores)
-  const totalWeight = weakTopics.reduce((sum, topic) => sum + topic.weakness_score, 0);
+// ─────────────────────────────────────────────────────────────
+// WEIGHTED TOPIC SELECTION
+// ─────────────────────────────────────────────────────────────
 
-  // Generate random number between 0 and totalWeight
-  const random = Math.random() * totalWeight;
+export const pickTopicWeighted = (
+  weakTopics: TopicWeakness[]
+): TopicWeakness | null => {
+  if (weakTopics.length === 0) {
+    return null;
+  }
 
-  // Find the topic that corresponds to this random value
+  const totalWeight =
+    weakTopics.reduce(
+      (sum, topic) =>
+        sum + topic.weakness_score,
+      0
+    );
+
+  const random =
+    Math.random() * totalWeight;
+
   let cumulativeWeight = 0;
+
   for (const topic of weakTopics) {
-    cumulativeWeight += topic.weakness_score;
-    if (random <= cumulativeWeight) {
+    cumulativeWeight +=
+      topic.weakness_score;
+
+    if (
+      random <= cumulativeWeight
+    ) {
       return topic;
     }
   }
 
-  // Fallback to first topic
   return weakTopics[0];
 };
 
-/**
- * Gets recommended problems for a selected topic
- */
-export const getRecommendedProblems = async (
-  selectedTopic: TopicWeakness,
-  solvedProblemIds: string[]
-): Promise<RecommendedProblem[]> => {
-  const problems = await getAvailableProblems(
-    selectedTopic.topic,
-    selectedTopic.recommended_difficulty,
-    solvedProblemIds
-  );
 
-  // Return 5-10 problems, prioritizing variety
-  return problems.slice(0, Math.min(10, Math.max(5, problems.length)));
-};
+// ─────────────────────────────────────────────────────────────
+// RECOMMENDED PROBLEMS
+// ─────────────────────────────────────────────────────────────
 
-// ─── Main Recommendation Function ────────────────────────────────────────────
+export const getRecommendedProblems =
+  async (
+    selectedTopic: TopicWeakness,
+    solvedProblemIds: string[]
+  ): Promise<RecommendedProblem[]> => {
+    const problems =
+      await getAvailableProblems(
+        selectedTopic.topic,
+        selectedTopic.recommended_difficulty,
+        solvedProblemIds
+      );
 
-/**
- * Main function that orchestrates the recommendation process
- */
-export const generateRecommendations = async (userId: string): Promise<RecommendationResponse | null> => {
-  // 1. Get user progress data
-  const progressRecords = await getUserProgressRecords(userId);
-
-  if (progressRecords.length === 0) {
-    return null; // No data to base recommendations on
-  }
-
-  // 2. Calculate topic performance
-  const topicPerformances = calculateTopicPerformance(progressRecords);
-
-  // 3. Calculate weakness for each topic
-  const topicWeaknesses = topicPerformances.map(calculateWeakness);
-
-  // 4. Get weak topics ranked by weakness score
-  const weakTopics = getWeakTopics(topicWeaknesses);
-
-  if (weakTopics.length === 0) {
-    return null; // No weak topics found
-  }
-
-  // 5. Pick topic using weighted random selection
-  const selectedTopic = pickTopicWeighted(weakTopics);
-
-  if (!selectedTopic) {
-    return null;
-  }
-
-  // 6. Get solved problem IDs to exclude
-  const solvedProblemIds = progressRecords
-    .filter(r => r.status === 'solved')
-    .map(r => r.problem_id);
-
-  // 7. Get recommended problems
-  const problems = await getRecommendedProblems(selectedTopic, solvedProblemIds);
-
-  return {
-    recommended_topic: selectedTopic.topic,
-    weakness_score: selectedTopic.weakness_score,
-    reason: selectedTopic.reason,
-    problems,
+    return problems.slice(
+      0,
+      Math.min(
+        10,
+        Math.max(5, problems.length)
+      )
+    );
   };
-};
-import { Request, Response } from "express";
 
-export const getAdvancedRecommendations = async (
-  req: Request,
-  res: Response
-) => {
-  try {
-    const { userId } = req.params;
 
-    const recommendations = await generateRecommendations(userId);
+// ─────────────────────────────────────────────────────────────
+// MAIN RECOMMENDATION FUNCTION
+// ─────────────────────────────────────────────────────────────
 
-    if (!recommendations) {
-      return res.status(404).json({
-        success: false,
-        message: "No recommendations found",
-      });
+export const generateRecommendations =
+  async (
+    userId: string
+  ): Promise<RecommendationResponse | null> => {
+
+    console.log(
+      '🧠 Generating recommendations for:',
+      userId
+    );
+
+    // 1. Get progress
+    const progressRecords =
+      await getUserProgressRecords(
+        userId
+      );
+
+    console.log(
+      '📊 Progress records found:',
+      progressRecords.length
+    );
+
+    // No progress is NOT an error
+    if (
+      progressRecords.length === 0
+    ) {
+      console.log(
+        'ℹ️ User has no progress yet'
+      );
+
+      return null;
     }
 
-    return res.status(200).json({
-      success: true,
-      data: recommendations,
-    });
-  } catch (error) {
-    console.error("Advanced recommendation error:", error);
+    // 2. Calculate performance
+    const topicPerformances =
+      calculateTopicPerformance(
+        progressRecords
+      );
 
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-};
+    console.log(
+      '📈 Topic performances:',
+      topicPerformances
+    );
+
+    // 3. Calculate weakness
+    const topicWeaknesses =
+      topicPerformances.map(
+        calculateWeakness
+      );
+
+    console.log(
+      '⚠️ Topic weaknesses:',
+      topicWeaknesses
+    );
+
+    // 4. Get weak topics
+    const weakTopics =
+      getWeakTopics(
+        topicWeaknesses
+      );
+
+    console.log(
+      '🎯 Weak topics:',
+      weakTopics
+    );
+
+    if (
+      weakTopics.length === 0
+    ) {
+      console.log(
+        'ℹ️ No weak topics found'
+      );
+
+      return null;
+    }
+
+    // 5. Select topic
+    const selectedTopic =
+      pickTopicWeighted(
+        weakTopics
+      );
+
+    if (!selectedTopic) {
+      return null;
+    }
+
+    console.log(
+      '🎯 Selected topic:',
+      selectedTopic.topic
+    );
+
+    // 6. Solved problems
+    const solvedProblemIds =
+      progressRecords
+        .filter(
+          (r) =>
+            r.status === 'solved'
+        )
+        .map(
+          (r) =>
+            r.problem_id
+        );
+
+    // 7. Get recommendations
+    const problems =
+      await getRecommendedProblems(
+        selectedTopic,
+        solvedProblemIds
+      );
+
+    console.log(
+      '💡 Recommended problems:',
+      problems.length
+    );
+
+    return {
+      recommended_topic:
+        selectedTopic.topic,
+
+      weakness_score:
+        selectedTopic.weakness_score,
+
+      reason:
+        selectedTopic.reason,
+
+      problems,
+    };
+  };
+
+
+// ─────────────────────────────────────────────────────────────
+// API CONTROLLER
+// ─────────────────────────────────────────────────────────────
+
+import { Request, Response } from 'express';
+
+export const getAdvancedRecommendations =
+  async (
+    req: Request,
+    res: Response
+  ) => {
+
+    try {
+      const { userId } =
+        req.params;
+
+      console.log(
+        '🚀 Advanced recommendations request:',
+        userId
+      );
+
+      const recommendations =
+        await generateRecommendations(
+          userId
+        );
+
+      // IMPORTANT:
+      // No progress is a normal situation,
+      // NOT a 404 API error.
+      if (!recommendations) {
+        return res.status(200).json({
+          success: true,
+
+          data: {
+            recommended_topic: null,
+
+            weakness_score: 0,
+
+            reason:
+              'Solve some problems to get personalized recommendations.',
+
+            problems: [],
+          },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: recommendations,
+      });
+
+    } catch (error) {
+
+      console.error(
+        '❌ Advanced recommendation error:',
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          'Internal server error',
+      });
+    }
+  };

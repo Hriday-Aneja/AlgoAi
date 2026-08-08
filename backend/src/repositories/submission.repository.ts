@@ -26,3 +26,26 @@ export const createSubmission = async (
     },
   });
 };
+
+export const getSubmissionsForUserLastNDays = async (
+  userId: string,
+  days = 30,
+): Promise<Pick<SubmissionRecord, 'status' | 'createdAt'>[]> => {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(today.getDate() - (days - 1));
+
+  return prisma.submission.findMany({
+    where: {
+      userId,
+      createdAt: {
+        gte: start,
+      },
+    },
+    select: {
+      status: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+};

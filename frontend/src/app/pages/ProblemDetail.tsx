@@ -170,15 +170,16 @@ const MAX_HINTS = 3;
       setRunResult("success");
       setCompilerOutput(result.run?.stdout || "(no output)");
 
-      if (currentStatus !== "solved") {
-        if (isFirstProblemAttempt) {
-          incrementQuestionsAttempted();
-        }
+await saveProblemProgress("solved");
 
-        incrementQuestionsSolved(10);
-        setProblemStatus(problem.id, "solved");
-        await saveProblemProgress("solved");
-      }
+if (currentStatus !== "solved") {
+  if (isFirstProblemAttempt) {
+    incrementQuestionsAttempted();
+  }
+
+  incrementQuestionsSolved(10);
+  setProblemStatus(problem.id, "solved");
+}
 
       const strengthIncrease =
         problem.difficulty === "Easy"
@@ -275,17 +276,16 @@ Actual: ${actual}`
       }.`
     );
 
-    if (currentStatus !== "solved") {
-      if (isFirstProblemAttempt) {
-        incrementQuestionsAttempted();
-      }
+await saveProblemProgress("solved");
 
-      incrementQuestionsSolved(10);
+if (currentStatus !== "solved") {
+  if (isFirstProblemAttempt) {
+    incrementQuestionsAttempted();
+  }
 
-      setProblemStatus(problem.id, "solved");
-
-      await saveProblemProgress("solved");
-    }
+  incrementQuestionsSolved(10);
+  setProblemStatus(problem.id, "solved");
+}
 
     const strengthIncrease =
       problem.difficulty === "Easy"
