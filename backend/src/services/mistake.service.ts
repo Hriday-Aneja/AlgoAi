@@ -1,4 +1,4 @@
-import supabase from '../config/supabase';
+import { prisma } from '../config/database';
 import {
   TopicStatistics,
   ProblemMistake,
@@ -10,7 +10,7 @@ import {
   AIReadyMistakeData,
 } from '../types/mistake.types';
 
-const TABLE = 'user_problem_progress';
+
 
 // ─── Database Row Interfaces (for proper TypeScript typing) ──────────────────
 
@@ -18,18 +18,6 @@ const TABLE = 'user_problem_progress';
  * Raw row from user_progress table.
  * Used to safely type Supabase query responses.
  */
-interface UserProgressRow {
-  id: string;
-  user_id: string;
-  problem_id: string;
-  topic: string | string[] | null;
-  difficulty: 'easy' | 'medium' | 'hard';
-  status: 'solved' | 'attempted';
-  time_taken: number | null;
-  created_at: string;
-  submission_code: string | null;
-  submission_output: string | null;
-}
 
 // ─── Service Layer - Efficient SQL-Based Analysis ──────────────────────────────
 // All queries are optimized to do aggregation at the DB level, not in application.
@@ -44,40 +32,29 @@ interface UserProgressRow {
 export const getTopicStatistics = async (
   userId: string
 ): Promise<TopicStatistics[]> => {
-  // Query to get all user progress (no aggregation in query - we do it in JS)
-  let { data, error } = await supabase
-    .from(TABLE)
-    .select('topic, status, time_taken')
-    .eq('userId', userId)
-    .neq('topic', null) as any; // Type assertion needed because Supabase typing is loose
+  const rows = await prisma.userProblemProgress.findMany({
+    where: {
+      userId,
+    },
+    select: {
+      topic: true,
+      status: true,
+      timeTaken: true,
+    },
+  });
 
-  if (error && error.message.includes('userId')) {
-    const fallback = await supabase
-      .from(TABLE)
-      .select('topic, status, time_taken')
-      .eq('user_id', userId)
-      .neq('topic', null) as any;
-
-    data = fallback.data;
-    error = fallback.error;
-  }
-
-  // Type-safe error handling
-  if (error) {
-    throw new Error(`Database error [getTopicStatistics]: ${error.message}`);
-  }
-
-  // Type guard: ensure data is an array
-  if (!data || !Array.isArray(data) || data.length === 0) {
+  if (rows.length === 0) {
     return [];
   }
 
-  // Group by topic and calculate statistics
   const topicMap = new Map<string, TopicStatistics>();
+  const timeMap = new Map<string, number[]>();
 
-  for (const row of data as Array<{ topic: string | string[] | null; status: string; time_taken: number | null }>) {
-    // Safely extract topic (handle array or string)
-    const topic = Array.isArray(row.topic) ? row.topic[0] : (row.topic || null);
+  for (const row of rows) {
+    const topic = Array.isArray(row.topic)
+      ? row.topic[0]
+      : row.topic;
+
     if (!topic) continue;
 
     if (!topicMap.has(topic)) {
@@ -90,28 +67,44 @@ export const getTopicStatistics = async (
         averageTimeTaken: null,
         maxTimeTaken: null,
       });
+
+      timeMap.set(topic, []);
     }
 
     const stats = topicMap.get(topic)!;
-    
-    // Increment total attempts (each row = 1 attempt)
-    stats.totalAttempts += 1;
-    
+
+    stats.totalAttempts++;
+
     if (row.status === 'solved') {
-      stats.solvedCount += 1;
+      stats.solvedCount++;
     } else if (row.status === 'attempted') {
-      stats.attemptedCount += 1;
+      stats.attemptedCount++;
+    }
+
+    if (typeof row.timeTaken === 'number' && row.timeTaken > 0) {
+      timeMap.get(topic)!.push(row.timeTaken);
     }
   }
 
-  // Convert back to array and calculate rates
   const result = Array.from(topicMap.values());
 
   for (const stat of result) {
     stat.solveRate =
       stat.totalAttempts > 0
-        ? Math.round((stat.solvedCount / stat.totalAttempts) * 100)
+        ? Math.round(
+            (stat.solvedCount / stat.totalAttempts) * 100
+          )
         : 0;
+
+    const times = timeMap.get(stat.topic) || [];
+
+    if (times.length > 0) {
+      stat.averageTimeTaken = Math.round(
+        times.reduce((a, b) => a + b, 0) / times.length
+      );
+
+      stat.maxTimeTaken = Math.max(...times);
+    }
   }
 
   return result;
@@ -121,40 +114,37 @@ export const getTopicStatistics = async (
  * Get all failed/attempted problems for a user.
  * Returns only problems with status = 'attempted' (not solved).
  */
-export const getFailedProblems = async (userId: string): Promise<ProblemMistake[]> => {
-  let { data, error } = await supabase
-    .from(TABLE)
-    .select('problem_id, topic, difficulty, status, time_taken, created_at')
-    .eq('userId', userId)
-    .eq('status', 'attempted')
-    .order('createdAt', { ascending: false }) as any; // Type assertion for Supabase response
+export const getFailedProblems = async (
+  userId: string
+): Promise<ProblemMistake[]> => {
+  const rows = await prisma.userProblemProgress.findMany({
+    where: {
+      userId,
+      status: 'attempted',
+    },
+    select: {
+      problemId: true,
+      topic: true,
+      difficulty: true,
+      status: true,
+      timeTaken: true,
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
 
-  if (error && error.message.includes('userId')) {
-    const fallback = await supabase
-      .from(TABLE)
-      .select('problem_id, topic, difficulty, status, time_taken, created_at')
-      .eq('user_id', userId)
-      .eq('status', 'attempted')
-      .order('created_at', { ascending: false }) as any;
-
-    data = fallback.data;
-    error = fallback.error;
-  }
-
-  if (error) {
-    throw new Error(`Database error [getFailedProblems]: ${error.message}`);
-  }
-
-  if (!data || !Array.isArray(data)) return [];
-
-  return data.map((row: any) => ({
-    problemId: row.problem_id,
-    topic: Array.isArray(row.topic) ? row.topic[0] : (row.topic || 'unknown'),
-    difficulty: row.difficulty,
-    status: row.status,
-    timeTaken: row.time_taken,
-    lastAttempt: row.created_at,
-  }));
+return rows.map((row) => ({
+  problemId: row.problemId,
+  topic: Array.isArray(row.topic)
+    ? row.topic[0]
+    : (row.topic || 'unknown'),
+  difficulty: row.difficulty as 'easy' | 'medium' | 'hard',
+  status: row.status as 'solved' | 'attempted',
+  timeTaken: row.timeTaken,
+  lastAttempt: row.createdAt.toISOString(),
+}));
 };
 
 /**
@@ -188,55 +178,44 @@ export const detectWeakPatterns = async (
 export const detectTimeEfficiencyIssues = async (
   userId: string
 ): Promise<WeakPattern[]> => {
-  let { data, error } = await supabase
-    .from(TABLE)
-    .select(
-      `
-        topic,
-        difficulty,
-        time_taken,
-        status
-      `
-    )
-    .eq('userId', userId)
-    .eq('status', 'solved')
-    .gt('timeTaken', 0) as any; // Type assertion for Supabase response
+  const rows = await prisma.userProblemProgress.findMany({
+    where: {
+      userId,
+      status: 'solved',
+      timeTaken: {
+        gt: 0,
+      },
+    },
+    select: {
+      topic: true,
+      difficulty: true,
+      timeTaken: true,
+      status: true,
+    },
+  });
 
-  if (error && error.message.includes('userId')) {
-    const fallback = await supabase
-      .from(TABLE)
-      .select(
-        `
-          topic,
-          difficulty,
-          time_taken,
-          status
-        `
-      )
-      .eq('user_id', userId)
-      .eq('status', 'solved')
-      .gt('time_taken', 0) as any;
-
-    data = fallback.data;
-    error = fallback.error;
+  if (rows.length === 0) {
+    return [];
   }
 
-  if (error) {
-    throw new Error(`Database error [detectTimeEfficiencyIssues]: ${error.message}`);
-  }
-
-  if (!data || !Array.isArray(data) || data.length === 0) return [];
-
-  // Group by topic + difficulty and calculate averages
   const groupMap = new Map<
     string,
-    { times: number[]; count: number; difficulty: string }
+    {
+      times: number[];
+      count: number;
+      difficulty: string;
+    }
   >();
 
-  for (const row of data as Array<any>) {
-    const topic = Array.isArray(row.topic) ? row.topic[0] : (row.topic || '');
-    if (!topic) continue;
-    
+  for (const row of rows) {
+    const topic = Array.isArray(row.topic)
+      ? row.topic[0]
+      : (row.topic || '');
+
+    if (!topic || row.timeTaken === null) {
+      continue;
+    }
+
     const key = `${topic}_${row.difficulty}`;
 
     if (!groupMap.has(key)) {
@@ -248,41 +227,44 @@ export const detectTimeEfficiencyIssues = async (
     }
 
     const group = groupMap.get(key)!;
-    if (row.time_taken) {
-      group.times.push(row.time_taken);
-    }
+
+    group.count++;
+    group.times.push(row.timeTaken);
   }
 
-  // Calculate averages and identify slow topics
   const slowTopics: WeakPattern[] = [];
 
   for (const [key, group] of groupMap.entries()) {
     if (group.times.length === 0) continue;
 
-    const average = group.times.reduce((a, b) => a + b, 0) / group.times.length;
+    const average =
+      group.times.reduce((a, b) => a + b, 0) /
+      group.times.length;
+
     const [topic] = key.split('_');
 
-    // Thresholds (in seconds) - adjust based on difficulty
     const thresholds: Record<string, number> = {
-      easy: 600, // 10 minutes
-      medium: 1200, // 20 minutes
-      hard: 1800, // 30 minutes
+      easy: 600,
+      medium: 1200,
+      hard: 1800,
     };
 
-    const threshold = thresholds[group.difficulty] || 1200;
+    const threshold =
+      thresholds[group.difficulty] || 1200;
 
     if (average > threshold) {
-      // Topic takes significantly longer than expected
       slowTopics.push({
         topic,
-        solveRate: 100, // They do solve it
+        solveRate: 100,
         totalAttempts: group.count,
-        message: `${capitalizeWords(topic)} takes ${formatSeconds(average)} on average (${group.difficulty})`,
+        message: `${capitalizeWords(topic)} takes ${formatSeconds(
+          average
+        )} on average (${group.difficulty})`,
       });
     }
   }
 
-  return slowTopics.slice(0, 3); // Top 3 inefficient topics
+  return slowTopics.slice(0, 3);
 };
 
 /**
