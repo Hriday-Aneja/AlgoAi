@@ -449,6 +449,87 @@ export const getWeeklyActivity = async (): Promise<WeeklyActivityDay[]> => {
     return [];
   }
 };
+
+// ─── Mistake Pattern Analysis ─────────────────────────────────────────────────
+
+export interface TopicStatistic {
+  topic: string;
+  totalAttempts: number;
+  solvedCount: number;
+  attemptedCount: number;
+  solveRate: number;
+  averageTimeTaken: number | null;
+  maxTimeTaken: number | null;
+}
+
+export interface WeakPattern {
+  topic: string;
+  solveRate: number;
+  totalAttempts: number;
+  message: string;
+}
+
+export interface FrequentMistake {
+  problemId: string;
+  topic: string;
+  difficulty: string;
+  timeTaken: number | null;
+  message: string;
+}
+
+export interface MistakeSuggestion {
+  category: 'weak-topic' | 'time-efficiency' | 'repeated-failure';
+  priority: 'high' | 'medium' | 'low';
+  text: string;
+  action: string;
+}
+
+export interface MistakeAnalysis {
+  userId: string;
+  analysisDate: string;
+  weakPatterns: WeakPattern[];
+  frequentMistakes: FrequentMistake[];
+  suggestions: MistakeSuggestion[];
+  summary: {
+    totalProblems: number;
+    solvedCount: number;
+    attemptedCount: number;
+    overallSolveRate: number;
+  };
+}
+
+/**
+ * Get the full mistake-pattern analysis for a user:
+ * weak topics, frequently-failed problems, suggestions, and a summary.
+ */
+export const getMistakeAnalysis = async (
+  userId: string,
+  minAttempts?: number
+): Promise<MistakeAnalysis | null> => {
+  try {
+    const response = await api.get(`/mistakes/${userId}`, {
+      params: minAttempts ? { minAttempts } : undefined,
+    });
+    return response.data?.data ?? null;
+  } catch (error) {
+    console.error('Mistake analysis API error:', error);
+    return null;
+  }
+};
+
+/**
+ * Get per-topic performance stats (solve rate, attempts, timing) for a user.
+ */
+export const getTopicPerformance = async (userId: string): Promise<TopicStatistic[]> => {
+  try {
+    const response = await api.get(`/mistakes/${userId}/topics`);
+    return Array.isArray(response.data?.data) ? response.data.data : [];
+  } catch (error) {
+    console.error('Topic performance API error:', error);
+    return [];
+  }
+};
+
 export interface HintResult {
   success: boolean;
   hintLevel?: number;

@@ -65,7 +65,8 @@ export default function ProblemDetail() {
   const { progress, incrementQuestionsAttempted, incrementQuestionsSolved, updateTopicStrength, setProblemStatus } = useUserProgress();
   
   const problem = problems.find((p: any) => p.id === id) || problems[0];
-  const currentStatus = progress?.problemStatus?.[problem.id] ?? problem.status;
+ const currentStatus =
+  progress?.problemStatus?.[problem.id] ?? "unsolved";
 
   const [code, setCode] = useState(problem.starterCode || "");
 
