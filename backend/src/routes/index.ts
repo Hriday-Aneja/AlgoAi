@@ -1,5 +1,6 @@
 import { Router } from "express";
 import authRoutes from "./auth.routes";
+import interviewRoutes from "./interview.routes";
 import healthRoutes from "./health.routes";
 import progressRoutes from "./progress.routes";
 import weakTopicRoutes from "./weakTopic.routes";
@@ -35,6 +36,7 @@ router.use("/ai-feedback", aiFeedbackRoutes);
 router.use("/onboarding", onboardingRoutes);
 router.use("/problems", problemRoutes);
 router.use("/hints", hintRoutes);
+router.use("/interview", interviewRoutes);
 router.use("/submissions", submissionRoutes);
 // router.use("/visualize", visualizeRoutes);
 router.use("/streak", streakRoutes);
