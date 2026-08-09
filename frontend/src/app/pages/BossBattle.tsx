@@ -94,6 +94,7 @@ export default function BossBattle() {
   const [bossMaxHp, setBossMaxHp] = useState(100);
   const [won, setWon] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [viewingDefeated, setViewingDefeated] = useState(false);
   const [battleResult, setBattleResult] = useState<any>(null);
   const [bosses, setBosses] = useState<BossAssignment[]>([]);
   const [loadingBosses, setLoadingBosses] = useState(true);
@@ -147,10 +148,37 @@ export default function BossBattle() {
     return () => clearInterval(intervalRef.current);
   }, [screen, submitted, timer]);
 
+  const viewDefeatedBoss = (bossIdx: number) => {
+    const assignment = bosses[bossIdx];
+    if (!assignment) return;
+
+    const totalTests = assignment.problem.testCases?.length ?? 0;
+
+    setSelectedBoss(bossIdx);
+    setViewingDefeated(true);
+    setWon(true);
+    setBattleResult({
+      passed: true,
+      testsPassed: totalTests,
+      totalTests,
+      feedback: 'You already defeated this boss. It cannot be challenged again.',
+      hp: 0,
+      defeated: true,
+    });
+    setBossHp(0);
+    setBossMaxHp(assignment.hp || 100);
+    setScreen("result");
+  };
+
   const startBattle = (bossIdx: number) => {
     const assignment = bosses[bossIdx];
     if (!assignment) {
       setBattleError('Boss assignment is not loaded yet.');
+      return;
+    }
+
+    if (assignment.defeated) {
+      viewDefeatedBoss(bossIdx);
       return;
     }
 
@@ -164,6 +192,7 @@ export default function BossBattle() {
     setShowHint(false);
     setSubmitted(false);
     setWon(false);
+    setViewingDefeated(false);
     setBattleResult(null);
     setBattleError(null);
     setScreen("battle");
@@ -196,6 +225,7 @@ export default function BossBattle() {
       setWon(result.passed);
       if (result.defeated) {
         setBossHp(0);
+        setBosses(prev => prev.map((b, i) => (i === selectedBoss ? { ...b, defeated: true, hp: 0 } : b)));
       }
       setTimeout(() => setScreen("result"), 1500);
     } catch (error) {
@@ -273,7 +303,7 @@ export default function BossBattle() {
               </p>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl items-stretch">
               {loadingBosses ? (
                 <div className="col-span-3 text-center text-white/80">Loading today&apos;s bosses...</div>
               ) : bossError ? (
@@ -283,52 +313,79 @@ export default function BossBattle() {
               ) : (
                 bosses.map((b, i) => {
                   const t = BOSS_THEMES[i] ?? BOSS_THEMES[0];
+                  const isDefeated = b.defeated;
                   return (
                     <motion.div
                       key={b.id}
                       initial={{ opacity: 0, y: 30 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.15 + 0.3 }}
-                      whileHover={{ scale: 1.05, y: -8 }}
-                      className="relative overflow-hidden rounded-2xl p-6 cursor-pointer"
-                      style={{ background: t.bg, border: `1px solid ${t.color}30`, boxShadow: `0 0 30px ${t.glow}15` }}
+                      whileHover={{ scale: 1.03, y: -6 }}
+                      className="relative overflow-hidden rounded-2xl p-6 cursor-pointer flex flex-col h-full"
+                      style={{
+                        background: t.bg,
+                        border: `1px solid ${isDefeated ? 'rgba(255,255,255,0.1)' : `${t.color}30`}`,
+                        boxShadow: `0 0 30px ${t.glow}15`,
+                        opacity: isDefeated ? 0.7 : 1,
+                      }}
                       onClick={() => startBattle(i)}
                     >
                       <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: t.color, filter: 'blur(20px)' }} />
-                      <div className="text-center mb-4">
-                        <div style={{ fontSize: '48px', filter: `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
-                        <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{b.name}</div>
-                        <div
-                          className="inline-block px-3 py-0.5 rounded-full mt-1"
-                          style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
-                        >
-                          {t.level} - {b.difficulty}
+
+                      <div className="flex-1">
+                        <div className="text-center mb-4">
+                          <div style={{ fontSize: '48px', filter: isDefeated ? 'grayscale(1)' : `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
+                          <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{b.name}</div>
+                          <div
+                            className="inline-block px-3 py-0.5 rounded-full mt-1"
+                            style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
+                          >
+                            {t.level} - {b.difficulty}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
+                            <span style={{ fontSize: '11px', color: isDefeated ? '#4a5568' : t.color, fontWeight: 700 }}>{b.hp}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            <div className="h-full rounded-full" style={{ width: `${b.hp}%`, background: isDefeated ? '#4a5568' : t.color, boxShadow: isDefeated ? 'none' : `0 0 8px ${t.color}` }} />
+                          </div>
+                          <div className="flex justify-between mt-3">
+                            {isDefeated ? (
+                              <span className="flex items-center gap-1" style={{ fontSize: '11px', color: '#22c55e', fontWeight: 700 }}>
+                                <CheckCircle2 className="w-3 h-3" /> Defeated
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
+                            )}
+                            <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {bossRewards[b.difficulty] ?? 0} XP</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
-                          <span style={{ fontSize: '11px', color: t.color, fontWeight: 700 }}>{b.hp}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                          <div className="h-full rounded-full" style={{ width: '100%', background: t.color, boxShadow: `0 0 8px ${t.color}` }} />
-                        </div>
-                        <div className="flex justify-between mt-3">
-                          <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
-                          <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {bossRewards[b.difficulty] ?? 0} XP</span>
-                        </div>
-                      </div>
+
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
                         style={{
-                          background: `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
-                          color: 'white', fontSize: '13px', fontWeight: 700,
-                          boxShadow: `0 0 20px ${t.glow}30`
+                          background: isDefeated ? 'rgba(255,255,255,0.08)' : `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
+                          color: isDefeated ? '#9ca3af' : 'white',
+                          fontSize: '13px', fontWeight: 700,
+                          boxShadow: isDefeated ? 'none' : `0 0 20px ${t.glow}30`,
+                          border: isDefeated ? '1px solid rgba(255,255,255,0.1)' : 'none',
                         }}
                       >
-                        <Swords className="w-4 h-4" />
-                        Fight!
+                        {isDefeated ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            Defeated
+                          </>
+                        ) : (
+                          <>
+                            <Swords className="w-4 h-4" />
+                            Fight!
+                          </>
+                        )}
                       </motion.button>
                     </motion.div>
                   );
@@ -482,7 +539,7 @@ export default function BossBattle() {
 
               {/* Editor */}
               <div className="flex-1 flex flex-col">
-                <div className="flex-1">
+                <div className="flex-1 min-h-0">
                   <Editor
                     height="100%"
                     language="javascript"
@@ -496,12 +553,13 @@ export default function BossBattle() {
                       lineNumbers: 'on',
                       scrollBeyondLastLine: false,
                       fontLigatures: true,
+                      automaticLayout: true,
                     }}
                   />
                 </div>
                 <div
-                  className="flex items-center justify-between px-5 py-3"
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)' }}
+                  className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', position: 'relative', zIndex: 10 }}
                 >
                   <div className="flex items-center gap-2">
                     <div
@@ -571,7 +629,7 @@ export default function BossBattle() {
                   marginBottom: '8px'
                 }}
               >
-                {won ? 'VICTORY!' : 'DEFEATED!'}
+                {won ? (viewingDefeated ? 'ALREADY DEFEATED' : 'VICTORY!') : 'DEFEATED!'}
               </motion.h1>
 
               <motion.p
@@ -580,7 +638,9 @@ export default function BossBattle() {
                 transition={{ delay: 0.5 }}
                 style={{ fontSize: '16px', color: '#6b7280', marginBottom: '32px' }}
               >
-                {won ? `You defeated ${bossName}!` : `${bossName} was too powerful this time!`}
+                {won
+                  ? (viewingDefeated ? `You have already defeated ${bossName}.` : `You defeated ${bossName}!`)
+                  : `${bossName} was too powerful this time!`}
               </motion.p>
 
               {battleResult && (
@@ -599,9 +659,9 @@ export default function BossBattle() {
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>Score</div>
+                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>{viewingDefeated ? 'Boss HP' : 'Score'}</div>
                       <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b' }}>
-                        +{xp} XP
+                        {viewingDefeated ? '0 HP' : `+${xp} XP`}
                       </div>
                     </div>
                   </div>
@@ -617,24 +677,26 @@ export default function BossBattle() {
                 transition={{ delay: 0.9 }}
                 className="flex gap-4 justify-center"
               >
+                {!viewingDefeated && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => startBattle(selectedBoss)}
+                    className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
+                    style={{
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'white', fontSize: '14px', fontWeight: 700
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Try Again
+                  </motion.button>
+                )}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => startBattle(selectedBoss)}
-                  className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
-                  style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'white', fontSize: '14px', fontWeight: 700
-                  }}
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Try Again
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setScreen("intro")}
+                  onClick={() => { setViewingDefeated(false); setScreen("intro"); }}
                   className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
                   style={{
                     background: `linear-gradient(135deg, ${theme.color}, ${theme.color}88)`,
