@@ -50,14 +50,23 @@ const normalizeOutput = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
-const compareOutputs = (actual: string, expected: string): boolean => {
-  const normalizedActual = normalizeOutput(actual);
+const stringifyActual = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const compareOutputs = (actual: unknown, expected: string): boolean => {
+  const normalizedActual = normalizeOutput(stringifyActual(actual));
   const normalizedExpected = normalizeOutput(expected);
   if (normalizedActual === normalizedExpected) return true;
 
   try {
-    const parsedActual = JSON.parse(actual);
     const parsedExpected = JSON.parse(expected);
+    const parsedActual = typeof actual === 'string' ? JSON.parse(actual) : actual;
     return JSON.stringify(parsedActual) === JSON.stringify(parsedExpected);
   } catch {
     return false;
@@ -79,7 +88,7 @@ const extractLastJsonString = (stdout: string): string | null => {
       JSON.parse(candidate);
       return candidate;
     } catch {
-      // continue searching
+      continue;
     }
   }
 
@@ -110,12 +119,11 @@ const buildBatchHarness = (functionName: string, inputs: string[]): string => {
   const escapedFn = JSON.stringify(functionName);
   const escapedInputs = JSON.stringify(inputs);
 
-  return `\n;(() => {\n  try {\n    let __algoFn;\n    try { __algoFn = eval(${escapedFn}); } catch (e) { __algoFn = globalThis[${escapedFn}]; }\n    if (typeof __algoFn !== 'function') { throw new Error('Could not locate function ' + ${escapedFn}); }\n    const __algoInputs = ${escapedInputs};\n    const __algoOutputs = [];
-    for (const __algoInput of __algoInputs) {\n      const __algoNormalized = String(__algoInput).replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, '').trim();\n      const __algoArgs = __algoNormalized.length > 0 ? eval('[' + __algoNormalized + ']') : [];\n      const __algoResult = __algoFn(...__algoArgs);\n      __algoOutputs.push(__algoResult);\n    }\n    console.log(JSON.stringify(__algoOutputs));\n  } catch (e) {\n    // Surface runtime errors to stdout/stderr so Judge0 reports them\n    console.error('@@HARNESS_ERROR@@', e && (e.stack || e.message));\n    throw e;\n  }\n})();\n`;
+  return `\n;(() => {\n  try {\n    let __algoFn;\n    try { __algoFn = eval(${escapedFn}); } catch (e) { __algoFn = globalThis[${escapedFn}]; }\n    if (typeof __algoFn !== 'function') { throw new Error('Could not locate function ' + ${escapedFn}); }\n    const __algoInputs = ${escapedInputs};\n    const __algoOutputs = [];\n    for (const __algoInput of __algoInputs) {\n      const __algoNormalized = String(__algoInput).replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, '').trim();\n      const __algoArgs = __algoNormalized.length > 0 ? eval('[' + __algoNormalized + ']') : [];\n      const __algoResult = __algoFn(...__algoArgs);\n      __algoOutputs.push(__algoResult);\n    }\n    console.log(JSON.stringify(__algoOutputs));\n  } catch (e) {\n    console.error('@@HARNESS_ERROR@@', e && (e.stack || e.message));\n    throw e;\n  }\n})();\n`;
 };
 
 const getPrimaryFunctionName = (source: string): string | null => {
-  const match = source.match(/function\s+([A-Za-z_$][\\w$]*)\s*\(/);
+  const match = source.match(/function\s+([A-Za-z_$][\w$]*)\s*\(/);
   return match?.[1] || null;
 };
 
@@ -152,11 +160,15 @@ const createDailyBossesForDate = async (date: string): Promise<void> => {
     difficulties.map((difficulty) => getUniqueTopicsForDifficulty(difficulty)),
   );
 
-  const selectedTopics = {
-    easy: topicPools[0].length > 0 ? chooseTopic(topicPools[0], `${date}-easy`, usedTopics) : '',
-    medium: topicPools[1].length > 0 ? chooseTopic(topicPools[1], `${date}-medium`, usedTopics) : '',
-    hard: topicPools[2].length > 0 ? chooseTopic(topicPools[2], `${date}-hard`, usedTopics) : '',
-  } as const;
+  const selectedTopics: Record<Difficulty, string> = { easy: '', medium: '', hard: '' };
+
+  difficulties.forEach((difficulty, index) => {
+    const pool = topicPools[index];
+    if (pool.length === 0) return;
+    const topic = chooseTopic(pool, `${date}-${difficulty}`, usedTopics);
+    selectedTopics[difficulty] = topic;
+    usedTopics.add(topic);
+  });
 
   for (const difficulty of difficulties) {
     const topic = selectedTopics[difficulty];
@@ -176,8 +188,6 @@ const createDailyBossesForDate = async (date: string): Promise<void> => {
       },
       update: {},
     });
-
-    usedTopics.add(topic);
   }
 };
 
@@ -270,19 +280,12 @@ const executeBatch = async (
   inputs: string[],
 ): Promise<{ stdout: string; stderr: string; compileOutput: string; statusId: number; statusDescription: string }> => {
   const normalizedLanguage = language.trim().toLowerCase();
-  const languageId = LANGUAGE_MAPPING[normalizedLanguage] || 93;
+  const languageId = LANGUAGE_MAPPING[normalizedLanguage] || 63;
   let finalSource = sourceCode;
 
   const primaryFunction = getPrimaryFunctionName(sourceCode);
   if (primaryFunction && ['javascript', 'js', 'typescript', 'ts'].includes(normalizedLanguage)) {
     finalSource += '\n' + buildBatchHarness(primaryFunction, inputs);
-  }
-  // Debug: log a truncated preview of the final source sent to Judge0
-  try {
-    const preview = finalSource.slice(0, 1500);
-    console.log('[boss] judge0 finalSource preview:', preview.replace(/\n/g, '\\n'));
-  } catch (e) {
-    console.warn('[boss] could not log finalSource preview', (e as any)?.message || String(e));
   }
 
   const response = await axios.post(
@@ -296,20 +299,6 @@ const executeBatch = async (
   );
 
   const data = response.data;
-
-  if (data?.status?.id !== 3) {
-    // Log full Judge0 response for debugging when not accepted
-    try {
-      console.error('[boss] judge0 response non-accepted:', {
-        status: data.status,
-        stderr: data.stderr,
-        compile_output: data.compile_output,
-        stdout: (data.stdout || '').slice(0, 2000),
-      });
-    } catch (e) {
-      console.error('[boss] failed to log judge0 error response', (e as any)?.message || String(e));
-    }
-  }
 
   return {
     stdout: data.stdout ?? '',
@@ -357,9 +346,7 @@ export const submitBossBattle = async (
   }
 
   const inputs = testCases.map((testCase) => testCase.input);
-  console.log('[boss] submit attempt:', { userId, bossAssignmentId, problemId: problem.id, testCount: inputs.length, testOnly });
   const execution = await executeBatch(request.code, request.language, inputs);
-  console.log('[boss] judge0 result:', { statusId: execution.statusId, statusDescription: execution.statusDescription });
 
   if (execution.statusId !== 3) {
     const feedback = execution.stderr || execution.compileOutput || execution.statusDescription;
@@ -393,12 +380,12 @@ export const submitBossBattle = async (
   let failureMessage = '';
 
   for (let i = 0; i < testCases.length; i += 1) {
-    const actualValue = outputs[i] === undefined ? '' : String(outputs[i]);
+    const actualValue = outputs[i];
     const expectedValue = String(testCases[i].output);
     if (compareOutputs(actualValue, expectedValue)) {
       passedCount += 1;
     } else if (!failureMessage) {
-      failureMessage = `Test ${i + 1} failed. Expected ${expectedValue}, got ${actualValue}`;
+      failureMessage = `Test ${i + 1} failed. Expected ${expectedValue}, got ${stringifyActual(actualValue)}`;
     }
   }
 
@@ -412,7 +399,6 @@ export const submitBossBattle = async (
           completedAt: new Date(),
         },
       });
-      console.log('[boss] boss defeated and persisted:', { bossAssignmentId, userId });
 
       return {
         passed: true,
@@ -423,8 +409,6 @@ export const submitBossBattle = async (
         defeated: true,
       };
     }
-
-    console.log('[boss] testOnly run: boss would be defeated but not persisted');
 
     return {
       passed: true,

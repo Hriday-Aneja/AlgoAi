@@ -1,8 +1,3 @@
-/**
- * Boss Battle Page - Integrated with Validators
- * Complete implementation with test case validation
- */
-
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -96,6 +91,7 @@ export default function BossBattle() {
   const [showHint, setShowHint] = useState(false);
   const [code, setCode] = useState('');
   const [bossHp, setBossHp] = useState(100);
+  const [bossMaxHp, setBossMaxHp] = useState(100);
   const [won, setWon] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [battleResult, setBattleResult] = useState<any>(null);
@@ -109,6 +105,8 @@ export default function BossBattle() {
   const theme = BOSS_THEMES[selectedBoss];
   const bossName = battle?.name ?? theme.name;
   const hints = HINTS_PER_BOSS[selectedBoss];
+  const maxHints = Math.min(hints.length, 2);
+  const xp = Math.max(0, score - hintsUsed * 20);
   const bossRewards: Record<string, number> = {
     easy: 200,
     medium: 400,
@@ -127,6 +125,7 @@ export default function BossBattle() {
           setSelectedBoss(0);
           setTimer(300);
           setBossHp(first.hp);
+          setBossMaxHp(first.hp);
         }
       } catch (error) {
         setBossError('Unable to load today\'s boss assignments. Please try again later.');
@@ -159,6 +158,7 @@ export default function BossBattle() {
     setCode(assignment.problem.starterCode ?? '');
     setTimer(BOSS_THEMES[bossIdx]?.timeLimit ?? 300);
     setBossHp(assignment.hp);
+    setBossMaxHp(assignment.hp);
     setScore(0);
     setHintsUsed(0);
     setShowHint(false);
@@ -187,7 +187,6 @@ export default function BossBattle() {
         code,
         'javascript',
       );
-      console.log('[boss UI] raw submit response:', response);
 
       const outer = response ?? {};
       const inner = (outer.data ?? outer) as any;
@@ -195,7 +194,9 @@ export default function BossBattle() {
       setBattleResult(result);
       setScore(result.testsPassed * 100);
       setWon(result.passed);
-      setBossHp(result.defeated ? 0 : result.hp);
+      if (result.defeated) {
+        setBossHp(0);
+      }
       setTimeout(() => setScreen("result"), 1500);
     } catch (error) {
       setBattleError('Submission failed. Please try again.');
@@ -219,24 +220,23 @@ export default function BossBattle() {
         'javascript',
         true, // testOnly
       );
-      console.log('[boss UI] raw runTests response:', response);
 
       const outer = response ?? {};
       const inner = (outer.data ?? outer) as any;
       const result = inner.data ?? inner;
       setBattleResult(result);
       setScore(result.testsPassed * 100);
-      // do not mark won or persist defeat on test-only runs
     } catch (error) {
       setBattleError('Run tests failed. Please try again.');
     }
   };
 
   const useHint = () => {
-    if (hintsUsed < hints.length) {
+    if (hintsUsed < maxHints) {
       setHintsUsed(h => h + 1);
       setShowHint(true);
-      setBossHp(hp => Math.max(0, hp - 20));
+      setBossMaxHp(m => m + 20);
+      setBossHp(hp => hp + 20);
     }
   };
 
@@ -371,13 +371,13 @@ export default function BossBattle() {
                     <span style={{ fontSize: '11px', color: '#4a5568' }}>Boss HP:</span>
                     <div className="w-40 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
                       <motion.div
-                        animate={{ width: `${bossHp}%` }}
+                        animate={{ width: `${(bossHp / bossMaxHp) * 100}%` }}
                         transition={{ duration: 0.5 }}
                         className="h-full rounded-full"
                         style={{ background: `linear-gradient(90deg, ${theme.color}, ${theme.color}aa)`, boxShadow: `0 0 8px ${theme.glow}` }}
                       />
                     </div>
-                    <span style={{ fontSize: '11px', color: theme.color, fontWeight: 700 }}>{bossHp}%</span>
+                    <span style={{ fontSize: '11px', color: theme.color, fontWeight: 700 }}>{bossHp}/{bossMaxHp}</span>
                   </div>
                 </div>
               </div>
@@ -385,7 +385,7 @@ export default function BossBattle() {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <Star className="w-4 h-4" style={{ color: '#f59e0b' }} />
-                  <span className="text-white" style={{ fontSize: '13px', fontWeight: 700 }}>{score.toLocaleString()} XP</span>
+                  <span className="text-white" style={{ fontSize: '13px', fontWeight: 700 }}>{xp.toLocaleString()} XP</span>
                 </div>
                 <CountdownTimer seconds={timer} color={theme.color} />
                 <button
@@ -448,17 +448,17 @@ export default function BossBattle() {
                 {/* Hint Button */}
                 <button
                   onClick={useHint}
-                  disabled={hintsUsed >= hints.length}
+                  disabled={hintsUsed >= maxHints}
                   className="w-full py-2.5 rounded-xl flex items-center justify-center gap-2 mb-3 transition-all cyber-btn"
                   style={{
-                    background: hintsUsed >= hints.length ? 'rgba(255,255,255,0.04)' : 'rgba(245,158,11,0.1)',
-                    border: `1px solid ${hintsUsed >= hints.length ? 'rgba(255,255,255,0.06)' : 'rgba(245,158,11,0.3)'}`,
-                    color: hintsUsed >= hints.length ? '#4a5568' : '#f59e0b',
+                    background: hintsUsed >= maxHints ? 'rgba(255,255,255,0.04)' : 'rgba(245,158,11,0.1)',
+                    border: `1px solid ${hintsUsed >= maxHints ? 'rgba(255,255,255,0.06)' : 'rgba(245,158,11,0.3)'}`,
+                    color: hintsUsed >= maxHints ? '#4a5568' : '#f59e0b',
                     fontSize: '13px', fontWeight: 600
                   }}
                 >
                   <Zap className="w-4 h-4" />
-                  Use Hint ({hints.length - hintsUsed} left, -100 XP)
+                  Use Hint ({maxHints - hintsUsed} left, -20 XP)
                 </button>
 
                 {showHint && (
@@ -601,7 +601,7 @@ export default function BossBattle() {
                     <div>
                       <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>Score</div>
                       <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b' }}>
-                        +{score} XP
+                        +{xp} XP
                       </div>
                     </div>
                   </div>
