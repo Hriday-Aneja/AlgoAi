@@ -10,8 +10,7 @@ import {
   ChevronRight, Flame, Crown, Swords, AlertTriangle, CheckCircle2, RefreshCw, Code
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
-import { allBattles } from "../data/bossBattleData";
-import { getValidator } from "../data/bossBattleValidators";
+import { getTodayBosses, submitBossBattle, BossAssignment } from "../../services/api";
 
 type Screen = "intro" | "battle" | "result";
 
@@ -95,16 +94,49 @@ export default function BossBattle() {
   const [score, setScore] = useState(0);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  const [code, setCode] = useState(allBattles[0].boilerplate);
+  const [code, setCode] = useState('');
   const [bossHp, setBossHp] = useState(100);
   const [won, setWon] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [battleResult, setBattleResult] = useState<any>(null);
+  const [bosses, setBosses] = useState<BossAssignment[]>([]);
+  const [loadingBosses, setLoadingBosses] = useState(true);
+  const [bossError, setBossError] = useState<string | null>(null);
+  const [battleError, setBattleError] = useState<string | null>(null);
   const intervalRef = useRef<any>(null);
 
-  const battle = allBattles[selectedBoss];
+  const battle = bosses[selectedBoss] ?? null;
   const theme = BOSS_THEMES[selectedBoss];
+  const bossName = battle?.name ?? theme.name;
   const hints = HINTS_PER_BOSS[selectedBoss];
+  const bossRewards: Record<string, number> = {
+    easy: 200,
+    medium: 400,
+    hard: 800,
+  };
+
+  useEffect(() => {
+    const fetchBosses = async () => {
+      try {
+        setLoadingBosses(true);
+        const response = await getTodayBosses();
+        setBosses(response.data.bosses);
+        if (response.data.bosses.length > 0) {
+          const first = response.data.bosses[0];
+          setCode(first.problem.starterCode ?? '');
+          setSelectedBoss(0);
+          setTimer(300);
+          setBossHp(first.hp);
+        }
+      } catch (error) {
+        setBossError('Unable to load today\'s boss assignments. Please try again later.');
+      } finally {
+        setLoadingBosses(false);
+      }
+    };
+
+    fetchBosses();
+  }, []);
 
   useEffect(() => {
     if (screen === "battle" && timer > 0 && !submitted) {
@@ -114,35 +146,90 @@ export default function BossBattle() {
       }), 1000);
     }
     return () => clearInterval(intervalRef.current);
-  }, [screen, submitted]);
+  }, [screen, submitted, timer]);
 
   const startBattle = (bossIdx: number) => {
+    const assignment = bosses[bossIdx];
+    if (!assignment) {
+      setBattleError('Boss assignment is not loaded yet.');
+      return;
+    }
+
     setSelectedBoss(bossIdx);
-    setCode(allBattles[bossIdx].boilerplate);
-    setTimer(BOSS_THEMES[bossIdx].timeLimit);
-    setBossHp(BOSS_THEMES[bossIdx].hp);
+    setCode(assignment.problem.starterCode ?? '');
+    setTimer(BOSS_THEMES[bossIdx]?.timeLimit ?? 300);
+    setBossHp(assignment.hp);
     setScore(0);
     setHintsUsed(0);
     setShowHint(false);
     setSubmitted(false);
     setWon(false);
     setBattleResult(null);
+    setBattleError(null);
     setScreen("battle");
   };
 
-  const submitCode = () => {
+  const submitCode = async () => {
     clearInterval(intervalRef.current);
     setSubmitted(true);
-    
-    const validator = getValidator(battle.id);
-    const result = validator(code);
-    
-    setBattleResult(result);
-    setScore(result.score);
-    setWon(result.passed);
-    setBossHp(result.passed ? 0 : bossHp);
-    
-    setTimeout(() => setScreen("result"), 1500);
+    setBattleError(null);
+
+    const assignment = bosses[selectedBoss];
+    if (!assignment) {
+      setBattleError('No boss assignment selected.');
+      setSubmitted(false);
+      return;
+    }
+
+    try {
+      const response = await submitBossBattle(
+        assignment.id,
+        code,
+        'javascript',
+      );
+      console.log('[boss UI] raw submit response:', response);
+
+      const outer = response ?? {};
+      const inner = (outer.data ?? outer) as any;
+      const result = inner.data ?? inner;
+      setBattleResult(result);
+      setScore(result.testsPassed * 100);
+      setWon(result.passed);
+      setBossHp(result.defeated ? 0 : result.hp);
+      setTimeout(() => setScreen("result"), 1500);
+    } catch (error) {
+      setBattleError('Submission failed. Please try again.');
+      setSubmitted(false);
+      setScreen("result");
+    }
+  };
+
+  const runTests = async () => {
+    setBattleError(null);
+    const assignment = bosses[selectedBoss];
+    if (!assignment) {
+      setBattleError('No boss assignment selected.');
+      return;
+    }
+
+    try {
+      const response = await submitBossBattle(
+        assignment.id,
+        code,
+        'javascript',
+        true, // testOnly
+      );
+      console.log('[boss UI] raw runTests response:', response);
+
+      const outer = response ?? {};
+      const inner = (outer.data ?? outer) as any;
+      const result = inner.data ?? inner;
+      setBattleResult(result);
+      setScore(result.testsPassed * 100);
+      // do not mark won or persist defeat on test-only runs
+    } catch (error) {
+      setBattleError('Run tests failed. Please try again.');
+    }
   };
 
   const useHint = () => {
@@ -187,58 +274,66 @@ export default function BossBattle() {
             </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
-              {allBattles.map((b, i) => {
-                const t = BOSS_THEMES[i];
-                return (
-                  <motion.div
-                    key={b.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.15 + 0.3 }}
-                    whileHover={{ scale: 1.05, y: -8 }}
-                    className="relative overflow-hidden rounded-2xl p-6 cursor-pointer"
-                    style={{ background: t.bg, border: `1px solid ${t.color}30`, boxShadow: `0 0 30px ${t.glow}15` }}
-                    onClick={() => startBattle(i)}
-                  >
-                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: t.color, filter: 'blur(20px)' }} />
-                    <div className="text-center mb-4">
-                      <div style={{ fontSize: '48px', filter: `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
-                      <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{t.name}</div>
-                      <div
-                        className="inline-block px-3 py-0.5 rounded-full mt-1"
-                        style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
-                      >
-                        {t.level} - {b.difficulty}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
-                        <span style={{ fontSize: '11px', color: t.color, fontWeight: 700 }}>{t.hp}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div className="h-full rounded-full" style={{ width: '100%', background: t.color, boxShadow: `0 0 8px ${t.color}` }} />
-                      </div>
-                      <div className="flex justify-between mt-3">
-                        <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
-                        <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {b.points.toLocaleString()} XP</span>
-                      </div>
-                    </div>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
-                      style={{
-                        background: `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
-                        color: 'white', fontSize: '13px', fontWeight: 700,
-                        boxShadow: `0 0 20px ${t.glow}30`
-                      }}
+              {loadingBosses ? (
+                <div className="col-span-3 text-center text-white/80">Loading today&apos;s bosses...</div>
+              ) : bossError ? (
+                <div className="col-span-3 text-center text-red-400">{bossError}</div>
+              ) : bosses.length === 0 ? (
+                <div className="col-span-3 text-center text-white/80">No boss assignments are available today.</div>
+              ) : (
+                bosses.map((b, i) => {
+                  const t = BOSS_THEMES[i] ?? BOSS_THEMES[0];
+                  return (
+                    <motion.div
+                      key={b.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.15 + 0.3 }}
+                      whileHover={{ scale: 1.05, y: -8 }}
+                      className="relative overflow-hidden rounded-2xl p-6 cursor-pointer"
+                      style={{ background: t.bg, border: `1px solid ${t.color}30`, boxShadow: `0 0 30px ${t.glow}15` }}
+                      onClick={() => startBattle(i)}
                     >
-                      <Swords className="w-4 h-4" />
-                      Fight!
-                    </motion.button>
-                  </motion.div>
-                );
-              })}
+                      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: t.color, filter: 'blur(20px)' }} />
+                      <div className="text-center mb-4">
+                        <div style={{ fontSize: '48px', filter: `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
+                        <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{b.name}</div>
+                        <div
+                          className="inline-block px-3 py-0.5 rounded-full mt-1"
+                          style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
+                        >
+                          {t.level} - {b.difficulty}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
+                          <span style={{ fontSize: '11px', color: t.color, fontWeight: 700 }}>{b.hp}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          <div className="h-full rounded-full" style={{ width: '100%', background: t.color, boxShadow: `0 0 8px ${t.color}` }} />
+                        </div>
+                        <div className="flex justify-between mt-3">
+                          <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
+                          <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {bossRewards[b.difficulty] ?? 0} XP</span>
+                        </div>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
+                        style={{
+                          background: `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
+                          color: 'white', fontSize: '13px', fontWeight: 700,
+                          boxShadow: `0 0 20px ${t.glow}30`
+                        }}
+                      >
+                        <Swords className="w-4 h-4" />
+                        Fight!
+                      </motion.button>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
           </motion.div>
         )}
@@ -264,7 +359,7 @@ export default function BossBattle() {
                 <div className="text-3xl" style={{ filter: `drop-shadow(0 0 10px ${theme.glow})` }}>{theme.avatar}</div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{theme.name}</span>
+                    <span className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{bossName}</span>
                     <span
                       className="px-2 py-0.5 rounded-full"
                       style={{ fontSize: '10px', fontWeight: 700, background: `${theme.color}20`, color: theme.color }}
@@ -310,28 +405,28 @@ export default function BossBattle() {
                 className="w-96 flex-shrink-0 p-5 overflow-y-auto"
                 style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}
               >
-                <h2 className="text-white mb-3" style={{ fontSize: '16px', fontWeight: 800 }}>{battle.title}</h2>
+                <h2 className="text-white mb-3" style={{ fontSize: '16px', fontWeight: 800 }}>{battle?.problem.title ?? 'Boss Problem'}</h2>
                 <p style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.7, marginBottom: '12px' }}>
-                  {battle.description}
+                  {battle?.problem.description ?? 'Solve the assigned boss problem using your code editor.'}
                 </p>
 
                 <div className="mb-4">
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#ff6500', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
-                    Test Cases ({battle.testCases.length})
+                    Test Cases ({battle?.problem.testCases?.length ?? 0})
                   </div>
-                  {battle.testCases.slice(0, 3).map((tc, i) => (
+                  {battle?.problem.testCases?.slice(0, 3).map((tc, i) => (
                     <div
                       key={i}
                       className="p-3 rounded-xl font-mono mb-2"
                       style={{ fontSize: '11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b7280' }}
                     >
-                      <div style={{ color: '#4a5568', marginBottom: '4px' }}>Test {i + 1}: {tc.description}</div>
-                      <div>Expected: {typeof tc.expected === 'object' ? JSON.stringify(tc.expected) : String(tc.expected)}</div>
+                      <div style={{ color: '#4a5568', marginBottom: '4px' }}>Test {i + 1}</div>
+                      <div>Expected: {String(tc.output)}</div>
                     </div>
                   ))}
-                  {battle.testCases.length > 3 && (
+                  {(battle?.problem.testCases?.length ?? 0) > 3 && (
                     <div style={{ fontSize: '11px', color: '#4a5568', fontStyle: 'italic' }}>
-                      +{battle.testCases.length - 3} more test cases hidden
+                      +{(battle?.problem.testCases?.length ?? 0) - 3} more test cases hidden
                     </div>
                   )}
                 </div>
@@ -342,11 +437,11 @@ export default function BossBattle() {
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
-                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Difficulty: {battle.difficulty}</span>
+                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Difficulty: {battle?.difficulty ?? 'medium'}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
-                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Max Score: {battle.points} XP</span>
+                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Max Score: {bossRewards[battle?.difficulty ?? 'medium']} XP</span>
                   </div>
                 </div>
 
@@ -417,6 +512,7 @@ export default function BossBattle() {
                   </div>
                   <div className="flex gap-3">
                     <button
+                      onClick={runTests}
                       className="px-4 py-2 rounded-xl transition-all cyber-btn"
                       style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280', fontSize: '13px', fontWeight: 600 }}
                     >
@@ -484,7 +580,7 @@ export default function BossBattle() {
                 transition={{ delay: 0.5 }}
                 style={{ fontSize: '16px', color: '#6b7280', marginBottom: '32px' }}
               >
-                {won ? `You defeated ${theme.name}!` : `${theme.name} was too powerful this time!`}
+                {won ? `You defeated ${bossName}!` : `${bossName} was too powerful this time!`}
               </motion.p>
 
               {battleResult && (
@@ -505,7 +601,7 @@ export default function BossBattle() {
                     <div>
                       <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>Score</div>
                       <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b' }}>
-                        +{battleResult.score} XP
+                        +{score} XP
                       </div>
                     </div>
                   </div>

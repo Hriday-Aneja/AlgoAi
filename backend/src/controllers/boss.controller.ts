@@ -1,113 +1,57 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import {
-  startBossBattle,
-  submitBossBattle,
-  getBossResult,
+  getTodayBosses,
+  submitBossBattle as submitBossBattleService,
 } from '../services/boss.service';
-import {
-  StartBossBattleRequest,
-  SubmitBossBattleRequest,
-} from '../types/boss.types';
+import { AuthenticatedRequest } from '../types/express';
+import { BossSubmitRequest } from '../types/boss.types';
 
-// ─── POST /api/boss/start ─────────────────────────────────────────────────────
-
-/**
- * Starts a new boss battle session and returns problems to solve.
- */
-export const startBossBattleController = async (
-  req: Request,
+export const getTodayBossesController = async (
+  req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
-    const { userId, difficulty, problemCount }: StartBossBattleRequest = req.body;
-
+    const userId = req.auth?.userId;
     if (!userId) {
-      res.status(400).json({
-        status: 'error',
-        message: 'userId is required.',
-      });
+      res.status(401).json({ status: 'error', message: 'Unauthorized.' });
       return;
     }
 
-    const result = await startBossBattle({
-      userId,
-      difficulty: difficulty || 'medium',
-      problemCount: problemCount || 5,
-    });
-
-    res.status(200).json({
-      status: 'success',
-      data: result,
-    });
-  } catch (err) {
-    next(err);
+    const result = await getTodayBosses(userId);
+    res.status(200).json({ status: 'success', data: result });
+  } catch (error) {
+    next(error);
   }
 };
 
-// ─── POST /api/boss/submit ────────────────────────────────────────────────────
-
-/**
- * Submits answers for a boss battle session and returns the result.
- */
 export const submitBossBattleController = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
-    const { sessionId, answers }: SubmitBossBattleRequest = req.body;
-
-    if (!sessionId || !answers || !Array.isArray(answers)) {
-      res.status(400).json({
-        status: 'error',
-        message: 'sessionId and answers array are required.',
-      });
+    const userId = req.auth?.userId;
+    if (!userId) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized.' });
       return;
     }
 
-    const result = await submitBossBattle({ sessionId, answers });
+    const { bossAssignmentId, code, language, testOnly }: BossSubmitRequest = req.body;
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        result,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ─── GET /api/boss/result/:userId ─────────────────────────────────────────────
-
-/**
- * Gets the most recent boss battle result for a user.
- */
-export const getBossResultController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { userId } = req.params;
-
-    if (!userId || userId.trim().length === 0) {
-      res.status(400).json({
-        status: 'error',
-        message: 'userId URL parameter is required.',
-      });
+    if (!bossAssignmentId || !code || !language) {
+      res.status(400).json({ status: 'error', message: 'bossAssignmentId, code, and language are required.' });
       return;
     }
 
-    const result = await getBossResult(userId.trim());
-
-    res.status(200).json({
-      status: 'success',
-      user_id: userId.trim(),
-      data: result,
+    const result = await submitBossBattleService(userId, bossAssignmentId, {
+      code,
+      language,
+      testOnly,
     });
-  } catch (err) {
-    next(err);
+
+    res.status(200).json({ status: 'success', data: result });
+  } catch (error) {
+    next(error);
   }
 };

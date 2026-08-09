@@ -1,26 +1,49 @@
-// ─── Boss Battle Session ──────────────────────────────────────────────────────
+// ─── Boss Battle Types ───────────────────────────────────────────────────────
 
-export interface BossSession {
-  sessionId: string;
-  userId: string;
-  problems: {
-    problem_id: string;
-    topic: string[];
-    difficulty: 'easy' | 'medium' | 'hard';
-  }[];
-  startTime: Date;
-  submitted?: boolean;
-  result?: BossResult;
+export interface BossProblem {
+  id: string;
+  title: string;
+  topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  description: string;
+  starterCode?: string | null;
+  testCases?: Array<{
+    input: string;
+    output: string;
+  }>;
 }
 
-// ─── Boss Battle Result ───────────────────────────────────────────────────────
+export interface BossAssignment {
+  id: string;
+  dailyBossId: string;
+  name: string;
+  topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  hp: number;
+  defeated: boolean;
+  problem: BossProblem;
+}
 
-export interface BossResult {
-  score: number;
-  timeTaken: number; // seconds
-  rank: 'S' | 'A' | 'B' | 'C' | 'D';
-  problemsSolved: number;
-  totalProblems: number;
+export interface BossTodayResponse {
+  bosses: BossAssignment[];
+}
+
+export interface BossSubmitRequest {
+  bossAssignmentId: string;
+  code: string;
+  language: string;
+  testOnly?: boolean;
+}
+
+export type BossSubmitPayload = Omit<BossSubmitRequest, 'bossAssignmentId'> & { testOnly?: boolean };
+
+export interface BossSubmitResponse {
+  passed: boolean;
+  testsPassed: number;
+  totalTests: number;
+  feedback: string;
+  hp: number;
+  defeated: boolean;
 }
 
 // ─── API Request/Response Types ───────────────────────────────────────────────
