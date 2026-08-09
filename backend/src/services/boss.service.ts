@@ -1,4 +1,5 @@
 import axios from 'axios';
+import ts from 'typescript';
 import { prisma } from '../config/database';
 import {
   BossTodayResponse,
@@ -115,6 +116,18 @@ const deterministicIndex = (seed: string, length: number): number => {
   return ((hash % length) + length) % length;
 };
 
+const stripTypeScript = (source: string): string => {
+  const result = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2019,
+      removeComments: false,
+    },
+    reportDiagnostics: false,
+  });
+  return result.outputText;
+};
+
 const buildBatchHarness = (functionName: string, inputs: string[]): string => {
   const escapedFn = JSON.stringify(functionName);
   const escapedInputs = JSON.stringify(inputs);
@@ -191,6 +204,41 @@ const createDailyBossesForDate = async (date: string): Promise<void> => {
   }
 };
 
+const getRecentlyAssignedProblemIds = async (
+  userId: string,
+  topic: string,
+  difficulty: Difficulty,
+): Promise<Set<string>> => {
+  const previous = await prisma.userBossBattle.findMany({
+    where: {
+      userId,
+      dailyBoss: { topic, difficulty },
+    },
+    select: { problemId: true },
+  });
+  return new Set(previous.map((entry) => entry.problemId));
+};
+
+const pickRandomEligibleProblem = async (
+  userId: string,
+  topic: string,
+  difficulty: Difficulty,
+): Promise<{ id: string }> => {
+  const eligibleProblems = await prisma.problem.findMany({
+    where: { topic, difficulty },
+  });
+
+  if (eligibleProblems.length === 0) {
+    throw new Error(`No problems found for topic ${topic} at difficulty ${difficulty}.`);
+  }
+
+  const recentlyUsed = await getRecentlyAssignedProblemIds(userId, topic, difficulty);
+  const freshProblems = eligibleProblems.filter((problem) => !recentlyUsed.has(problem.id));
+  const pool = freshProblems.length > 0 ? freshProblems : eligibleProblems;
+
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
 export const getTodayBosses = async (userId: string): Promise<BossTodayResponse> => {
   const today = new Date();
   const date = today.toISOString().split('T')[0];
@@ -202,13 +250,6 @@ export const getTodayBosses = async (userId: string): Promise<BossTodayResponse>
     orderBy: { order: 'asc' },
   });
 
-  const twoSumProblem = await prisma.problem.findFirst({
-    where: {
-      title: 'Two Sum',
-      difficulty: 'easy',
-    },
-  });
-
   const bossAssignments = await Promise.all(
     dailyBosses.map(async (dailyBoss) => {
       let assignment = await prisma.userBossBattle.findUnique({
@@ -217,22 +258,11 @@ export const getTodayBosses = async (userId: string): Promise<BossTodayResponse>
       });
 
       if (!assignment) {
-        const eligibleProblems = await prisma.problem.findMany({
-          where: {
-            topic: dailyBoss.topic,
-            difficulty: dailyBoss.difficulty,
-          },
-        });
-
-        if (eligibleProblems.length === 0) {
-          throw new Error(`No problems found for topic ${dailyBoss.topic} at difficulty ${dailyBoss.difficulty}.`);
-        }
-
-        let selectedProblem = eligibleProblems[Math.floor(Math.random() * eligibleProblems.length)];
-
-        if (dailyBoss.difficulty === 'easy' && twoSumProblem) {
-          selectedProblem = twoSumProblem;
-        }
+        const selectedProblem = await pickRandomEligibleProblem(
+          userId,
+          dailyBoss.topic,
+          dailyBoss.difficulty as Difficulty,
+        );
 
         assignment = await prisma.userBossBattle.create({
           data: {
@@ -240,12 +270,6 @@ export const getTodayBosses = async (userId: string): Promise<BossTodayResponse>
             dailyBossId: dailyBoss.id,
             problemId: selectedProblem.id,
           },
-          include: { problem: true, dailyBoss: true },
-        });
-      } else if (dailyBoss.difficulty === 'easy' && twoSumProblem && assignment.problem.title !== 'Two Sum') {
-        assignment = await prisma.userBossBattle.update({
-          where: { id: assignment.id },
-          data: { problemId: twoSumProblem.id },
           include: { problem: true, dailyBoss: true },
         });
       }
@@ -281,9 +305,14 @@ const executeBatch = async (
 ): Promise<{ stdout: string; stderr: string; compileOutput: string; statusId: number; statusDescription: string }> => {
   const normalizedLanguage = language.trim().toLowerCase();
   const languageId = LANGUAGE_MAPPING[normalizedLanguage] || 63;
-  let finalSource = sourceCode;
 
-  const primaryFunction = getPrimaryFunctionName(sourceCode);
+  const preparedSource = ['javascript', 'js'].includes(normalizedLanguage)
+    ? stripTypeScript(sourceCode)
+    : sourceCode;
+
+  let finalSource = preparedSource;
+
+  const primaryFunction = getPrimaryFunctionName(preparedSource);
   if (primaryFunction && ['javascript', 'js', 'typescript', 'ts'].includes(normalizedLanguage)) {
     finalSource += '\n' + buildBatchHarness(primaryFunction, inputs);
   }
@@ -346,7 +375,25 @@ export const submitBossBattle = async (
   }
 
   const inputs = testCases.map((testCase) => testCase.input);
-  const execution = await executeBatch(request.code, request.language, inputs);
+
+  let execution;
+  try {
+    execution = await executeBatch(request.code, request.language, inputs);
+  } catch (error) {
+    const message = axios.isAxiosError(error)
+      ? 'Could not reach the code execution server. Please try again shortly.'
+      : error instanceof Error
+        ? error.message
+        : 'Code could not be compiled to valid JavaScript.';
+    return {
+      passed: false,
+      testsPassed: 0,
+      totalTests: testCases.length,
+      feedback: message,
+      hp: assignment.hp,
+      defeated: false,
+    };
+  }
 
   if (execution.statusId !== 3) {
     const feedback = execution.stderr || execution.compileOutput || execution.statusDescription;
