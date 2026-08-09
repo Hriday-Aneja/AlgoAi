@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import "./Auth.css";
 
@@ -44,6 +45,15 @@ export default function Signup() {
 
   return (
     <div className="auth-container">
+      <button
+        type="button"
+        className="auth-back-button"
+        onClick={() => navigate("/")}
+      >
+        <ArrowLeft size={16} />
+        Back to Home
+      </button>
+
       <div className="auth-card">
         <div className="auth-header">
           <h1>AlgoAI</h1>

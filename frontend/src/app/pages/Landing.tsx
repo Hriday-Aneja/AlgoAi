@@ -6,7 +6,7 @@ import {
   Zap, Menu, X, ArrowRight, Compass, FileCode2, Send, BrainCircuit,
   AlertTriangle, Target, Map, XCircle, ScanSearch, Fingerprint, Sparkles,
   ChevronDown, CheckCircle2, TrendingUp, Brain, MessageSquareText, Lightbulb,
-  Activity, Code2, ScanLine, Eye, Clock,
+  Activity, Code2, ScanLine, Eye, Clock, LogOut,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import "./Landing.css";
@@ -68,8 +68,11 @@ function scrollToId(id: string) {
 function LandingNavbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
+  const initial = (user?.name?.trim()?.[0] || user?.email?.trim()?.[0] || "U").toUpperCase();
+  const displayName = user?.name?.trim() || user?.email?.split("@")[0] || "Account";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -77,6 +80,25 @@ function LandingNavbar() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".landing-profile-dropdown-container")) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [profileOpen]);
+
+  const handleLogout = () => {
+    setProfileOpen(false);
+    setMobileOpen(false);
+    logout();
+    navigate("/");
+  };
 
   const handleNavClick = (id: string) => {
     setMobileOpen(false);
@@ -123,9 +145,87 @@ function LandingNavbar() {
 
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
-            <button onClick={() => navigate("/dashboard")} className="landing-btn-primary !py-2.5 !px-5 !text-[13.5px]">
-              Go to Dashboard →
-            </button>
+            <>
+              <div className="relative landing-profile-dropdown-container">
+                <button
+                  onClick={() => setProfileOpen((v) => !v)}
+                  className="flex items-center gap-2 pl-2 pr-3.5 py-1.5 rounded-full cursor-pointer transition-colors"
+                  style={{ background: "rgba(0, 212, 255, 0.06)", border: "1px solid rgba(0, 212, 255, 0.25)" }}
+                  title={displayName}
+                >
+                  <span
+                    className="w-6 h-6 rounded-full flex items-center justify-center font-mono font-bold text-[11px]"
+                    style={{
+                      background: "linear-gradient(135deg, #ff6500, #a855f7)",
+                      color: "#060a12",
+                    }}
+                  >
+                    {initial}
+                  </span>
+                  <span className="text-[13px] font-medium max-w-[110px] truncate" style={{ color: "#e2e8f0" }}>
+                    {displayName}
+                  </span>
+                  <ChevronDown
+                    size={13}
+                    style={{
+                      color: "#64748b",
+                      transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease",
+                    }}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {profileOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.18 }}
+                      className="absolute right-0 top-full mt-2 w-56 rounded-xl overflow-hidden"
+                      style={{
+                        background: "rgba(8, 11, 20, 0.98)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        backdropFilter: "blur(20px)",
+                        boxShadow: "0 20px 50px -12px rgba(0,0,0,0.6)",
+                        zIndex: 100,
+                      }}
+                    >
+                      <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div className="text-[13.5px] font-semibold truncate" style={{ color: "#f1f5f9" }}>
+                          {user?.name || "User"}
+                        </div>
+                        <div className="text-[11.5px] truncate" style={{ color: "#64748b" }}>
+                          {user?.email || "user@example.com"}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors"
+                        style={{ fontSize: "13.5px", fontWeight: 500, color: "#cbd5e1" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        Go to Dashboard
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors"
+                        style={{ fontSize: "13.5px", fontWeight: 600, color: "#f87171" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.1)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        <LogOut size={15} />
+                        Logout
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <button onClick={() => navigate("/dashboard")} className="landing-btn-primary !py-2.5 !px-5 !text-[13.5px]">
+                Go to Dashboard →
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -177,12 +277,41 @@ function LandingNavbar() {
               ))}
               <div className="h-px my-2" style={{ background: "rgba(255,255,255,0.08)" }} />
               {isAuthenticated ? (
-                <button
-                  onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}
-                  className="landing-btn-primary w-full mt-1"
-                >
-                  Go to Dashboard →
-                </button>
+                <>
+                  <div
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-1"
+                    style={{ background: "rgba(0, 212, 255, 0.06)", border: "1px solid rgba(0, 212, 255, 0.25)" }}
+                  >
+                    <span
+                      className="w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-[12px] flex-shrink-0"
+                      style={{ background: "linear-gradient(135deg, #ff6500, #a855f7)", color: "#060a12" }}
+                    >
+                      {initial}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[13.5px] font-medium truncate" style={{ color: "#e2e8f0" }}>
+                        {displayName}
+                      </div>
+                      <div className="text-[11px] truncate" style={{ color: "#64748b" }}>
+                        {user?.email || ""}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setMobileOpen(false); navigate("/dashboard"); }}
+                    className="landing-btn-primary w-full"
+                  >
+                    Go to Dashboard →
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 px-2 py-3 mt-2 rounded-lg transition-colors"
+                    style={{ fontSize: "14px", fontWeight: 600, color: "#f87171", border: "1px solid rgba(239,68,68,0.25)" }}
+                  >
+                    <LogOut size={15} />
+                    Logout
+                  </button>
+                </>
               ) : (
                 <>
                   <button
