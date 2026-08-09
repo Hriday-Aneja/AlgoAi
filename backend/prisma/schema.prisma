@@ -23,6 +23,7 @@ model User {
   streak            Streak?
   progress          UserProgress?
   problemProgress   UserProblemProgress[]
+  userBossBattles   UserBossBattle[]
 
   @@map("users")
 }
@@ -178,6 +179,43 @@ model UserProblemProgress {
   @@map("user_problem_progress")
 }
 
+model DailyBoss {
+  id         String   @id @default(cuid())
+  date       String
+  topic      String
+  difficulty String
+  bossName   String
+  order      Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userBossBattles UserBossBattle[]
+
+  @@unique([date, difficulty], name: "date_difficulty")
+  @@index([date])
+  @@map("daily_bosses")
+}
+
+model UserBossBattle {
+  id           String   @id @default(cuid())
+  userId       String
+  dailyBossId  String
+  problemId    String
+  hp           Int      @default(100)
+  defeated     Boolean  @default(false)
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyBoss DailyBoss @relation(fields: [dailyBossId], references: [id], onDelete: Cascade)
+  problem   Problem   @relation(fields: [problemId], references: [id], onDelete: NoAction)
+
+  @@unique([userId, dailyBossId], name: "user_daily_boss")
+  @@index([userId])
+  @@map("user_boss_battles")
+}
+
 model Problem {
   id              String   @id
   title           String
@@ -199,6 +237,8 @@ model Problem {
 
   timeComplexity  String?
   spaceComplexity String?
+
+  userBossBattles UserBossBattle[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

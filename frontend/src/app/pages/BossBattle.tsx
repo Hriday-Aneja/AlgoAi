@@ -1,8 +1,3 @@
-/**
- * Boss Battle Page - Integrated with Validators
- * Complete implementation with test case validation
- */
-
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -10,8 +5,7 @@ import {
   ChevronRight, Flame, Crown, Swords, AlertTriangle, CheckCircle2, RefreshCw, Code
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
-import { allBattles } from "../data/bossBattleData";
-import { getValidator } from "../data/bossBattleValidators";
+import { getTodayBosses, submitBossBattle, BossAssignment } from "../../services/api";
 
 type Screen = "intro" | "battle" | "result";
 
@@ -95,16 +89,54 @@ export default function BossBattle() {
   const [score, setScore] = useState(0);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  const [code, setCode] = useState(allBattles[0].boilerplate);
+  const [code, setCode] = useState('');
   const [bossHp, setBossHp] = useState(100);
+  const [bossMaxHp, setBossMaxHp] = useState(100);
   const [won, setWon] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [viewingDefeated, setViewingDefeated] = useState(false);
   const [battleResult, setBattleResult] = useState<any>(null);
+  const [bosses, setBosses] = useState<BossAssignment[]>([]);
+  const [loadingBosses, setLoadingBosses] = useState(true);
+  const [bossError, setBossError] = useState<string | null>(null);
+  const [battleError, setBattleError] = useState<string | null>(null);
   const intervalRef = useRef<any>(null);
 
-  const battle = allBattles[selectedBoss];
+  const battle = bosses[selectedBoss] ?? null;
   const theme = BOSS_THEMES[selectedBoss];
+  const bossName = battle?.name ?? theme.name;
   const hints = HINTS_PER_BOSS[selectedBoss];
+  const maxHints = Math.min(hints.length, 2);
+  const xp = Math.max(0, score - hintsUsed * 20);
+  const bossRewards: Record<string, number> = {
+    easy: 200,
+    medium: 400,
+    hard: 800,
+  };
+
+  useEffect(() => {
+    const fetchBosses = async () => {
+      try {
+        setLoadingBosses(true);
+        const response = await getTodayBosses();
+        setBosses(response.data.bosses);
+        if (response.data.bosses.length > 0) {
+          const first = response.data.bosses[0];
+          setCode(first.problem.starterCode ?? '');
+          setSelectedBoss(0);
+          setTimer(300);
+          setBossHp(first.hp);
+          setBossMaxHp(first.hp);
+        }
+      } catch (error) {
+        setBossError('Unable to load today\'s boss assignments. Please try again later.');
+      } finally {
+        setLoadingBosses(false);
+      }
+    };
+
+    fetchBosses();
+  }, []);
 
   useEffect(() => {
     if (screen === "battle" && timer > 0 && !submitted) {
@@ -114,42 +146,127 @@ export default function BossBattle() {
       }), 1000);
     }
     return () => clearInterval(intervalRef.current);
-  }, [screen, submitted]);
+  }, [screen, submitted, timer]);
+
+  const viewDefeatedBoss = (bossIdx: number) => {
+    const assignment = bosses[bossIdx];
+    if (!assignment) return;
+
+    const totalTests = assignment.problem.testCases?.length ?? 0;
+
+    setSelectedBoss(bossIdx);
+    setViewingDefeated(true);
+    setWon(true);
+    setBattleResult({
+      passed: true,
+      testsPassed: totalTests,
+      totalTests,
+      feedback: 'You already defeated this boss. It cannot be challenged again.',
+      hp: 0,
+      defeated: true,
+    });
+    setBossHp(0);
+    setBossMaxHp(assignment.hp || 100);
+    setScreen("result");
+  };
 
   const startBattle = (bossIdx: number) => {
+    const assignment = bosses[bossIdx];
+    if (!assignment) {
+      setBattleError('Boss assignment is not loaded yet.');
+      return;
+    }
+
+    if (assignment.defeated) {
+      viewDefeatedBoss(bossIdx);
+      return;
+    }
+
     setSelectedBoss(bossIdx);
-    setCode(allBattles[bossIdx].boilerplate);
-    setTimer(BOSS_THEMES[bossIdx].timeLimit);
-    setBossHp(BOSS_THEMES[bossIdx].hp);
+    setCode(assignment.problem.starterCode ?? '');
+    setTimer(BOSS_THEMES[bossIdx]?.timeLimit ?? 300);
+    setBossHp(assignment.hp);
+    setBossMaxHp(assignment.hp);
     setScore(0);
     setHintsUsed(0);
     setShowHint(false);
     setSubmitted(false);
     setWon(false);
+    setViewingDefeated(false);
     setBattleResult(null);
+    setBattleError(null);
     setScreen("battle");
   };
 
-  const submitCode = () => {
+  const submitCode = async () => {
     clearInterval(intervalRef.current);
     setSubmitted(true);
-    
-    const validator = getValidator(battle.id);
-    const result = validator(code);
-    
-    setBattleResult(result);
-    setScore(result.score);
-    setWon(result.passed);
-    setBossHp(result.passed ? 0 : bossHp);
-    
-    setTimeout(() => setScreen("result"), 1500);
+    setBattleError(null);
+
+    const assignment = bosses[selectedBoss];
+    if (!assignment) {
+      setBattleError('No boss assignment selected.');
+      setSubmitted(false);
+      return;
+    }
+
+    try {
+      const response = await submitBossBattle(
+        assignment.id,
+        code,
+        'javascript',
+      );
+
+      const outer = response ?? {};
+      const inner = (outer.data ?? outer) as any;
+      const result = inner.data ?? inner;
+      setBattleResult(result);
+      setScore(result.testsPassed * 100);
+      setWon(result.passed);
+      if (result.defeated) {
+        setBossHp(0);
+        setBosses(prev => prev.map((b, i) => (i === selectedBoss ? { ...b, defeated: true, hp: 0 } : b)));
+      }
+      setTimeout(() => setScreen("result"), 1500);
+    } catch (error) {
+      setBattleError('Submission failed. Please try again.');
+      setSubmitted(false);
+      setScreen("result");
+    }
+  };
+
+  const runTests = async () => {
+    setBattleError(null);
+    const assignment = bosses[selectedBoss];
+    if (!assignment) {
+      setBattleError('No boss assignment selected.');
+      return;
+    }
+
+    try {
+      const response = await submitBossBattle(
+        assignment.id,
+        code,
+        'javascript',
+        true, // testOnly
+      );
+
+      const outer = response ?? {};
+      const inner = (outer.data ?? outer) as any;
+      const result = inner.data ?? inner;
+      setBattleResult(result);
+      setScore(result.testsPassed * 100);
+    } catch (error) {
+      setBattleError('Run tests failed. Please try again.');
+    }
   };
 
   const useHint = () => {
-    if (hintsUsed < hints.length) {
+    if (hintsUsed < maxHints) {
       setHintsUsed(h => h + 1);
       setShowHint(true);
-      setBossHp(hp => Math.max(0, hp - 20));
+      setBossMaxHp(m => m + 20);
+      setBossHp(hp => hp + 20);
     }
   };
 
@@ -186,59 +303,94 @@ export default function BossBattle() {
               </p>
             </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl">
-              {allBattles.map((b, i) => {
-                const t = BOSS_THEMES[i];
-                return (
-                  <motion.div
-                    key={b.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.15 + 0.3 }}
-                    whileHover={{ scale: 1.05, y: -8 }}
-                    className="relative overflow-hidden rounded-2xl p-6 cursor-pointer"
-                    style={{ background: t.bg, border: `1px solid ${t.color}30`, boxShadow: `0 0 30px ${t.glow}15` }}
-                    onClick={() => startBattle(i)}
-                  >
-                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: t.color, filter: 'blur(20px)' }} />
-                    <div className="text-center mb-4">
-                      <div style={{ fontSize: '48px', filter: `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
-                      <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{t.name}</div>
-                      <div
-                        className="inline-block px-3 py-0.5 rounded-full mt-1"
-                        style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
-                      >
-                        {t.level} - {b.difficulty}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
-                        <span style={{ fontSize: '11px', color: t.color, fontWeight: 700 }}>{t.hp}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div className="h-full rounded-full" style={{ width: '100%', background: t.color, boxShadow: `0 0 8px ${t.color}` }} />
-                      </div>
-                      <div className="flex justify-between mt-3">
-                        <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
-                        <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {b.points.toLocaleString()} XP</span>
-                      </div>
-                    </div>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-3xl items-stretch">
+              {loadingBosses ? (
+                <div className="col-span-3 text-center text-white/80">Loading today&apos;s bosses...</div>
+              ) : bossError ? (
+                <div className="col-span-3 text-center text-red-400">{bossError}</div>
+              ) : bosses.length === 0 ? (
+                <div className="col-span-3 text-center text-white/80">No boss assignments are available today.</div>
+              ) : (
+                bosses.map((b, i) => {
+                  const t = BOSS_THEMES[i] ?? BOSS_THEMES[0];
+                  const isDefeated = b.defeated;
+                  return (
+                    <motion.div
+                      key={b.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.15 + 0.3 }}
+                      whileHover={{ scale: 1.03, y: -6 }}
+                      className="relative overflow-hidden rounded-2xl p-6 cursor-pointer flex flex-col h-full"
                       style={{
-                        background: `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
-                        color: 'white', fontSize: '13px', fontWeight: 700,
-                        boxShadow: `0 0 20px ${t.glow}30`
+                        background: t.bg,
+                        border: `1px solid ${isDefeated ? 'rgba(255,255,255,0.1)' : `${t.color}30`}`,
+                        boxShadow: `0 0 30px ${t.glow}15`,
+                        opacity: isDefeated ? 0.7 : 1,
                       }}
+                      onClick={() => startBattle(i)}
                     >
-                      <Swords className="w-4 h-4" />
-                      Fight!
-                    </motion.button>
-                  </motion.div>
-                );
-              })}
+                      <div className="absolute top-0 right-0 w-24 h-24 rounded-full opacity-10" style={{ background: t.color, filter: 'blur(20px)' }} />
+
+                      <div className="flex-1">
+                        <div className="text-center mb-4">
+                          <div style={{ fontSize: '48px', filter: isDefeated ? 'grayscale(1)' : `drop-shadow(0 0 10px ${t.glow})` }}>{t.avatar}</div>
+                          <div className="text-white mt-2" style={{ fontSize: '17px', fontWeight: 800 }}>{b.name}</div>
+                          <div
+                            className="inline-block px-3 py-0.5 rounded-full mt-1"
+                            style={{ fontSize: '10px', fontWeight: 800, background: `${t.color}20`, color: t.color, border: `1px solid ${t.color}40` }}
+                          >
+                            {t.level} - {b.difficulty}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span style={{ fontSize: '11px', color: '#4a5568' }}>HP</span>
+                            <span style={{ fontSize: '11px', color: isDefeated ? '#4a5568' : t.color, fontWeight: 700 }}>{b.hp}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            <div className="h-full rounded-full" style={{ width: `${b.hp}%`, background: isDefeated ? '#4a5568' : t.color, boxShadow: isDefeated ? 'none' : `0 0 8px ${t.color}` }} />
+                          </div>
+                          <div className="flex justify-between mt-3">
+                            {isDefeated ? (
+                              <span className="flex items-center gap-1" style={{ fontSize: '11px', color: '#22c55e', fontWeight: 700 }}>
+                                <CheckCircle2 className="w-3 h-3" /> Defeated
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#4a5568' }}>⏱ {Math.floor(t.timeLimit / 60)}:{String(t.timeLimit % 60).padStart(2,'0')}</span>
+                            )}
+                            <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>⭐ {bossRewards[b.difficulty] ?? 0} XP</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        className="w-full mt-4 py-2 rounded-xl flex items-center justify-center gap-2 cyber-btn"
+                        style={{
+                          background: isDefeated ? 'rgba(255,255,255,0.08)' : `linear-gradient(135deg, ${t.color}, ${t.color}99)`,
+                          color: isDefeated ? '#9ca3af' : 'white',
+                          fontSize: '13px', fontWeight: 700,
+                          boxShadow: isDefeated ? 'none' : `0 0 20px ${t.glow}30`,
+                          border: isDefeated ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                        }}
+                      >
+                        {isDefeated ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            Defeated
+                          </>
+                        ) : (
+                          <>
+                            <Swords className="w-4 h-4" />
+                            Fight!
+                          </>
+                        )}
+                      </motion.button>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
           </motion.div>
         )}
@@ -264,7 +416,7 @@ export default function BossBattle() {
                 <div className="text-3xl" style={{ filter: `drop-shadow(0 0 10px ${theme.glow})` }}>{theme.avatar}</div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{theme.name}</span>
+                    <span className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{bossName}</span>
                     <span
                       className="px-2 py-0.5 rounded-full"
                       style={{ fontSize: '10px', fontWeight: 700, background: `${theme.color}20`, color: theme.color }}
@@ -276,13 +428,13 @@ export default function BossBattle() {
                     <span style={{ fontSize: '11px', color: '#4a5568' }}>Boss HP:</span>
                     <div className="w-40 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
                       <motion.div
-                        animate={{ width: `${bossHp}%` }}
+                        animate={{ width: `${(bossHp / bossMaxHp) * 100}%` }}
                         transition={{ duration: 0.5 }}
                         className="h-full rounded-full"
                         style={{ background: `linear-gradient(90deg, ${theme.color}, ${theme.color}aa)`, boxShadow: `0 0 8px ${theme.glow}` }}
                       />
                     </div>
-                    <span style={{ fontSize: '11px', color: theme.color, fontWeight: 700 }}>{bossHp}%</span>
+                    <span style={{ fontSize: '11px', color: theme.color, fontWeight: 700 }}>{bossHp}/{bossMaxHp}</span>
                   </div>
                 </div>
               </div>
@@ -290,7 +442,7 @@ export default function BossBattle() {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <Star className="w-4 h-4" style={{ color: '#f59e0b' }} />
-                  <span className="text-white" style={{ fontSize: '13px', fontWeight: 700 }}>{score.toLocaleString()} XP</span>
+                  <span className="text-white" style={{ fontSize: '13px', fontWeight: 700 }}>{xp.toLocaleString()} XP</span>
                 </div>
                 <CountdownTimer seconds={timer} color={theme.color} />
                 <button
@@ -310,28 +462,28 @@ export default function BossBattle() {
                 className="w-96 flex-shrink-0 p-5 overflow-y-auto"
                 style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}
               >
-                <h2 className="text-white mb-3" style={{ fontSize: '16px', fontWeight: 800 }}>{battle.title}</h2>
+                <h2 className="text-white mb-3" style={{ fontSize: '16px', fontWeight: 800 }}>{battle?.problem.title ?? 'Boss Problem'}</h2>
                 <p style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.7, marginBottom: '12px' }}>
-                  {battle.description}
+                  {battle?.problem.description ?? 'Solve the assigned boss problem using your code editor.'}
                 </p>
 
                 <div className="mb-4">
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#ff6500', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>
-                    Test Cases ({battle.testCases.length})
+                    Test Cases ({battle?.problem.testCases?.length ?? 0})
                   </div>
-                  {battle.testCases.slice(0, 3).map((tc, i) => (
+                  {battle?.problem.testCases?.slice(0, 3).map((tc, i) => (
                     <div
                       key={i}
                       className="p-3 rounded-xl font-mono mb-2"
                       style={{ fontSize: '11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#6b7280' }}
                     >
-                      <div style={{ color: '#4a5568', marginBottom: '4px' }}>Test {i + 1}: {tc.description}</div>
-                      <div>Expected: {typeof tc.expected === 'object' ? JSON.stringify(tc.expected) : String(tc.expected)}</div>
+                      <div style={{ color: '#4a5568', marginBottom: '4px' }}>Test {i + 1}</div>
+                      <div>Expected: {String(tc.output)}</div>
                     </div>
                   ))}
-                  {battle.testCases.length > 3 && (
+                  {(battle?.problem.testCases?.length ?? 0) > 3 && (
                     <div style={{ fontSize: '11px', color: '#4a5568', fontStyle: 'italic' }}>
-                      +{battle.testCases.length - 3} more test cases hidden
+                      +{(battle?.problem.testCases?.length ?? 0) - 3} more test cases hidden
                     </div>
                   )}
                 </div>
@@ -342,28 +494,28 @@ export default function BossBattle() {
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
-                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Difficulty: {battle.difficulty}</span>
+                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Difficulty: {battle?.difficulty ?? 'medium'}</span>
                   </div>
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-1 h-1 rounded-full" style={{ background: '#4a5568' }} />
-                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Max Score: {battle.points} XP</span>
+                    <span style={{ fontSize: '12px', color: '#4a5568' }}>Max Score: {bossRewards[battle?.difficulty ?? 'medium']} XP</span>
                   </div>
                 </div>
 
                 {/* Hint Button */}
                 <button
                   onClick={useHint}
-                  disabled={hintsUsed >= hints.length}
+                  disabled={hintsUsed >= maxHints}
                   className="w-full py-2.5 rounded-xl flex items-center justify-center gap-2 mb-3 transition-all cyber-btn"
                   style={{
-                    background: hintsUsed >= hints.length ? 'rgba(255,255,255,0.04)' : 'rgba(245,158,11,0.1)',
-                    border: `1px solid ${hintsUsed >= hints.length ? 'rgba(255,255,255,0.06)' : 'rgba(245,158,11,0.3)'}`,
-                    color: hintsUsed >= hints.length ? '#4a5568' : '#f59e0b',
+                    background: hintsUsed >= maxHints ? 'rgba(255,255,255,0.04)' : 'rgba(245,158,11,0.1)',
+                    border: `1px solid ${hintsUsed >= maxHints ? 'rgba(255,255,255,0.06)' : 'rgba(245,158,11,0.3)'}`,
+                    color: hintsUsed >= maxHints ? '#4a5568' : '#f59e0b',
                     fontSize: '13px', fontWeight: 600
                   }}
                 >
                   <Zap className="w-4 h-4" />
-                  Use Hint ({hints.length - hintsUsed} left, -100 XP)
+                  Use Hint ({maxHints - hintsUsed} left, -20 XP)
                 </button>
 
                 {showHint && (
@@ -387,7 +539,7 @@ export default function BossBattle() {
 
               {/* Editor */}
               <div className="flex-1 flex flex-col">
-                <div className="flex-1">
+                <div className="flex-1 min-h-0">
                   <Editor
                     height="100%"
                     language="javascript"
@@ -401,12 +553,13 @@ export default function BossBattle() {
                       lineNumbers: 'on',
                       scrollBeyondLastLine: false,
                       fontLigatures: true,
+                      automaticLayout: true,
                     }}
                   />
                 </div>
                 <div
-                  className="flex items-center justify-between px-5 py-3"
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)' }}
+                  className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', position: 'relative', zIndex: 10 }}
                 >
                   <div className="flex items-center gap-2">
                     <div
@@ -417,6 +570,7 @@ export default function BossBattle() {
                   </div>
                   <div className="flex gap-3">
                     <button
+                      onClick={runTests}
                       className="px-4 py-2 rounded-xl transition-all cyber-btn"
                       style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280', fontSize: '13px', fontWeight: 600 }}
                     >
@@ -475,7 +629,7 @@ export default function BossBattle() {
                   marginBottom: '8px'
                 }}
               >
-                {won ? 'VICTORY!' : 'DEFEATED!'}
+                {won ? (viewingDefeated ? 'ALREADY DEFEATED' : 'VICTORY!') : 'DEFEATED!'}
               </motion.h1>
 
               <motion.p
@@ -484,7 +638,9 @@ export default function BossBattle() {
                 transition={{ delay: 0.5 }}
                 style={{ fontSize: '16px', color: '#6b7280', marginBottom: '32px' }}
               >
-                {won ? `You defeated ${theme.name}!` : `${theme.name} was too powerful this time!`}
+                {won
+                  ? (viewingDefeated ? `You have already defeated ${bossName}.` : `You defeated ${bossName}!`)
+                  : `${bossName} was too powerful this time!`}
               </motion.p>
 
               {battleResult && (
@@ -503,9 +659,9 @@ export default function BossBattle() {
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>Score</div>
+                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>{viewingDefeated ? 'Boss HP' : 'Score'}</div>
                       <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b' }}>
-                        +{battleResult.score} XP
+                        {viewingDefeated ? '0 HP' : `+${xp} XP`}
                       </div>
                     </div>
                   </div>
@@ -521,24 +677,26 @@ export default function BossBattle() {
                 transition={{ delay: 0.9 }}
                 className="flex gap-4 justify-center"
               >
+                {!viewingDefeated && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => startBattle(selectedBoss)}
+                    className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
+                    style={{
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'white', fontSize: '14px', fontWeight: 700
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Try Again
+                  </motion.button>
+                )}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => startBattle(selectedBoss)}
-                  className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
-                  style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'white', fontSize: '14px', fontWeight: 700
-                  }}
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Try Again
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setScreen("intro")}
+                  onClick={() => { setViewingDefeated(false); setScreen("intro"); }}
                   className="px-6 py-3 rounded-xl flex items-center gap-2 cyber-btn"
                   style={{
                     background: `linear-gradient(135deg, ${theme.color}, ${theme.color}88)`,

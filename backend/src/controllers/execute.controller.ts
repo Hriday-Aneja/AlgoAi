@@ -29,20 +29,7 @@ const buildHarness = (functionName: string, stdin: string): string => {
   const escapedInput = JSON.stringify(stdin);
   const escapedFn = JSON.stringify(functionName);
 
-  return `
-// --- Auto-injected test harness ---
-const __algoInput = ${escapedInput};
-const __algoFnName = ${escapedFn};
-const __algoNormalized = __algoInput.replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, "").trim();
-const __algoArgs = __algoNormalized.length > 0 ? eval('[' + __algoNormalized + ']') : [];
-const __algoFn = eval(__algoFnName);
-const __algoResult = __algoFn(...__algoArgs);
-if (typeof __algoResult === "string") {
-  console.log(__algoResult);
-} else {
-  console.log(JSON.stringify(__algoResult));
-}
-`;
+  return `\n;(() => {\n  try {\n    const __algoInput = ${escapedInput};\n    const __algoFnName = ${escapedFn};\n    let __algoFn;\n    try { __algoFn = eval(__algoFnName); } catch (e) { __algoFn = globalThis[__algoFnName]; }\n    if (typeof __algoFn !== 'function') { throw new Error('Could not locate function ' + __algoFnName); }\n    const __algoNormalized = String(__algoInput).replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, "").trim();\n    const __algoArgs = __algoNormalized.length > 0 ? eval('[' + __algoNormalized + ']') : [];\n    const __algoResult = __algoFn(...__algoArgs);\n    if (typeof __algoResult === "string") {\n      console.log(__algoResult);\n    } else {\n      console.log(JSON.stringify(__algoResult));\n    }\n  } catch (e) {\n    console.error('@@HARNESS_ERROR@@', e && (e.stack || e.message));\n    throw e;\n  }\n})();\n`;
 };
 
 const getPrimaryFunctionName = (source: string): string | null => {

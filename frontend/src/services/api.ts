@@ -363,6 +363,70 @@ export const getProblemById = async (
   }
 };
 
+export interface BossProblem {
+  id: string;
+  title: string;
+  topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  description: string;
+  starterCode?: string | null;
+  testCases?: Array<{ input: string; output: string }>;
+}
+
+export interface BossAssignment {
+  id: string;
+  dailyBossId: string;
+  name: string;
+  topic: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  hp: number;
+  defeated: boolean;
+  problem: BossProblem;
+}
+
+export const getTodayBosses = async (): Promise<{
+  status: string;
+  data: { bosses: BossAssignment[] };
+}> => {
+  try {
+    const response = await api.get('/boss/today');
+    return response.data;
+  } catch (error) {
+    console.error('Get today bosses API error:', error);
+    throw error;
+  }
+};
+
+export const submitBossBattle = async (
+  bossAssignmentId: string,
+  code: string,
+  language: string,
+  testOnly: boolean = false,
+): Promise<{
+  status: string;
+  data: {
+    passed: boolean;
+    testsPassed: number;
+    totalTests: number;
+    feedback: string;
+    hp: number;
+    defeated: boolean;
+  };
+}> => {
+  try {
+    const response = await api.post('/boss/submit', {
+      bossAssignmentId,
+      code,
+      language,
+      testOnly,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Submit boss battle API error:', error);
+    throw error;
+  }
+};
+
 export const postProgressRecord = async (
   payload: {
     user_id: string;
