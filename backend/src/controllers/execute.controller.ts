@@ -129,72 +129,120 @@ const getCppReturnType = (source: string, functionName: string): string => {
     .replace(/\s+/g, " ")
     .trim();
 };
+const getCppParameterTypes = (
+  source: string,
+  functionName: string,
+): string[] => {
+  const escapedFn = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const match = source.match(
+    new RegExp(
+      `${escapedFn}\\s*\\(([^)]*)\\)`,
+      "m",
+    ),
+  );
+
+  if (!match) return [];
+
+  const params = match[1].trim();
+
+  if (!params) return [];
+
+  return params
+    .split(",")
+    .map((param) => {
+      // Remove parameter name:
+      // vector<int>& nums -> vector<int>&
+      // int target -> int
+      // long long x -> long long
+      return param
+        .trim()
+        .replace(
+          /\s+[A-Za-z_][A-Za-z0-9_]*\s*$/,
+          "",
+        )
+        .trim();
+    });
+};
+const getJavaReturnType = (
+  source: string,
+  functionName: string,
+): string => {
+  const escapedFn = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const match = source.match(
+    new RegExp(
+      `(?:public|private|protected)?\\s*(?:static\\s+)?([A-Za-z_][\\w<>,\\[\\]]*)\\s+${escapedFn}\\s*\\(`,
+      "m",
+    ),
+  );
+
+  return match?.[1]?.trim() || "int";
+};
 
 const buildCppHarness = (
+  source: string,
   functionName: string,
   stdin: string,
   returnType: string,
 ): string => {
   const args = parseInputAssignments(stdin);
+  const parameterTypes = getCppParameterTypes(source, functionName);
 
-  const cppArgs = args.map((arg) => {
+  const declarations: string[] = [];
+  const callArgs: string[] = [];
+
+  args.forEach((arg, index) => {
     const trimmed = arg.trim();
+    const expectedType = (parameterTypes[index] || "").trim();
 
     if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      if (trimmed.includes('"')) {
-        return `vector<string>${trimmed
-          .replace(/^\[/, "{")
-          .replace(/\]$/, "}")}`;
+      const cleanType = expectedType
+        .replace(/\bconst\b/g, "")
+        .replace(/&/g, "")
+        .trim();
+
+      let vectorType = cleanType;
+
+      if (!/^(std::)?vector\s*</.test(vectorType)) {
+        if (trimmed.includes('"')) {
+          vectorType = "vector<string>";
+        } else if (/\d+\.\d+/.test(trimmed)) {
+          vectorType = "vector<double>";
+        } else {
+          vectorType = "vector<int>";
+        }
       }
 
-      if (/\d+\.\d+/.test(trimmed)) {
-        return `vector<double>${trimmed
-          .replace(/^\[/, "{")
-          .replace(/\]$/, "}")}`;
-      }
-
-      return `vector<long long>${trimmed
+      const initializer = trimmed
         .replace(/^\[/, "{")
-        .replace(/\]$/, "}")}`;
+        .replace(/\]$/, "}");
+
+      declarations.push(
+        `${vectorType} __algo_arg${index} = ${vectorType}${initializer};`,
+      );
+
+      callArgs.push(`__algo_arg${index}`);
+    } else {
+      callArgs.push(trimmed);
     }
-
-    return trimmed;
   });
-
-  const declarations = cppArgs
-    .map((arg, index) => {
-      const match = arg.match(/^(vector<[^>]+>)/);
-
-      if (match) {
-        return `${match[1]} __algo_arg${index} = ${arg};`;
-      }
-
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n    ");
-
-  const callArgs = cppArgs
-    .map((arg, index) =>
-      arg.startsWith("vector<") ? `__algo_arg${index}` : arg,
-    )
-    .join(", ");
 
   const normalizedReturnType = returnType.replace(/\s+/g, " ").trim();
 
   let outputCode: string;
 
   if (/^bool$/.test(normalizedReturnType)) {
-    outputCode = `cout << (__algo_result ? "true" : "false");`;
-  } else if (/^(string|std::string)$/.test(normalizedReturnType)) {
-    outputCode = `cout << __algo_result;`;
-  } else if (
-    /^(int|long long|long|double|float|unsigned|size_t)$/.test(
-      normalizedReturnType,
-    )
-  ) {
-    outputCode = `cout << __algo_result;`;
-  } else if (/vector\s*<\s*vector\s*</.test(normalizedReturnType)) {
+  outputCode = `cout << (__algo_result ? "true" : "false");`;
+} else if (/^(string|std::string)$/.test(normalizedReturnType)) {
+  outputCode = 'cout << "\\\"" << __algo_result << "\\\"";';
+} else if (
+  /^(int|long long|long|double|float|unsigned|size_t)$/.test(
+    normalizedReturnType,
+  )
+) {
+  outputCode = `cout << __algo_result;`;
+} else if (/vector\s*<\s*vector\s*</.test(normalizedReturnType)) {
     outputCode = `
     cout << "[";
     for (size_t i = 0; i < __algo_result.size(); i++) {
@@ -229,7 +277,6 @@ const buildCppHarness = (
     cout << "]";
 `;
   } else {
-    // Fallback for anything unrecognized (e.g. long long, size_t variants)
     outputCode = `cout << __algo_result;`;
   }
 
@@ -239,10 +286,10 @@ const buildCppHarness = (
 int main() {
     Solution solution;
 
-    ${declarations}
+    ${declarations.join("\n    ")}
 
     auto __algo_result = solution.${functionName}(
-        ${callArgs}
+        ${callArgs.join(", ")}
     );
 
     ${outputCode}
@@ -253,48 +300,73 @@ int main() {
 };
 
 const buildJavaHarness = (
+  source: string,
   functionName: string,
   stdin: string,
 ): string => {
   const args = parseInputAssignments(stdin);
+  const returnType = getJavaReturnType(source, functionName);
 
   const javaArgs = args.map((arg) => {
-    // [1,2,3] -> new int[]{1,2,3}
-    if (arg.startsWith("[") && arg.endsWith("]")) {
-      return `new int[]${arg.replace(/^\[/, "{").replace(/\]$/, "}")}`;
+    const trimmed = arg.trim();
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      return `new int[]${trimmed
+        .replace(/^\[/, "{")
+        .replace(/\]$/, "}")}`;
     }
 
-    return arg;
+    return trimmed;
   });
 
-  return `
+  const normalizedReturnType = returnType
+    .replace(/\s+/g, " ")
+    .trim();
 
+  let outputCode: string;
+
+  if (normalizedReturnType === "boolean") {
+    outputCode = `
+        System.out.print(__algo_result ? "true" : "false");
+`;
+  } else if (normalizedReturnType === "String") {
+    outputCode = `
+        System.out.print("\\"" + __algo_result + "\\"");
+`;
+  } else if (normalizedReturnType.endsWith("[]")) {
+    outputCode = `
+        System.out.print("[");
+        for (int i = 0; i < __algo_result.length; i++) {
+            if (i > 0) {
+                System.out.print(",");
+            }
+            System.out.print(__algo_result[i]);
+        }
+        System.out.print("]");
+`;
+  } else {
+    outputCode = `
+        System.out.print(__algo_result);
+`;
+  }
+
+  return `
 // --- AlgoAI Java Test Harness ---
+
 class Main {
     public static void main(String[] args) {
 
         Solution solution = new Solution();
 
-        int[] __algo_result = solution.${functionName}(
+        ${normalizedReturnType} __algo_result = solution.${functionName}(
             ${javaArgs.join(", ")}
         );
 
-        System.out.print("[");
-
-        for (int i = 0; i < __algo_result.length; i++) {
-            if (i > 0) {
-                System.out.print(",");
-            }
-
-            System.out.print(__algo_result[i]);
-        }
-
-        System.out.print("]");
+        ${outputCode}
     }
 }
 `;
 };
-
 // ─── Function name detection (per language) ───────────────────────────────
 
 const getPrimaryFunctionName = (
@@ -394,10 +466,11 @@ using namespace std;
 ` +
       userSource +
       buildCppHarness(
-        fnName,
-        payload.stdin || "",
-        cppReturnType,
-      );
+  userSource,
+  fnName,
+  payload.stdin || "",
+  cppReturnType,
+)
   }
 
   else if (isJava) {
@@ -408,9 +481,10 @@ using namespace std;
 ` +
       userSource +
       buildJavaHarness(
-        fnName,
-        payload.stdin || "",
-      );
+  userSource,
+  fnName,
+  payload.stdin || "",
+)
   }
 }
 
@@ -515,4 +589,3 @@ export const proxyRuntimes = async (
     .status(200)
     .json(Object.keys(LANGUAGE_MAPPING).map((lang) => ({ language: lang })));
 };
-
