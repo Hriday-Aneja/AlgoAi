@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { recordSubmission } from "../controllers/submission.controller";
+import { recordSubmission, getSubmissionActivity } from "../controllers/submission.controller";
 import { requireAuth, withAuth } from "../utils/auth";
 
 const router = Router();
@@ -10,5 +10,12 @@ const router = Router();
  * @access  Private
  */
 router.post("/", requireAuth, withAuth(recordSubmission));
+
+/**
+ * @route   GET /api/submissions/activity
+ * @desc    Get raw submission records for the last 30 days for the authenticated user
+ * @access  Private
+ */
+router.get("/activity", requireAuth, withAuth(getSubmissionActivity));
 
 export default router;

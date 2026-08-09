@@ -39,8 +39,12 @@ const newFeatures = [
 ];
 
 export default function Layout() {
-  const [collapsed, setCollapsed] = useState(false);
+  // Sidebar is collapsed to an icon rail by default; a click on the toggle
+  // button at the bottom expands/collapses it (no hover behavior).
+  // On mobile, the hamburger-opened overlay always shows full labels.
+  const [railCollapsed, setRailCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const collapsed = railCollapsed && !mobileOpen;
   const [newFeaturesOpen, setNewFeaturesOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
@@ -114,46 +118,54 @@ export default function Layout() {
             />
           )}
           <div
-            className={`flex-shrink-0 p-1 rounded-md transition-all duration-200 ${isActive ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`}
+            className="flex-shrink-0 p-1 rounded-md transition-all duration-200"
             style={isActive ? { backgroundColor: `${color}20` } : {}}
           >
             <Icon
               className="w-[16px] h-[16px]"
-              style={{ color: isActive ? color : undefined }}
+              style={{ color: color }}
             />
           </div>
-          {!collapsed && (
-            <>
-              <span
-                className={`flex-1 truncate transition-colors duration-200`}
-                style={{
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  color: isActive ? color : '#8b949e',
-                }}
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex-1 min-w-0 flex items-center gap-2"
               >
-                {label}
-              </span>
-              {badge && (
                 <span
-                  className="text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+                  className="flex-1 truncate transition-colors duration-200"
                   style={{
-                    background: `${color}20`,
-                    color: color,
-                    border: `1px solid ${color}40`
+                    fontSize: '12.5px',
+                    fontWeight: 500,
+                    color: isActive ? color : '#8b949e',
                   }}
                 >
-                  {badge}
+                  {label}
                 </span>
-              )}
-              {isActive && !badge && (
-                <div
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-animation"
-                  style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
-                />
-              )}
-            </>
-          )}
+                {badge && (
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+                    style={{
+                      background: `${color}20`,
+                      color: color,
+                      border: `1px solid ${color}40`
+                    }}
+                  >
+                    {badge}
+                  </span>
+                )}
+                {isActive && !badge && (
+                  <div
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-animation"
+                    style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+                  />
+                )}
+              </motion.span>
+            )}
+          </AnimatePresence>
           {collapsed && (
             <div
               className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl"
@@ -194,34 +206,42 @@ export default function Layout() {
           />
         )}
         <div
-          className={`flex-shrink-0 p-1 rounded-md transition-all duration-200 ${isHovered ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`}
+          className="flex-shrink-0 p-1 rounded-md transition-all duration-200"
           style={isHovered ? { backgroundColor: `${color}20` } : {}}
         >
           <Lightbulb
             className="w-[16px] h-[16px]"
-            style={{ color: isHovered ? color : undefined }}
+            style={{ color: color }}
           />
         </div>
-        {!collapsed && (
-          <>
-            <span
-              className={`flex-1 truncate transition-colors duration-200`}
-              style={{
-                fontSize: '12.5px',
-                fontWeight: 500,
-                color: isHovered ? color : '#8b949e',
-              }}
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex-1 min-w-0 flex items-center gap-2"
             >
-              Web Dev Playground
-            </span>
-            {isHovered && (
-              <div
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-animation"
-                style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
-              />
-            )}
-          </>
-        )}
+              <span
+                className="flex-1 truncate transition-colors duration-200"
+                style={{
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  color: isHovered ? color : '#8b949e',
+                }}
+              >
+                Web Dev Playground
+              </span>
+              {isHovered && (
+                <div
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-animation"
+                  style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+                />
+              )}
+            </motion.span>
+          )}
+        </AnimatePresence>
         {collapsed && (
           <div
             className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl"
@@ -408,7 +428,7 @@ export default function Layout() {
 
         {/* Collapse Toggle */}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setRailCollapsed(!railCollapsed)}
           className="hidden lg:flex items-center justify-center py-3 flex-shrink-0 transition-colors"
           style={{
             borderTop: '1px solid rgba(255,255,255,0.05)',

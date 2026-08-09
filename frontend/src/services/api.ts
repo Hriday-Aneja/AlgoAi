@@ -449,6 +449,87 @@ export const getWeeklyActivity = async (): Promise<WeeklyActivityDay[]> => {
     return [];
   }
 };
+
+// ─── Mistake Pattern Analysis ─────────────────────────────────────────────────
+
+export interface TopicStatistic {
+  topic: string;
+  totalAttempts: number;
+  solvedCount: number;
+  attemptedCount: number;
+  solveRate: number;
+  averageTimeTaken: number | null;
+  maxTimeTaken: number | null;
+}
+
+export interface WeakPattern {
+  topic: string;
+  solveRate: number;
+  totalAttempts: number;
+  message: string;
+}
+
+export interface FrequentMistake {
+  problemId: string;
+  topic: string;
+  difficulty: string;
+  timeTaken: number | null;
+  message: string;
+}
+
+export interface MistakeSuggestion {
+  category: 'weak-topic' | 'time-efficiency' | 'repeated-failure';
+  priority: 'high' | 'medium' | 'low';
+  text: string;
+  action: string;
+}
+
+export interface MistakeAnalysis {
+  userId: string;
+  analysisDate: string;
+  weakPatterns: WeakPattern[];
+  frequentMistakes: FrequentMistake[];
+  suggestions: MistakeSuggestion[];
+  summary: {
+    totalProblems: number;
+    solvedCount: number;
+    attemptedCount: number;
+    overallSolveRate: number;
+  };
+}
+
+/**
+ * Get the full mistake-pattern analysis for a user:
+ * weak topics, frequently-failed problems, suggestions, and a summary.
+ */
+export const getMistakeAnalysis = async (
+  userId: string,
+  minAttempts?: number
+): Promise<MistakeAnalysis | null> => {
+  try {
+    const response = await api.get(`/mistakes/${userId}`, {
+      params: minAttempts ? { minAttempts } : undefined,
+    });
+    return response.data?.data ?? null;
+  } catch (error) {
+    console.error('Mistake analysis API error:', error);
+    return null;
+  }
+};
+
+/**
+ * Get per-topic performance stats (solve rate, attempts, timing) for a user.
+ */
+export const getTopicPerformance = async (userId: string): Promise<TopicStatistic[]> => {
+  try {
+    const response = await api.get(`/mistakes/${userId}/topics`);
+    return Array.isArray(response.data?.data) ? response.data.data : [];
+  } catch (error) {
+    console.error('Topic performance API error:', error);
+    return [];
+  }
+};
+
 export interface HintResult {
   success: boolean;
   hintLevel?: number;
@@ -483,6 +564,19 @@ export const recordSubmission = async (payload: {
     await api.post('/submissions', payload);
   } catch (error) {
     console.error('Submission record API error:', error);
+  }
+};
+
+export const getSubmissionActivity = async (): Promise<{ status: string; createdAt: string }[]> => {
+  try {
+    const response = await api.get('/submissions/activity');
+    if (response.data?.success && Array.isArray(response.data.data)) {
+      return response.data.data as { status: string; createdAt: string }[];
+    }
+    return [];
+  } catch (error) {
+    console.error('Submission activity API error:', error);
+    return [];
   }
 };
 
@@ -617,6 +711,42 @@ export const submitOnboarding = async (data: {
 /**
  * Execute code using backend Judge0 proxy
  */
+export interface ExecutionStep {
+  step: number;
+  line: number;
+  variables: Record<string, unknown>;
+  output?: string;
+  stack?: string[];
+  changedVariables?: string[];
+}
+
+export interface VisualizeResult {
+  success: boolean;
+  execution: ExecutionStep[];
+}
+
+export const visualizeCode = async (
+  code: string,
+  language: string,
+  input: string = ""
+): Promise<VisualizeResult> => {
+  try {
+    const response = await api.post(
+      "/visualize",
+      {
+        code,
+        language,
+        input,
+      },
+      { timeout: 25000 }, // Judge0 execution can take longer than the global 10s default
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Visualization API error:", error);
+    throw error;
+  }
+};
 export const runCode = async (sourceCode: string, language: string, stdin: string = ""): Promise<any> => {
   try {
     const response = await api.post('/execute', {

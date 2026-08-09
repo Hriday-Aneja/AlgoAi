@@ -57,6 +57,49 @@ const createExitExpression = (line: number, functionName: string) => ({
   },
 });
 
+const createSafeVariableRead = (name: string) => ({
+  type: "CallExpression",
+  callee: {
+    type: "FunctionExpression",
+    id: null,
+    params: [],
+    body: {
+      type: "BlockStatement",
+      body: [
+        {
+          type: "TryStatement",
+          block: {
+            type: "BlockStatement",
+            body: [
+              {
+                type: "ReturnStatement",
+                argument: createIdentifier(name),
+              },
+            ],
+          },
+          handler: {
+            type: "CatchClause",
+            param: { type: "Identifier", name: "__vizErr" },
+            body: {
+              type: "BlockStatement",
+              body: [
+                {
+                  type: "ReturnStatement",
+                  argument: createIdentifier("undefined"),
+                },
+              ],
+            },
+          },
+          finalizer: null,
+        },
+      ],
+    },
+    generator: false,
+    async: false,
+  },
+  arguments: [],
+});
+
 const createVariablesObject = (variableNames: string[]) => ({
   type: "ObjectExpression",
   properties: variableNames.map((name) => ({
@@ -66,22 +109,7 @@ const createVariablesObject = (variableNames: string[]) => ({
     kind: "init",
     method: false,
     shorthand: false,
-    value: {
-      type: "ConditionalExpression",
-      test: {
-        type: "BinaryExpression",
-        operator: "!==",
-        left: {
-          type: "UnaryExpression",
-          operator: "typeof",
-          prefix: true,
-          argument: createIdentifier(name),
-        },
-        right: createLiteral("undefined"),
-      },
-      consequent: createIdentifier(name),
-      alternate: createIdentifier("undefined"),
-    },
+    value: createSafeVariableRead(name),
   })),
 });
 
@@ -227,45 +255,78 @@ const wrapFunctionBodies = (ast: any): void => {
   });
 };
 
-const injectStatementTracking = (ast: any, variableNames: string[]): void => {
+const isVizTrackingCall = (statement: any): boolean =>
+  statement?.type === "ExpressionStatement" &&
+  statement.expression?.type === "CallExpression" &&
+  typeof statement.expression.callee?.name === "string" &&
+  statement.expression.callee.name.startsWith("__viz");
+
+
+const injectStatementTracking = (
+  ast: any,
+  variableNames: string[],
+): void => {
+  const blockContainers: any[] = [];
+
+  // First collect containers safely
   estraverse.traverse(ast, {
     enter(node: any) {
-      if (!isBlockContainer(node) || !Array.isArray(node.body)) {
-        return;
+      if (isBlockContainer(node) && Array.isArray(node.body)) {
+        blockContainers.push(node);
       }
-
-      const newBody: any[] = [];
-
-      for (const statement of node.body) {
-        if (
-          statement?.type &&
-          trackableStatementTypes.has(statement.type) &&
-          statement.type !== "BlockStatement"
-        ) {
-          newBody.push(
-            createTrackExpression(getNodeLine(statement), variableNames),
-          );
-        }
-
-        if (
-          statement?.type === "ForStatement" ||
-          statement?.type === "ForInStatement" ||
-          statement?.type === "ForOfStatement" ||
-          statement?.type === "WhileStatement" ||
-          statement?.type === "DoWhileStatement"
-        ) {
-          statement.body = toBlockStatement(statement.body);
-          statement.body.body.unshift(
-            createLoopTrackExpression(getNodeLine(statement), variableNames),
-          );
-        }
-
-        newBody.push(statement);
-      }
-
-      node.body = newBody;
     },
   });
+
+  // Then modify their statements
+  for (const node of blockContainers) {
+    const newBody: any[] = [];
+
+    for (const statement of node.body) {
+      const isTrackable =
+        statement?.type &&
+        trackableStatementTypes.has(statement.type) &&
+        statement.type !== "BlockStatement" &&
+        !isVizTrackingCall(statement);
+
+      const isLoop =
+        statement?.type === "ForStatement" ||
+        statement?.type === "ForInStatement" ||
+        statement?.type === "ForOfStatement" ||
+        statement?.type === "WhileStatement" ||
+        statement?.type === "DoWhileStatement";
+
+      // For loops, capture state at the beginning of each iteration
+      if (isLoop) {
+        statement.body = toBlockStatement(statement.body);
+
+        statement.body.body.unshift(
+          createLoopTrackExpression(
+            getNodeLine(statement),
+            variableNames,
+          ),
+        );
+      }
+
+      // Execute original statement
+      newBody.push(statement);
+
+      // Capture resulting state AFTER execution
+      if (
+        isTrackable &&
+        statement.type !== "ReturnStatement" &&
+        !isLoop
+      ) {
+        newBody.push(
+          createTrackExpression(
+            getNodeLine(statement),
+            variableNames,
+          ),
+        );
+      }
+    }
+
+    node.body = newBody;
+  }
 };
 
 export const instrumentJavaScriptCode = (

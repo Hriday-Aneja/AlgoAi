@@ -1,6 +1,7 @@
 import { NextFunction, Response } from "express";
 import { ZodError } from "zod";
 import { createSubmission } from "../repositories/submission.repository";
+import { getSubmissionsForUserLastNDays } from "../repositories/submission.repository";
 import { submissionRequestSchema } from "../validators/submission.validator";
 import { AuthenticatedRequest } from "../types/express";
 
@@ -41,6 +42,27 @@ export const recordSubmission = async (
       return;
     }
 
+    next(error);
+  }
+};
+
+export const getSubmissionActivity = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const userId = req.auth?.userId;
+
+    if (!userId) {
+      res.status(401).json({ success: false, message: "Unauthorized." });
+      return;
+    }
+
+    const submissions = await getSubmissionsForUserLastNDays(userId, 30);
+
+    res.status(200).json({ success: true, data: submissions });
+  } catch (error) {
     next(error);
   }
 };

@@ -1,4 +1,4 @@
-import supabase from '../config/supabase';
+
 import { prisma } from '../config/database';
 import {
   THRESHOLDS,
@@ -158,52 +158,11 @@ const getWeakTopicsFromPrisma = async (userId: string): Promise<WeakTopic[]> => 
   }
 };
 
-export const getWeakTopics = async (userId: string): Promise<WeakTopic[]> => {
-  try {
-    console.log('[getWeakTopics] Starting for user:', userId);
+export const getWeakTopics = async (
+  userId: string
+): Promise<WeakTopic[]> => {
+  console.log('[getWeakTopics] Starting for user:', userId);
 
-    const { data, error } = await supabase.rpc('get_topic_stats', {
-      p_user_id: userId,
-    });
-
-    if (error) {
-      console.warn('[getWeakTopics] RPC error, using Prisma fallback:', error.message);
-      return getWeakTopicsFromPrisma(userId);
-    }
-
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      console.log('[getWeakTopics] No data returned from RPC, using Prisma fallback');
-      return getWeakTopicsFromPrisma(userId);
-    }
-
-    const rows = data as TopicStatsRow[];
-    console.log('[getWeakTopics] Received rows:', rows.length);
-
-    const weakRows = rows.filter((row) => {
-      if (!row || !row.topic) return false;
-
-      const avgTimeSeconds = row.avg_time_seconds ?? 0;
-      const accuracy = row.accuracy ?? 0;
-
-      return (
-        accuracy < THRESHOLDS.ACCURACY_WEAK ||
-        avgTimeSeconds > THRESHOLDS.AVG_TIME_WEAK_SECONDS
-      );
-    });
-
-    console.log('[getWeakTopics] Filtered weak rows:', weakRows.length);
-
-    const weakTopics = weakRows
-      .map(toWeakTopic)
-      .filter((topic): topic is WeakTopic => topic !== null);
-
-    console.log('[getWeakTopics] Transformed topics:', weakTopics.length);
-
-    const sorted = weakTopics.sort(compareByWeakness);
-    console.log('[getWeakTopics] Returning', sorted.length, 'weak topics');
-    return sorted;
-  } catch (err) {
-    console.error('[getWeakTopics] Caught exception:', err);
-    return getWeakTopicsFromPrisma(userId);
-  }
+  return getWeakTopicsFromPrisma(userId);
 };
+
