@@ -60,7 +60,12 @@ export default function Problems() {
           getUserProgress(user.id),
         ]);
 
-        setBackendProblems(problemResponse.data ?? problems);
+        setBackendProblems(
+  (problemResponse.data ?? problems).map((p: any) => ({
+    ...p,
+    domain: p.domain ?? p.topic ?? "DSA",
+  }))
+);
         setLoadingProblems(false);
 
         setBackendProgress(progressResponse.data ?? []);

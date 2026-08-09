@@ -24,17 +24,308 @@ const LANGUAGE_MAPPING: Record<string, number> = {
   cpp: 54,
 };
 
-// ─── Harness: auto-invoke the user's function against stdin-style test input ──
-const buildHarness = (functionName: string, stdin: string): string => {
+// ─── Language-specific DSA test harnesses ────────────────────────────────
+
+const parseInputAssignments = (stdin: string): string[] => {
+  const input = stdin.replace(/\r?\n/g, " ").trim();
+
+  const args: string[] = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of input) {
+    if (char === "[" || char === "{" || char === "(") {
+      depth++;
+    }
+
+    if (char === "]" || char === "}" || char === ")") {
+      depth--;
+    }
+
+    if (char === "," && depth === 0) {
+      args.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  if (current.trim()) {
+    args.push(current.trim());
+  }
+
+  return args.map((arg) =>
+    arg.replace(/^[A-Za-z_$][\w$]*\s*=\s*/, "").trim()
+  );
+};
+const buildJavaScriptHarness = (
+  functionName: string,
+  stdin: string,
+): string => {
   const escapedInput = JSON.stringify(stdin);
   const escapedFn = JSON.stringify(functionName);
 
-  return `\n;(() => {\n  try {\n    const __algoInput = ${escapedInput};\n    const __algoFnName = ${escapedFn};\n    let __algoFn;\n    try { __algoFn = eval(__algoFnName); } catch (e) { __algoFn = globalThis[__algoFnName]; }\n    if (typeof __algoFn !== 'function') { throw new Error('Could not locate function ' + __algoFnName); }\n    const __algoNormalized = String(__algoInput).replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, "").trim();\n    const __algoArgs = __algoNormalized.length > 0 ? eval('[' + __algoNormalized + ']') : [];\n    const __algoResult = __algoFn(...__algoArgs);\n    if (typeof __algoResult === "string") {\n      console.log(__algoResult);\n    } else {\n      console.log(JSON.stringify(__algoResult));\n    }\n  } catch (e) {\n    console.error('@@HARNESS_ERROR@@', e && (e.stack || e.message));\n    throw e;\n  }\n})();\n`;
+  return `
+
+// --- AlgoAI JS Test Harness ---
+const __algoInput = ${escapedInput};
+const __algoFnName = ${escapedFn};
+
+const __algoNormalized = __algoInput
+  .replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, "")
+  .trim();
+
+const __algoArgs =
+  __algoNormalized.length > 0
+    ? eval("[" + __algoNormalized + "]")
+    : [];
+
+const __algoFn = eval(__algoFnName);
+const __algoResult = __algoFn(...__algoArgs);
+
+if (typeof __algoResult === "string") {
+  console.log(__algoResult);
+} else {
+  console.log(JSON.stringify(__algoResult));
+}
+`;
 };
 
-const getPrimaryFunctionName = (source: string): string | null => {
-  const match = source.match(/function\s+([A-Za-z_$][\w$]*)\s*\(/);
-  return match?.[1] || null;
+const buildPythonHarness = (
+  functionName: string,
+  stdin: string,
+): string => {
+  const args = parseInputAssignments(stdin);
+
+  return `
+
+# --- AlgoAI Python Test Harness ---
+__algo_result = ${functionName}(${args.join(", ")})
+
+if isinstance(__algo_result, str):
+    print(__algo_result)
+else:
+    import json
+    print(json.dumps(__algo_result))
+`;
+};
+
+const getCppReturnType = (source: string, functionName: string): string => {
+  const escapedFn = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Match the type token(s) that sit on the SAME line, immediately before
+  // "functionName(". This avoids accidentally slurping "public:" from a
+  // previous line.
+  const lineRegex = new RegExp(
+  `^[ \\t]*([A-Za-z_][\\w<>,\\s\\*&]*?)\\s+${escapedFn}\\s*\\(`,
+  "m",
+);
+
+  const match = source.match(lineRegex);
+  if (!match) return "int";
+
+  return match[1]
+    .replace(/\b(public|private|protected|static|virtual|inline)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const buildCppHarness = (
+  functionName: string,
+  stdin: string,
+  returnType: string,
+): string => {
+  const args = parseInputAssignments(stdin);
+
+  const cppArgs = args.map((arg) => {
+    const trimmed = arg.trim();
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      if (trimmed.includes('"')) {
+        return `vector<string>${trimmed
+          .replace(/^\[/, "{")
+          .replace(/\]$/, "}")}`;
+      }
+
+      if (/\d+\.\d+/.test(trimmed)) {
+        return `vector<double>${trimmed
+          .replace(/^\[/, "{")
+          .replace(/\]$/, "}")}`;
+      }
+
+      return `vector<long long>${trimmed
+        .replace(/^\[/, "{")
+        .replace(/\]$/, "}")}`;
+    }
+
+    return trimmed;
+  });
+
+  const declarations = cppArgs
+    .map((arg, index) => {
+      const match = arg.match(/^(vector<[^>]+>)/);
+
+      if (match) {
+        return `${match[1]} __algo_arg${index} = ${arg};`;
+      }
+
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n    ");
+
+  const callArgs = cppArgs
+    .map((arg, index) =>
+      arg.startsWith("vector<") ? `__algo_arg${index}` : arg,
+    )
+    .join(", ");
+
+  const normalizedReturnType = returnType.replace(/\s+/g, " ").trim();
+
+  let outputCode: string;
+
+  if (/^bool$/.test(normalizedReturnType)) {
+    outputCode = `cout << (__algo_result ? "true" : "false");`;
+  } else if (/^(string|std::string)$/.test(normalizedReturnType)) {
+    outputCode = `cout << __algo_result;`;
+  } else if (
+    /^(int|long long|long|double|float|unsigned|size_t)$/.test(
+      normalizedReturnType,
+    )
+  ) {
+    outputCode = `cout << __algo_result;`;
+  } else if (/vector\s*<\s*vector\s*</.test(normalizedReturnType)) {
+    outputCode = `
+    cout << "[";
+    for (size_t i = 0; i < __algo_result.size(); i++) {
+        if (i > 0) cout << ",";
+        cout << "[";
+        for (size_t j = 0; j < __algo_result[i].size(); j++) {
+            if (j > 0) cout << ",";
+            cout << __algo_result[i][j];
+        }
+        cout << "]";
+    }
+    cout << "]";
+`;
+  } else if (
+    /vector\s*<\s*(string|std::string)\s*>/.test(normalizedReturnType)
+  ) {
+    outputCode = `
+    cout << "[";
+    for (size_t i = 0; i < __algo_result.size(); i++) {
+        if (i > 0) cout << ",";
+        cout << "\\"" << __algo_result[i] << "\\"";
+    }
+    cout << "]";
+`;
+  } else if (/vector\s*</.test(normalizedReturnType)) {
+    outputCode = `
+    cout << "[";
+    for (size_t i = 0; i < __algo_result.size(); i++) {
+        if (i > 0) cout << ",";
+        cout << __algo_result[i];
+    }
+    cout << "]";
+`;
+  } else {
+    // Fallback for anything unrecognized (e.g. long long, size_t variants)
+    outputCode = `cout << __algo_result;`;
+  }
+
+  return `
+// --- AlgoAI C++ Test Harness ---
+
+int main() {
+    Solution solution;
+
+    ${declarations}
+
+    auto __algo_result = solution.${functionName}(
+        ${callArgs}
+    );
+
+    ${outputCode}
+
+    return 0;
+}
+`;
+};
+
+const buildJavaHarness = (
+  functionName: string,
+  stdin: string,
+): string => {
+  const args = parseInputAssignments(stdin);
+
+  const javaArgs = args.map((arg) => {
+    // [1,2,3] -> new int[]{1,2,3}
+    if (arg.startsWith("[") && arg.endsWith("]")) {
+      return `new int[]${arg.replace(/^\[/, "{").replace(/\]$/, "}")}`;
+    }
+
+    return arg;
+  });
+
+  return `
+
+// --- AlgoAI Java Test Harness ---
+class Main {
+    public static void main(String[] args) {
+
+        Solution solution = new Solution();
+
+        int[] __algo_result = solution.${functionName}(
+            ${javaArgs.join(", ")}
+        );
+
+        System.out.print("[");
+
+        for (int i = 0; i < __algo_result.length; i++) {
+            if (i > 0) {
+                System.out.print(",");
+            }
+
+            System.out.print(__algo_result[i]);
+        }
+
+        System.out.print("]");
+    }
+}
+`;
+};
+
+// ─── Function name detection (per language) ───────────────────────────────
+
+const getPrimaryFunctionName = (
+  source: string,
+  language: string,
+): string | null => {
+  if (["javascript", "js", "typescript", "ts"].includes(language)) {
+    const match = source.match(/function\s+([A-Za-z_$][\w$]*)\s*\(/);
+    return match?.[1] || null;
+  }
+
+  if (language === "python" || language === "python3") {
+    const match = source.match(/def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+    return match?.[1] || null;
+  }
+
+  if (language === "java") {
+    const match = source.match(
+      /(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*\{/,
+    );
+    return match?.[1] || null;
+  }
+
+  if (language === "c++" || language === "cpp") {
+    const match = source.match(
+      /(?:vector\s*<[^>]+>|int|long long|string|bool|void)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*\{/,
+    );
+    return match?.[1] || null;
+  }
+
+  return null;
 };
 
 export const proxyExecute = async (
@@ -51,50 +342,150 @@ export const proxyExecute = async (
     const userSource = payload.files.map((file) => file.content).join("\n");
 
     let finalCode = userSource;
-    const fnName = getPrimaryFunctionName(userSource);
+
+    const fnName = getPrimaryFunctionName(userSource, normalizedLanguage);
+
+    const isJsOrTsLanguage = ["javascript", "js", "typescript", "ts"].includes(
+      normalizedLanguage,
+    );
+    const isPython = ["python", "python3"].includes(normalizedLanguage);
+    const isCpp = ["c++", "cpp"].includes(normalizedLanguage);
+    const isJava = normalizedLanguage === "java";
+
+    const hasExistingMain = /\bmain\s*\(/.test(userSource);
+
+    const hasDirectOutput =
+      /console\.log|process\.stdout\.write|print\s*\(|System\.out\.print|cout\s*<</.test(
+        userSource,
+      );
+
     const shouldInjectHarness =
       Boolean(payload.stdin?.trim()) &&
       Boolean(fnName) &&
-      !/console\.log|process\.stdout\.write/.test(userSource);
+      !hasExistingMain &&
+      !hasDirectOutput;
 
-    // 2. Inject test-case harness if needed (only for JS/TS)
-    // 2. Inject test-case harness if needed (only for JS/TS)
-const isJsOrTsLanguage = ["javascript", "js", "typescript", "ts"].includes(normalizedLanguage);
-
-if (shouldInjectHarness && fnName && isJsOrTsLanguage) {
-  finalCode += buildHarness(fnName, payload.stdin || "");
-}
-    // 3. Send to Judge0
-    const response = await axios.post(
-      `${JUDGE0_API_URL}/submissions/?base64_encoded=false&wait=true`,
-      {
-        source_code: finalCode,
-        language_id: languageId,
-        stdin: payload.stdin || "",
-      },
-      { timeout: 20000 },
+    // 2. Inject language-specific test-case harness if needed
+    if (shouldInjectHarness && fnName) {
+  if (isJsOrTsLanguage) {
+    finalCode += buildJavaScriptHarness(
+      fnName,
+      payload.stdin || "",
     );
+  }
 
-    const { stdout, stderr, compile_output, status, time, memory } =
-      response.data;
-    const hasError = status.id !== 3; // 3 is "Accepted"
+  else if (isPython) {
+    finalCode += buildPythonHarness(
+      fnName,
+      payload.stdin || "",
+    );
+  }
 
-    // 4. Return formatted response (matches the shape the frontend already expects)
-    res.status(200).json({
-      success: true,
-      run: {
-        stdout: hasError ? "" : stdout || "",
-        stderr: hasError ? stderr || compile_output || status.description : "",
-        code: hasError ? 1 : 0,
-        signal: null,
-      },
-      meta: {
-        memory: memory || null,
-        cpuTime: time || null,
-        provider: "judge0",
-        status,
-      },
-    });
+  else if (isCpp) {
+    const cppReturnType = fnName ? getCppReturnType(userSource, fnName) : "int";
+    console.log("FUNCTION:", fnName);
+console.log("RETURN TYPE:", cppReturnType);
+
+    // C++ headers MUST come before Solution class
+    finalCode =
+      `#include <bits/stdc++.h>
+using namespace std;
+
+` +
+      userSource +
+      buildCppHarness(
+        fnName,
+        payload.stdin || "",
+        cppReturnType,
+      );
+  }
+
+  else if (isJava) {
+    // Java imports MUST come before Solution class
+    finalCode =
+      `import java.util.*;
+
+` +
+      userSource +
+      buildJavaHarness(
+        fnName,
+        payload.stdin || "",
+      );
+  }
+}
+
+    // 3. Send to Judge0
+    if (isCpp) {
+  console.log("===== GENERATED CPP =====");
+  console.log(finalCode);
+  console.log("========================");
+}
+    const encodedSourceCode = Buffer
+  .from(finalCode, "utf8")
+  .toString("base64");
+
+const response = await axios.post(
+  `${JUDGE0_API_URL}/submissions/?base64_encoded=true&wait=true`,
+  {
+    source_code: encodedSourceCode,
+    language_id: languageId,
+    stdin:
+      shouldInjectHarness && fnName
+        ? ""
+        : payload.stdin || "",
+  },
+  { timeout: 20000 },
+);
+
+ const {
+    stdout,
+    stderr,
+    compile_output,
+    message,
+    status,
+    time,
+    memory,
+  } = response.data;
+
+  if (!status) {
+    throw new Error(
+      `Judge0 returned an unexpected response: ${JSON.stringify(response.data)}`
+    );
+  }
+
+  const hasError = status.id !== 3;
+
+  const decodeBase64Field = (value: string | null | undefined): string => {
+    if (!value) return "";
+    try {
+      return Buffer.from(value, "base64").toString("utf8");
+    } catch {
+      return value;
+    }
+  };
+
+  const decodedStdout = decodeBase64Field(stdout);
+  const decodedStderr = decodeBase64Field(stderr);
+  const decodedCompileOutput = decodeBase64Field(compile_output);
+  const decodedMessage = decodeBase64Field(message);
+
+  res.status(200).json({
+    success: true,
+    run: {
+      stdout: hasError ? "" : decodedStdout,
+      stderr: hasError
+        ? decodedStderr || decodedCompileOutput || decodedMessage || status.description
+        : "",
+      code: hasError ? 1 : 0,
+      signal: null,
+    },
+    meta: {
+      memory: memory || null,
+      cpuTime: time || null,
+      provider: "judge0",
+      status,
+    },
+  });
   } catch (error: any) {
     if (error instanceof ZodError) {
       res.status(400).json({
@@ -123,4 +514,5 @@ export const proxyRuntimes = async (
   res
     .status(200)
     .json(Object.keys(LANGUAGE_MAPPING).map((lang) => ({ language: lang })));
-};  
+};
+

@@ -2359,7 +2359,7 @@
     "testCases": [
       { "input": "[[0,0],[2,2],[3,10],[5,2],[7,0]]", "output": "20" },
       { "input": "[[3,12],[-2,5],[-4,1]]", "output": "18" },
-      { "input": "[[0,0],[1,1],[1,0],[0,1]]", "output": "4" },
+      { "input": "[[0,0],[1,1],[1,0],[0,1]]", "output": "3" },
       { "input": "[[0,0],[1,0]]", "output": "1" },
       { "input": "[[0,0],[1,0],[0,1],[1,1]]", "output": "3" }
     ],
@@ -2512,5 +2512,98 @@
     "starterCode": "class MyHashMap {\n    put(key: number, value: number): void {}\n    get(key: number): number {}\n    remove(key: number): void {}\n}",
     "timeComplexity": "O(1) average per operation",
     "spaceComplexity": "O(n)"
-  }
+  },
+  {
+  "id": "101",
+  "title": "Design HashSet",
+  "difficulty": "Easy",
+  "domain": "DSA",
+  "tags": ["Design", "Hash Table", "Array"],
+  "status": "unsolved",
+  "acceptance": 72.4,
+  "submissions": 820000,
+  "likes": 6900,
+  "dislikes": 280,
+  "description": "Design a HashSet without using any built-in hash table libraries.",
+  "testCases": [
+    {
+      "input": "add(1); add(2); contains(1); contains(3); add(2); contains(2); remove(2); contains(2)",
+      "output": "true; false; true; false"
+    },
+    {
+      "input": "add(5); add(5); contains(5); remove(5); contains(5)",
+      "output": "true; false"
+    },
+    {
+      "input": "add(0); add(999999); contains(0); contains(999999)",
+      "output": "true; true"
+    },
+    {
+      "input": "remove(10); contains(10); add(10); contains(10)",
+      "output": "false; true"
+    },
+    {
+      "input": "add(1); add(2); add(3); remove(2); contains(1); contains(2); contains(3)",
+      "output": "true; false; true"
+    }
+  ],
+  "constraints": [
+    "0 <= key <= 10^6"
+  ],
+  "hints": [
+    "Think about how to store keys efficiently.",
+    "Use an array of buckets or another collision-handling technique.",
+    "A simple hash function can map keys to bucket indices."
+  ],
+  "starterCode": "class MyHashSet {\n    add(key: number): void {}\n    remove(key: number): void {}\n    contains(key: number): boolean {}\n}",
+  "timeComplexity": "O(1) average per operation",
+  "spaceComplexity": "O(n)"
+},
+{
+  "id": "200",
+  "title": "Implement Queue using Stacks",
+  "difficulty": "Easy",
+  "domain": "DSA",
+  "tags": ["Design", "Stack", "Queue"],
+  "status": "unsolved",
+  "acceptance": 69.2,
+  "submissions": 620000,
+  "likes": 5400,
+  "dislikes": 210,
+  "description": "Implement a queue using only two stacks. The queue should support push, pop, peek, and empty operations.",
+  "testCases": [
+    {
+      "input": "push(1); push(2); peek(); pop(); empty()",
+      "output": "1; 1; false"
+    },
+    {
+      "input": "push(5); push(10); pop(); peek()",
+      "output": "5; 10"
+    },
+    {
+      "input": "push(1); push(2); push(3); pop(); pop(); peek()",
+      "output": "1; 2; 3"
+    },
+    {
+      "input": "empty(); push(7); empty(); pop(); empty()",
+      "output": "true; false; 7; true"
+    },
+    {
+      "input": "push(10); pop(); push(20); peek(); empty()",
+      "output": "10; 20; false"
+    }
+  ],
+  "constraints": [
+    "1 <= number of operations <= 1000",
+    "Operations are valid according to the queue interface"
+  ],
+  "hints": [
+    "Use two stacks to maintain the FIFO order.",
+    "One stack can be used for incoming elements and the other for outgoing elements.",
+    "Move elements between the stacks only when necessary."
+  ],
+  "starterCode": "class MyQueue {\n    push(x: number): void {}\n    pop(): number {}\n    peek(): number {}\n    empty(): boolean {}\n}",
+  "timeComplexity": "O(1) amortized per operation",
+  "spaceComplexity": "O(n)"
+}
 ]

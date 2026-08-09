@@ -22,6 +22,7 @@ import {
 import Editor, { OnMount } from "@monaco-editor/react";
 import { visualizeCode, ExecutionStep } from "../../services/api";
 
+
 const SPEED_OPTIONS = [
   { label: "0.5x", value: 2500 },
   { label: "1x", value: 1500 },
