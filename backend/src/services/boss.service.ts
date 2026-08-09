@@ -60,18 +60,37 @@ const stringifyActual = (value: unknown): string => {
   }
 };
 
-const compareOutputs = (actual: unknown, expected: string): boolean => {
-  const normalizedActual = normalizeOutput(stringifyActual(actual));
-  const normalizedExpected = normalizeOutput(expected);
-  if (normalizedActual === normalizedExpected) return true;
-
+const tryParseJson = (value: string): { ok: true; value: unknown } | { ok: false } => {
   try {
-    const parsedExpected = JSON.parse(expected);
-    const parsedActual = typeof actual === 'string' ? JSON.parse(actual) : actual;
-    return JSON.stringify(parsedActual) === JSON.stringify(parsedExpected);
+    return { ok: true, value: JSON.parse(value) };
   } catch {
-    return false;
+    return { ok: false };
   }
+};
+
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
+const compareOutputs = (actual: unknown, expected: string): boolean => {
+  const normalizedActualString = normalizeOutput(stringifyActual(actual));
+  const normalizedExpectedString = normalizeOutput(expected);
+  if (normalizedActualString === normalizedExpectedString) return true;
+
+  const expectedParsed = tryParseJson(expected);
+  const actualParsed = typeof actual === 'string' ? tryParseJson(actual) : { ok: true as const, value: actual };
+
+  const actualValue = actualParsed.ok ? actualParsed.value : actual;
+  const expectedValue = expectedParsed.ok ? expectedParsed.value : expected;
+
+  return stableStringify(actualValue) === stableStringify(expectedValue);
 };
 
 const extractLastJsonString = (stdout: string): string | null => {
