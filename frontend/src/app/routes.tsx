@@ -1,6 +1,7 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Onboarding from "./pages/Onboarding";
@@ -31,6 +32,10 @@ import CodeDNA from "./pages/CodeDNA";
 
 export const router = createBrowserRouter([
   {
+    path: "/",
+    Component: Landing,
+  },
+  {
     path: "/login",
     Component: Login,
   },
@@ -43,14 +48,15 @@ export const router = createBrowserRouter([
     Component: Onboarding,
   },
   {
-    path: "/",
+    // Pathless layout route: children below keep their existing top-level
+    // URLs (e.g. "/dashboard", "/problems") while still being wrapped in
+    // ProtectedRoute + the app Layout (sidebar/shell).
     Component: () => (
       <ProtectedRoute>
         <Layout />
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", Component: Dashboard },
       { path: "problems", Component: Problems },
       { path: "problems/:id", Component: ProblemDetail },
