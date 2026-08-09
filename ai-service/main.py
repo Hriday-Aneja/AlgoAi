@@ -1,19 +1,29 @@
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
-
 
 load_dotenv()
 
 app = FastAPI(title="AlgoAI AI Service")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
-
 
 class CodeReviewRequest(BaseModel):
     problem_title: str
@@ -39,26 +49,36 @@ Problem:
 Problem Description:
 {req.problem_description}
 
-Programming Language:
+Language:
 {req.language}
 
-User Code:
+Student Code:
 {req.code}
 
-Analyze the student's solution.
+Review the ACTUAL code carefully.
 
-Return:
-1. Approach used
-2. Time complexity
-3. Space complexity
-4. Possible bugs
-5. Edge cases
-6. Optimization suggestions
+Return ONLY these 5 sections:
 
-Do not rewrite the entire solution unless necessary.
-Keep the explanation concise and student-friendly.
+**Approach:** Briefly explain what the code is doing. (1-2 lines)
+
+**Complexity:** Time and space complexity with a short reason.
+
+**Bug:** Mention only actual bugs. If there are none, say "No major bugs found."
+
+**Edge Case:** Mention only 1-2 meaningful edge cases relevant to this algorithm.
+Do not mention cases already ruled out by the problem constraints.
+
+**Improve:** Give the most useful optimization or improvement in 1-2 lines.
+
+IMPORTANT:
+- Do not invent bugs.
+- Check the actual implementation, not the expected solution.
+- If there is a bug, clearly mention the problematic line and why.
+- Do not discuss edge cases as correct if the core logic is broken.
+- Do not rewrite the complete solution.
+- Keep the entire response under 180 words.
+- Be concise, practical, and student-friendly.
 """
-
     try:
 
         response = client.chat.completions.create(

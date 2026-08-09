@@ -327,11 +327,15 @@ export const getAllProblems = async (): Promise<{
       };
     }
     
-    return {
-      status: response.data?.status || 'success',
-      count: Array.isArray(response.data.data) ? response.data.data.length : 0,
-      data: Array.isArray(response.data.data) ? response.data.data : []
-    };
+    const sortedProblems = [...response.data.data].sort(
+  (a, b) => Number(a.id) - Number(b.id)
+);
+
+return {
+  status: response.data?.status || 'success',
+  count: sortedProblems.length,
+  data: sortedProblems
+};
   } catch (error) {
     console.error('Problems API error:', error);
     // Return empty array instead of crashing
@@ -826,3 +830,26 @@ export const runCode = async (sourceCode: string, language: string, stdin: strin
   }
 };
 
+export const reviewCode = async ({
+  problem_title,
+  problem_description,
+  language,
+  code,
+}: {
+  problem_title: string;
+  problem_description: string;
+  language: string;
+  code: string;
+}) => {
+  const response = await axios.post(
+    "http://127.0.0.1:8000/code-review",
+    {
+      problem_title,
+      problem_description,
+      language,
+      code,
+    }
+  );
+
+  return response.data;
+};
