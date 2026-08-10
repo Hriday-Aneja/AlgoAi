@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+  import { createBrowserRouter, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Landing from "./pages/Landing";
