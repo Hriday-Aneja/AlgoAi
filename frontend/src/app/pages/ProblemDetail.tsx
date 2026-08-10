@@ -54,6 +54,12 @@ import { useUserProgress } from "../contexts/UserProgressContext";
 import { postProgressRecord, getHint, recordSubmission } from "../../services/api";
 import { reviewCode } from "../../services/api";
 import { getProblemById } from "../../services/api";
+import {
+  normalizeLanguage,
+  resolveStarterCode,
+  resolveFunctionSignature,
+  SupportedLanguage,
+} from "../../types/problem";
 
 const diffConfig: Record<
   string,
@@ -88,26 +94,61 @@ const MAX_EDITOR_PCT = 85;
 // ─── Draft auto-save (localStorage) ────────────────────────────────────────
 // Keeps the user's in-progress code safe whenever they leave the editor
 // (e.g. to open the AI Tutor) and restores it automatically on return.
+//
+// Drafts are keyed by problem + LANGUAGE, so switching languages in the
+// selector never clobbers what you had written in another language — each
+// (problem, language) pair gets its own slot. We separately remember the
+// last language used for a problem so reopening it resumes where you left
+// off instead of always resetting to JavaScript.
 const DRAFT_PREFIX = "algoai:draft:";
-const draftKey = (problemId: string | number) => `${DRAFT_PREFIX}${problemId}`;
+const LAST_LANG_PREFIX = "algoai:draft:lastLang:";
+
+const draftKey = (problemId: string | number, language: string) =>
+  `${DRAFT_PREFIX}${problemId}:${language}`;
+
+const lastLanguageKey = (problemId: string | number) =>
+  `${LAST_LANG_PREFIX}${problemId}`;
 
 type CodeDraft = { code: string; language: string; updatedAt: number };
 
-const readDraft = (problemId: string | number): CodeDraft | null => {
+const readDraft = (
+  problemId: string | number,
+  language: string,
+): CodeDraft | null => {
   try {
-    const raw = localStorage.getItem(draftKey(problemId));
+    const raw = localStorage.getItem(draftKey(problemId, language));
     return raw ? (JSON.parse(raw) as CodeDraft) : null;
   } catch {
     return null;
   }
 };
 
-const writeDraft = (problemId: string | number, draft: CodeDraft) => {
+const writeDraft = (
+  problemId: string | number,
+  language: string,
+  draft: CodeDraft,
+) => {
   try {
-    localStorage.setItem(draftKey(problemId), JSON.stringify(draft));
+    localStorage.setItem(draftKey(problemId, language), JSON.stringify(draft));
   } catch {
     // localStorage can throw in private-browsing / quota-exceeded cases —
     // draft saving is a convenience, never worth crashing the editor over.
+  }
+};
+
+const readLastLanguage = (problemId: string | number): string | null => {
+  try {
+    return localStorage.getItem(lastLanguageKey(problemId));
+  } catch {
+    return null;
+  }
+};
+
+const writeLastLanguage = (problemId: string | number, language: string) => {
+  try {
+    localStorage.setItem(lastLanguageKey(problemId), language);
+  } catch {
+    // Same rationale as writeDraft — best-effort only.
   }
 };
 
@@ -544,32 +585,78 @@ export default function ProblemDetail() {
   // ─── Notes / Language ────────────────────────────────────
   const [notes, setNotes] = useState("");
   const [bookmarked, setBookmarked] = useState(false);
-  const [language, setLanguage] = useState("javascript");
+  const [language, setLanguage] = useState<SupportedLanguage>("javascript");
 
   // ─── Load problem-dependent state ────────────────────────
-  // Restores an auto-saved draft for this problem if one exists, otherwise
-  // falls back to the problem's starter code — so opening the AI Tutor (or
-  // just navigating away) never loses in-progress work.
+  // Resumes the language you last used for THIS problem, then restores an
+  // auto-saved draft for that (problem, language) pair if one exists —
+  // otherwise falls back to the problem's per-language starter code (with
+  // the legacy single-language `starterCode` as the last-resort fallback
+  // for problems that haven't been migrated to per-language data yet).
   useEffect(() => {
     if (!problem) return;
 
-    const draft = readDraft(problem.id);
+    const resumeLanguage = normalizeLanguage(readLastLanguage(problem.id));
+    setLanguage(resumeLanguage);
+
+    const draft = readDraft(problem.id, resumeLanguage);
     if (draft?.code) {
       setCode(draft.code);
-      if (draft.language) setLanguage(draft.language);
     } else {
-      setCode(problem.starterCode || "");
+      setCode(
+        resolveStarterCode(
+          problem.starterCodeByLang,
+          problem.starterCode,
+          resumeLanguage,
+        ),
+      );
     }
 
     setBookmarked(problem.status === "bookmarked");
   }, [problem]);
+
+  // ─── Language switch ─────────────────────────────────────
+  // Loads the correct starter code for the newly selected language while
+  // preserving whatever draft already exists for that (problem, language)
+  // pair — and never touches the draft of the language you're switching
+  // away from (it was already captured by the debounced autosave below).
+  const changeLanguage = (rawLanguage: string) => {
+    if (!problem) {
+      setLanguage(normalizeLanguage(rawLanguage));
+      return;
+    }
+
+    const nextLanguage = normalizeLanguage(rawLanguage);
+    if (nextLanguage === language) return;
+
+    // Flush the current language's draft immediately (non-debounced) before
+    // switching, so a fast language toggle can never lose the last few
+    // keystrokes typed in the language being left behind.
+    writeDraft(problem.id, language, { code, language, updatedAt: Date.now() });
+
+    const draft = readDraft(problem.id, nextLanguage);
+    setLanguage(nextLanguage);
+    writeLastLanguage(problem.id, nextLanguage);
+
+    if (draft?.code) {
+      setCode(draft.code);
+    } else {
+      setCode(
+        resolveStarterCode(
+          problem.starterCodeByLang,
+          problem.starterCode,
+          nextLanguage,
+        ),
+      );
+    }
+  };
 
   // ─── Draft auto-save ────────────────────────────────────
   // Debounced save on every code/language change while a problem is loaded.
   useEffect(() => {
     if (!problem) return;
     const timeout = setTimeout(() => {
-      writeDraft(problem.id, { code, language, updatedAt: Date.now() });
+      writeDraft(problem.id, language, { code, language, updatedAt: Date.now() });
     }, 500);
     return () => clearTimeout(timeout);
   }, [code, language, problem]);
@@ -578,7 +665,7 @@ export default function ProblemDetail() {
   // away to the AI Tutor so the draft is guaranteed to be current.
   const saveDraftNow = () => {
     if (!problem) return;
-    writeDraft(problem.id, { code, language, updatedAt: Date.now() });
+    writeDraft(problem.id, language, { code, language, updatedAt: Date.now() });
   };
 
   const openAiTutor = () => {
@@ -719,12 +806,22 @@ if (!problem) {
   const isFirstProblemAttempt =
     currentStatus === "unsolved" || currentStatus === "bookmarked";
 
+  // Resolved once per run: which function the harness should call, and how
+  // to format its return value. Falls back to backend regex-detection when
+  // the problem has no per-language signature yet (older/unmigrated problems).
+  const signature = resolveFunctionSignature(problem.functionSignatures, language);
+  const runMetaPayload = {
+    problemId: problem.id,
+    functionName: signature?.functionName,
+    dataStructure: signature?.dataStructure,
+  };
+
   try {
     // ─────────────────────────────────────────────
     // No test cases
     // ─────────────────────────────────────────────
     if (testCases.length === 0) {
-      const result: any = await runCode(code, language, "");
+      const result: any = await runCode(code, language, "", runMetaPayload);
 
       if (!result.success || result.run?.code !== 0) {
         // RECORD FAILED ATTEMPT
@@ -795,7 +892,8 @@ if (currentStatus !== "solved") {
       const result: any = await runCode(
         code,
         language,
-        testCase.input
+        testCase.input,
+        runMetaPayload,
       );
 
       lastMeta = result.meta || lastMeta;
@@ -836,6 +934,8 @@ const normalizeOutput = (output: string) => {
     return output
       .trim()
       .replace(/\r\n/g, "\n")
+      .replace(/,\s*/g, ";")
+      .replace(/;\s*/g, ";")
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
@@ -1680,7 +1780,7 @@ if (currentStatus !== "solved") {
               >
                 <select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onChange={(e) => changeLanguage(e.target.value)}
                   className="rounded-lg px-2 py-1 text-white focus:outline-none"
                   style={{
                     fontSize: "12px",
@@ -1696,7 +1796,15 @@ if (currentStatus !== "solved") {
                   <option value="cpp">C++</option>
                 </select>
                 <button
-                  onClick={() => setCode(problem.starterCode || "")}
+                  onClick={() =>
+                    setCode(
+                      resolveStarterCode(
+                        problem.starterCodeByLang,
+                        problem.starterCode,
+                        language,
+                      ),
+                    )
+                  }
                   className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all"
                   style={{ fontSize: "12px", color: "#4a5568" }}
                   onMouseEnter={(e) =>
