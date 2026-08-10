@@ -884,3 +884,38 @@ export const reviewCode = async ({
 
   return response.data;
 };
+// ─── AI Tutor Chat (Python AI service) ────────────────────────────────────
+
+export interface TutorHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface TutorProblemContext {
+  id?: string;
+  title?: string;
+  description?: string;
+  difficulty?: string;
+  constraints?: string[];
+  examples?: { input: string; output: string; explanation?: string }[];
+  language?: string;
+  code?: string;
+  review?: string | null;
+}
+
+export interface TutorChatPayload {
+  mode: "general" | "problem";
+  message: string;
+  history?: TutorHistoryMessage[];
+  problem?: TutorProblemContext | null;
+}
+
+export const sendTutorMessage = async (
+  payload: TutorChatPayload
+): Promise<{ reply: string }> => {
+  const response = await axios.post(
+    "http://127.0.0.1:8000/chat",
+    payload
+  );
+  return response.data;
+};
