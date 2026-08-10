@@ -1,4 +1,9 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import type {
+  StarterCodeMap,
+  FunctionSignatureMap,
+  ReturnDataStructure,
+} from '../types/problem';
 
 // ─── API Configuration ────────────────────────────────────────────────────────
 
@@ -263,7 +268,14 @@ export interface ProblemRecord {
   examples?: { input: string; output: string; explanation?: string }[];
   constraints?: string[];
   hints?: string[];
+  // Legacy single-language starter code — kept for backward compatibility.
+  // Prefer `starterCodeByLang[language]`, which falls back to this field
+  // for problems that haven't been migrated to per-language data yet.
   starterCode?: string;
+  // Per-language starter code + expected function signature. See
+  // frontend/src/types/problem.ts for the shared shape.
+  starterCodeByLang?: StarterCodeMap;
+  functionSignatures?: FunctionSignatureMap;
   solution?: string;
   timeComplexity?: string;
   spaceComplexity?: string;
@@ -815,13 +827,32 @@ export const visualizeCode = async (
     throw error;
   }
 };
-export const runCode = async (sourceCode: string, language: string, stdin: string = ""): Promise<any> => {
+// Optional DSA-harness metadata for a run. When `functionName` is provided
+// the backend uses it directly instead of regex-guessing it from the source
+// (see backend/src/controllers/execute.controller.ts). Sourced from
+// `problem.functionSignatures[language]` — see resolveFunctionSignature() in
+// frontend/src/types/problem.ts.
+export interface RunCodeMeta {
+  problemId?: string;
+  functionName?: string;
+  dataStructure?: ReturnDataStructure;
+}
+
+export const runCode = async (
+  sourceCode: string,
+  language: string,
+  stdin: string = "",
+  meta: RunCodeMeta = {},
+): Promise<any> => {
   try {
     const response = await api.post('/execute', {
       language: language,
       version: "*",
       files: [{ content: sourceCode }],
-      stdin: stdin
+      stdin: stdin,
+      problemId: meta.problemId,
+      functionName: meta.functionName,
+      dataStructure: meta.dataStructure,
     });
     return response.data;
   } catch (error) {
@@ -851,5 +882,40 @@ export const reviewCode = async ({
     }
   );
 
+  return response.data;
+};
+// ─── AI Tutor Chat (Python AI service) ────────────────────────────────────
+
+export interface TutorHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface TutorProblemContext {
+  id?: string;
+  title?: string;
+  description?: string;
+  difficulty?: string;
+  constraints?: string[];
+  examples?: { input: string; output: string; explanation?: string }[];
+  language?: string;
+  code?: string;
+  review?: string | null;
+}
+
+export interface TutorChatPayload {
+  mode: "general" | "problem";
+  message: string;
+  history?: TutorHistoryMessage[];
+  problem?: TutorProblemContext | null;
+}
+
+export const sendTutorMessage = async (
+  payload: TutorChatPayload
+): Promise<{ reply: string }> => {
+  const response = await axios.post(
+    "http://127.0.0.1:8000/chat",
+    payload
+  );
   return response.data;
 };

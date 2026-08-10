@@ -2,6 +2,10 @@ import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import axios from "axios";
 import { executeRequestSchema } from "../validators/execute.validator";
+import {
+  isImplementedDataStructure,
+  ReturnDataStructure,
+} from "../types/problem.types";
 
 // ─── Judge0 Configuration ──────────────────────────────────────────────────
 // Self-hosted Judge0 instance (set JUDGE0_API_URL in backend/.env).
@@ -368,6 +372,462 @@ class Main {
 `;
 };
 // ─── Function name detection (per language) ───────────────────────────────
+//
+// FALLBACK ONLY. The preferred path is the frontend sending an explicit
+// `functionName` (sourced from `Problem.functionSignatures[language]` — see
+// backend/src/types/problem.types.ts), which this file uses as-is without
+// ever regex-guessing it. This regex scan only kicks in for requests that
+// don't send `functionName` — e.g. older/other callers of `/api/execute`, or
+// problems seeded before per-language metadata existed.
+
+
+const getPrimaryClassName = (source: string, fallback?: string | null): string | null => {
+  const match = source.match(/\bclass\s+([A-Za-z_$][\w$]*)/);
+  return match?.[1] || fallback?.trim() || null;
+};
+
+const buildJavaScriptClassHarness = (className: string, stdin: string): string => {
+  const escapedInput = JSON.stringify(stdin);
+  const escapedClass = JSON.stringify(className);
+
+  return `\n// --- AlgoAI JS Class/Design Harness ---
+const __algoOps = ${escapedInput}
+  .split(";")
+  .map(x => x.trim())
+  .filter(Boolean);
+const __algoClass = eval(${escapedClass});
+let __algoObj;
+const __algoOut = [];
+
+for (const __algoOp of __algoOps) {
+  const __m = __algoOp.match(/^([A-Za-z_$][\\w$]*)\\s*(?:\\((.*)\\))?$/);
+  if (!__m) continue;
+  const __name = __m[1];
+  const __raw = (__m[2] || "").trim();
+  const __args = __raw ? eval("[" + __raw + "]") : [];
+
+  if (__name === ${JSON.stringify(className)} || __name === "${className}" && !__algoObj) {
+    __algoObj = new __algoClass(...__args);
+    continue;
+  }
+  if (!__algoObj) __algoObj = new __algoClass();
+  const __result = __algoObj[__name](...__args);
+  if (__result !== undefined) __algoOut.push(__result);
+}
+console.log(__algoOut.join("; "));
+`;
+};
+
+const buildPythonClassHarness = (className: string, stdin: string): string => {
+  const escaped = JSON.stringify(stdin);
+  return `\n# --- AlgoAI Python Class/Design Harness ---
+import ast, json, re
+__algo_ops = [x.strip() for x in ${escaped}.split(";") if x.strip()]
+__algo_cls = ${className}
+__algo_obj = None
+__algo_out = []
+
+for __op in __algo_ops:
+    __m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\\s*(?:\\((.*)\\))?$", __op)
+    if not __m:
+        continue
+    __name, __raw = __m.group(1), (__m.group(2) or "").strip()
+    __args = list(ast.literal_eval("[" + __raw + "]")) if __raw else []
+    if __name == "${className}" and __algo_obj is None:
+        __algo_obj = __algo_cls(*__args)
+        continue
+    if __algo_obj is None:
+        __algo_obj = __algo_cls()
+    __result = getattr(__algo_obj, __name)(*__args)
+    if __result is not None:
+        __algo_out.append(__result)
+
+print(json.dumps(__algo_out))
+`;
+};
+
+const buildCppClassHarness = (
+  className: string,
+  stdin: string,
+): string => {
+  const escaped = JSON.stringify(stdin)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+
+  // LRUCache needs constructor(capacity) and only get/put methods.
+  if (className === "LRUCache") {
+    return `
+#include <regex>
+#include <sstream>
+
+static string __algo_trim(string s) {
+    while (!s.empty() && isspace((unsigned char)s.front()))
+        s.erase(s.begin());
+
+    while (!s.empty() && isspace((unsigned char)s.back()))
+        s.pop_back();
+
+    return s;
+}
+
+static vector<string> __algo_split_ops(const string& s) {
+    vector<string> out;
+    string cur;
+    int depth = 0;
+
+    for (char c : s) {
+        if (c == '(') {
+            depth++;
+            cur += c;
+        }
+        else if (c == ')') {
+            depth--;
+            cur += c;
+        }
+        else if ((c == ',' || c == ';') && depth == 0) {
+            string trimmed = __algo_trim(cur);
+
+            if (!trimmed.empty()) {
+                out.push_back(trimmed);
+            }
+
+            cur.clear();
+        }
+        else {
+            cur += c;
+        }
+    }
+
+    string trimmed = __algo_trim(cur);
+
+    if (!trimmed.empty()) {
+        out.push_back(trimmed);
+    }
+
+    return out;
+}
+
+
+static vector<string> __algo_args(const string& raw) {
+    vector<string> out;
+    string cur;
+    int depth = 0;
+    bool quote = false;
+
+    for (char c : raw) {
+        if (c == '"') quote = !quote;
+
+        if (!quote && (c == '[' || c == '(' || c == '{'))
+            depth++;
+
+        if (!quote && (c == ']' || c == ')' || c == '}'))
+            depth--;
+
+        if (c == ',' && !quote && depth == 0) {
+            out.push_back(__algo_trim(cur));
+            cur.clear();
+        } else {
+            cur += c;
+        }
+    }
+
+    if (!__algo_trim(cur).empty())
+        out.push_back(__algo_trim(cur));
+
+    return out;
+}
+
+static int __algo_int(const string& s) {
+    return stoi(__algo_trim(s));
+}
+
+int main() {
+    string __input = "${escaped}";
+
+    vector<string> __ops = __algo_split_ops(__input);
+
+    // First operation must be LRUCache(capacity)
+   int __capacity = 0;
+
+size_t __capPos = __input.find("capacity=");
+
+if (__capPos != string::npos) {
+    __capPos += 9;
+
+    while (__capPos < __input.size() &&
+           isspace((unsigned char)__input[__capPos])) {
+        __capPos++;
+    }
+
+    while (__capPos < __input.size() &&
+           isdigit((unsigned char)__input[__capPos])) {
+        __capacity = __capacity * 10 +
+                     (__input[__capPos] - '0');
+        __capPos++;
+    }
+}
+
+    ${className} __obj(__capacity);
+
+    vector<string> __out;
+
+    // Start from operation 1 because operation 0 was constructor.
+    for (size_t __i = 1; __i < __ops.size(); ++__i) {
+
+        string __op = __algo_trim(__ops[__i]);
+
+        if (__op.empty())
+            continue;
+
+        auto __lp = __op.find('(');
+        auto __rp = __op.rfind(')');
+
+        string __name =
+            __lp == string::npos
+                ? __op
+                : __op.substr(0, __lp);
+
+        string __raw =
+            (__lp == string::npos || __rp == string::npos)
+                ? ""
+                : __op.substr(
+                    __lp + 1,
+                    __rp - __lp - 1
+                  );
+
+        auto __a = __algo_args(__raw);
+
+        if (__name == "get") {
+            int __key = __algo_int(__a[0]);
+            __out.push_back(to_string(__obj.get(__key)));
+        }
+
+        else if (__name == "put") {
+            int __key = __algo_int(__a[0]);
+            int __value = __algo_int(__a[1]);
+
+            __obj.put(__key, __value);
+        }
+    }
+
+    for (size_t i = 0; i < __out.size(); ++i) {
+        if (i) cout << "; ";
+        cout << __out[i];
+    }
+
+    return 0;
+}
+`;
+  }
+
+  // MyQueue
+  if (className === "MyQueue") {
+    return `
+#include <regex>
+#include <sstream>
+
+static vector<string> __algo_split_ops(const string& s) {
+    vector<string> out;
+    string cur;
+
+    for (char c : s) {
+        if (c == ';') {
+            if (!cur.empty()) out.push_back(cur);
+            cur.clear();
+        } else {
+            cur += c;
+        }
+    }
+
+    if (!cur.empty()) out.push_back(cur);
+    return out;
+}
+
+static string __algo_trim(string s) {
+    while (!s.empty() && isspace((unsigned char)s.front()))
+        s.erase(s.begin());
+
+    while (!s.empty() && isspace((unsigned char)s.back()))
+        s.pop_back();
+
+    return s;
+}
+
+int main() {
+    string __input = "${escaped}";
+    ${className} __obj;
+
+    vector<string> __out;
+
+    for (string __op : __algo_split_ops(__input)) {
+
+        __op = __algo_trim(__op);
+
+        auto __lp = __op.find('(');
+        auto __rp = __op.rfind(')');
+
+        string __name =
+            __op.substr(0, __lp);
+
+        string __raw =
+            __op.substr(__lp + 1, __rp - __lp - 1);
+
+        if (__name == "push") {
+            __obj.push(stoi(__raw));
+        }
+
+        else if (__name == "pop") {
+            __out.push_back(to_string(__obj.pop()));
+        }
+
+        else if (__name == "peek") {
+            __out.push_back(to_string(__obj.peek()));
+        }
+
+        else if (__name == "empty") {
+            __out.push_back(
+                __obj.empty() ? "true" : "false"
+            );
+        }
+    }
+
+    for (size_t i = 0; i < __out.size(); ++i) {
+        if (i) cout << "; ";
+        cout << __out[i];
+    }
+
+    return 0;
+}
+`;
+  }
+
+  // MyHashSet
+  if (className === "MyHashSet") {
+    return `
+static vector<string> __algo_split_ops(const string& s) {
+    vector<string> out;
+    string cur;
+
+    for (char c : s) {
+        if (c == ';') {
+            if (!cur.empty()) out.push_back(cur);
+            cur.clear();
+        } else {
+            cur += c;
+        }
+    }
+
+    if (!cur.empty()) out.push_back(cur);
+    return out;
+}
+
+static string __algo_trim(string s) {
+    while (!s.empty() && isspace((unsigned char)s.front()))
+        s.erase(s.begin());
+
+    while (!s.empty() && isspace((unsigned char)s.back()))
+        s.pop_back();
+
+    return s;
+}
+
+int main() {
+    string __input = "${escaped}";
+    ${className} __obj;
+
+    vector<string> __out;
+
+    for (string __op : __algo_split_ops(__input)) {
+
+        __op = __algo_trim(__op);
+
+        auto __lp = __op.find('(');
+        auto __rp = __op.rfind(')');
+
+        string __name = __op.substr(0, __lp);
+
+        string __raw =
+            __op.substr(__lp + 1, __rp - __lp - 1);
+
+        int __key = stoi(__raw);
+
+        if (__name == "add") {
+            __obj.add(__key);
+        }
+
+        else if (__name == "remove") {
+            __obj.remove(__key);
+        }
+
+        else if (__name == "contains") {
+            __out.push_back(
+                __obj.contains(__key) ? "true" : "false"
+            );
+        }
+    }
+
+    for (size_t i = 0; i < __out.size(); ++i) {
+        if (i) cout << "; ";
+        cout << __out[i];
+    }
+
+    return 0;
+}
+`;
+  }
+
+  // Fallback for other class problems.
+  return `
+int main() {
+    ${className} __obj;
+    return 0;
+}
+`;
+};
+
+const buildJavaClassHarness = (className: string, stdin: string): string => {
+  const escaped = JSON.stringify(stdin);
+  return `\n// --- AlgoAI Java Class/Design Harness ---
+class Main {
+  public static void main(String[] args) {
+    ${className} obj = new ${className}();
+    String input = ${escaped};
+    String[] ops = input.split("\\\\s*;\\\\s*");
+    StringBuilder out = new StringBuilder("[");
+    boolean first = true;
+    for (String op : ops) {
+      op = op.trim(); if (op.isEmpty()) continue;
+      int lp = op.indexOf('('); int rp = op.lastIndexOf(')');
+      String name = lp >= 0 ? op.substring(0, lp).trim() : op;
+      String raw = lp >= 0 && rp > lp ? op.substring(lp + 1, rp).trim() : "";
+      String[] a = raw.isEmpty() ? new String[0] : raw.split("\\\\s*,\\\\s*");
+      Object r = null;
+      if (name.equals("push")) { obj.push(Integer.parseInt(a[0])); }
+      else if (name.equals("pop")) { r = obj.pop(); }
+      else if (name.equals("peek")) { r = obj.peek(); }
+      else if (name.equals("empty")) { r = obj.empty(); }
+      else if (name.equals("insert")) { obj.insert(Integer.parseInt(a[0])); }
+      else if (name.equals("extractMin")) { r = obj.extractMin(); }
+      else if (name.equals("addNum")) { obj.addNum(Double.parseDouble(a[0])); }
+      else if (name.equals("findMedian")) { r = obj.findMedian(); }
+      else if (name.equals("put")) { obj.put(Integer.parseInt(a[0]), Integer.parseInt(a[1])); }
+      else if (name.equals("get")) { r = obj.get(Integer.parseInt(a[0])); }
+      else if (name.equals("remove")) { obj.remove(Integer.parseInt(a[0])); }
+      else if (name.equals("contains")) { r = obj.contains(Integer.parseInt(a[0])); }
+      else if (name.equals("search")) { r = obj.search(a[0].replaceAll("^\\\"|\\\"$", "")); }
+      else if (name.equals("startsWith")) { r = obj.startsWith(a[0].replaceAll("^\\\"|\\\"$", "")); }
+      if (r != null) {
+        if (!first) out.append(',');
+        first = false;
+        if (r instanceof Boolean) out.append(r);
+        else out.append(r);
+      }
+    }
+    out.append(']'); System.out.print(out);
+  }
+}
+`;
+};
 
 const getPrimaryFunctionName = (
   source: string,
@@ -415,7 +875,26 @@ export const proxyExecute = async (
 
     let finalCode = userSource;
 
-    const fnName = getPrimaryFunctionName(userSource, normalizedLanguage);
+    const dataStructure = payload.dataStructure as ReturnDataStructure | undefined;
+    if (!isImplementedDataStructure(dataStructure)) {
+      res.status(400).json({
+        success: false,
+        status: "error",
+        message: `Unsupported data structure: ${dataStructure}`,
+      });
+      return;
+    }
+
+    // Prefer the function name the frontend sent us (from the problem's
+    // per-language `functionSignatures`). Only fall back to regex-guessing
+    // it out of the user's source for requests that don't send one.
+    const fnName =
+      payload.functionName?.trim() ||
+      getPrimaryFunctionName(userSource, normalizedLanguage);
+    const className =
+      dataStructure === "class"
+        ? getPrimaryClassName(userSource, payload.functionName)
+        : null;
 
     const isJsOrTsLanguage = ["javascript", "js", "typescript", "ts"].includes(
       normalizedLanguage,
@@ -433,28 +912,41 @@ export const proxyExecute = async (
 
     const shouldInjectHarness =
       Boolean(payload.stdin?.trim()) &&
-      Boolean(fnName) &&
+      Boolean(fnName || className) &&
       !hasExistingMain &&
       !hasDirectOutput;
 
     // 2. Inject language-specific test-case harness if needed
-    if (shouldInjectHarness && fnName) {
-  if (isJsOrTsLanguage) {
+    if (shouldInjectHarness && (fnName || className)) {
+  if (dataStructure === "class" && className) {
+    if (isJsOrTsLanguage) {
+      finalCode += buildJavaScriptClassHarness(className, payload.stdin || "");
+    } else if (isPython) {
+      finalCode += buildPythonClassHarness(className, payload.stdin || "");
+    } else if (isCpp) {
+      finalCode = `#include <bits/stdc++.h>
+using namespace std;
+` + userSource + buildCppClassHarness(className, payload.stdin || "");
+    } else if (isJava) {
+      finalCode = `import java.util.*;
+` + userSource + buildJavaClassHarness(className, payload.stdin || "");
+    }
+  } else if (fnName && isJsOrTsLanguage) {
     finalCode += buildJavaScriptHarness(
       fnName,
       payload.stdin || "",
     );
   }
 
-  else if (isPython) {
+  else if (fnName && isPython) {
     finalCode += buildPythonHarness(
       fnName,
       payload.stdin || "",
     );
   }
 
-  else if (isCpp) {
-    const cppReturnType = fnName ? getCppReturnType(userSource, fnName) : "int";
+  else if (fnName && isCpp) {
+    const cppReturnType = getCppReturnType(userSource, fnName);
     console.log("FUNCTION:", fnName);
 console.log("RETURN TYPE:", cppReturnType);
 
@@ -473,7 +965,7 @@ using namespace std;
 )
   }
 
-  else if (isJava) {
+  else if (fnName && isJava) {
     // Java imports MUST come before Solution class
     finalCode =
       `import java.util.*;

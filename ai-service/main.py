@@ -5,10 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
-
+from chatbot import router as chatbot_router
 load_dotenv()
 
 app = FastAPI(title="AlgoAI AI Service")
+app.include_router(chatbot_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1252,7 +1252,10 @@
     "dislikes": 320,
     "description": "Implement a first in first out (FIFO) queue using only two stacks. The implemented queue should support all the functions of a normal queue.",
     "examples": [
-      { "input": "push(1); push(2); peek(); pop(); empty();", "output": "1; 1; false" }
+      {
+  "input": "push(1); push(2); peek(); pop(); empty();",
+  "output": "[1,1,false]"
+}
     ],
     "constraints": ["Use only standard stack operations"],
     "hints": ["Use two stacks: push_stack and pop_stack", "On pop, transfer all elements from push to pop", "Reverse the order efficiently"],
