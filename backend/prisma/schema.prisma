@@ -224,7 +224,19 @@ model Problem {
 
   description     String
 
+  // Legacy single-language starter code. Kept for backward compatibility —
+  // used as the last-resort fallback when a language has no entry in
+  // `starterCodeByLang` (e.g. older seeded problems).
   starterCode     String?
+
+  // Per-language starter code, e.g. { "javascript": "...", "python": "..." }
+  // Keys are `SupportedLanguage` values (see backend/src/types/problem.types.ts).
+  starterCodeByLang  Json?
+
+  // Per-language expected function name/signature, e.g.
+  // { "javascript": { "functionName": "twoSum", "dataStructure": "array" }, ... }
+  // See backend/src/types/problem.types.ts for the shape.
+  functionSignatures Json?
 
   tags            Json?
   examples        Json?

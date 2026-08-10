@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,10 +20,29 @@ import {
   Code2,
   Brain,
   Send,
+  X,
+  Clock,
+  Cpu,
+  ArrowRight,
+  GripVertical,
+  MessageCircle,
+  Bug,
+  Puzzle,
+  Sparkles,
 } from "lucide-react";
 
 // @ts-ignore
 import Editor from "@monaco-editor/react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 // @ts-ignore
 import { runCode} from "../../services/api";
 // @ts-ignore
@@ -33,6 +52,14 @@ import { useAuth } from "../contexts/AuthContext";
 // @ts-ignore
 import { useUserProgress } from "../contexts/UserProgressContext";
 import { postProgressRecord, getHint, recordSubmission } from "../../services/api";
+import { reviewCode } from "../../services/api";
+import { getProblemById } from "../../services/api";
+import {
+  normalizeLanguage,
+  resolveStarterCode,
+  resolveFunctionSignature,
+  SupportedLanguage,
+} from "../../types/problem";
 
 const diffConfig: Record<
   string,
@@ -58,18 +85,402 @@ const diffConfig: Record<
   },
 };
 
+// ─── Resizable-panel tuning ─────────────────────────────────────────────────
+const MIN_LEFT_WIDTH = 360;
+const MIN_RIGHT_WIDTH = 380;
+const MIN_EDITOR_PCT = 25;
+const MAX_EDITOR_PCT = 85;
+
+// ─── Draft auto-save (localStorage) ────────────────────────────────────────
+// Keeps the user's in-progress code safe whenever they leave the editor
+// (e.g. to open the AI Tutor) and restores it automatically on return.
+//
+// Drafts are keyed by problem + LANGUAGE, so switching languages in the
+// selector never clobbers what you had written in another language — each
+// (problem, language) pair gets its own slot. We separately remember the
+// last language used for a problem so reopening it resumes where you left
+// off instead of always resetting to JavaScript.
+const DRAFT_PREFIX = "algoai:draft:";
+const LAST_LANG_PREFIX = "algoai:draft:lastLang:";
+
+const draftKey = (problemId: string | number, language: string) =>
+  `${DRAFT_PREFIX}${problemId}:${language}`;
+
+const lastLanguageKey = (problemId: string | number) =>
+  `${LAST_LANG_PREFIX}${problemId}`;
+
+type CodeDraft = { code: string; language: string; updatedAt: number };
+
+const readDraft = (
+  problemId: string | number,
+  language: string,
+): CodeDraft | null => {
+  try {
+    const raw = localStorage.getItem(draftKey(problemId, language));
+    return raw ? (JSON.parse(raw) as CodeDraft) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeDraft = (
+  problemId: string | number,
+  language: string,
+  draft: CodeDraft,
+) => {
+  try {
+    localStorage.setItem(draftKey(problemId, language), JSON.stringify(draft));
+  } catch {
+    // localStorage can throw in private-browsing / quota-exceeded cases —
+    // draft saving is a convenience, never worth crashing the editor over.
+  }
+};
+
+const readLastLanguage = (problemId: string | number): string | null => {
+  try {
+    return localStorage.getItem(lastLanguageKey(problemId));
+  } catch {
+    return null;
+  }
+};
+
+const writeLastLanguage = (problemId: string | number, language: string) => {
+  try {
+    localStorage.setItem(lastLanguageKey(problemId), language);
+  } catch {
+    // Same rationale as writeDraft — best-effort only.
+  }
+};
+
+// ─── Big-O helpers for the complexity comparison / growth chart ───────────
+// These are purely illustrative classifications derived from text (either
+// the problem's known-optimal complexity, or whatever Big-O notation the AI
+// review mentions for the user's code). They are NOT measured performance.
+const BIG_O_CLASSES = [
+  { key: "O(1)", label: "O(1)", re: /O\(\s*1\s*\)/i },
+  { key: "O(log n)", label: "O(log n)", re: /O\(\s*log/i },
+  { key: "O(n)", label: "O(n)", re: /O\(\s*n\s*\)/i },
+  { key: "O(n log n)", label: "O(n log n)", re: /O\(\s*n\s*log/i },
+  { key: "O(n^2)", label: "O(n²)", re: /O\(\s*n\s*(\^|\*\*)?\s*2|O\(\s*n\s*\*\s*n/i },
+  { key: "O(2^n)", label: "O(2ⁿ)", re: /O\(\s*2\s*(\^|\*\*)/i },
+] as const;
+
+const classifyBigO = (text: string | null | undefined): string | null => {
+  if (!text) return null;
+  for (const c of BIG_O_CLASSES) {
+    if (c.re.test(text)) return c.key;
+  }
+  return null;
+};
+
+const extractBigO = (text: string | null | undefined): string | null => {
+  if (!text) return null;
+  const match = text.match(/O\([^)]{1,25}\)/i);
+  return match ? match[0].replace(/\s+/g, " ").trim() : null;
+};
+
+// Fallback for when the AI review never used a recognizable "Time/Space
+// Complexity" header at all — just mentioned it inline within a paragraph,
+// e.g. "...the time complexity here is O(n) because of the single loop...".
+// Looks for the keyword followed within a short distance by an O(...) term.
+const extractComplexityMention = (
+  text: string | null | undefined,
+  keyword: "time" | "space",
+): string | null => {
+  if (!text) return null;
+  const re = new RegExp(`\\b${keyword}\\b[^\\n]{0,60}?(O\\([^)]{1,25}\\))`, "i");
+  const match = text.match(re);
+  return match ? match[1].replace(/\s+/g, " ").trim() : null;
+};
+
+// ─── AI review text parser ──────────────────────────────────────────────
+// The AI review endpoint (services/api.ts -> reviewCode) currently returns
+// a single free-text string. We try to split it into the sections the UI
+// wants (Approach / Bugs / Edge cases / Time / Space / Optimizations) using
+// header-style matching. If the text doesn't contain recognizable headers,
+// `matched` is false and callers should fall back to rendering `raw` as-is —
+// this guarantees we never hide content the backend actually sent.
+type ReviewSectionKey =
+  | "approach"
+  | "bugs"
+  | "edgeCases"
+  | "timeComplexity"
+  | "spaceComplexity"
+  | "optimizations";
+
+interface ParsedReview {
+  matched: boolean;
+  approach: string;
+  bugs: string[];
+  edgeCases: string[];
+  timeComplexity: string;
+  spaceComplexity: string;
+  optimizations: string[];
+  raw: string;
+}
+
+const SECTION_PATTERNS: { key: ReviewSectionKey; re: RegExp }[] = [
+  { key: "approach", re: /\bapproach\b/i },
+  { key: "bugs", re: /\b(bugs?|issues?)\b/i },
+  { key: "edgeCases", re: /\bedge[\s-]*cases?\b/i },
+  { key: "timeComplexity", re: /\btime\b(\s*complexity)?/i },
+  { key: "spaceComplexity", re: /\bspace\b(\s*complexity)?/i },
+  { key: "optimizations", re: /\b(optimi[sz]ations?|suggestions?|improvements?)\b/i },
+];
+
+const stripHeaderMarkup = (line: string) =>
+  line
+    .replace(/^[#>\-\*\s\d\.\)]+/, "")
+    .replace(/[\*:]+$/, "")
+    .trim();
+
+const matchHeader = (line: string): { key: ReviewSectionKey; inline: string } | null => {
+  const stripped = stripHeaderMarkup(line);
+  if (!stripped) return null;
+  // Header lines are short ("Approach", "Time Complexity:") — long sentences
+  // that merely mention a keyword shouldn't be treated as a new section.
+  const wordCount = stripped.split(/\s+/).length;
+
+  // Split on whichever separator is present: colon ("Time: O(n)") or a
+  // standalone dash ("Time Complexity - O(n)"). Colon takes priority.
+  let headerCandidate = stripped;
+  let inline = "";
+  const colonIdx = stripped.indexOf(":");
+  if (colonIdx !== -1) {
+    headerCandidate = stripped.slice(0, colonIdx).trim();
+    inline = stripped.slice(colonIdx + 1).trim();
+  } else {
+    const dashMatch = stripped.match(/^(.{1,40}?)\s+[-–—]\s+(.+)$/);
+    if (dashMatch) {
+      headerCandidate = dashMatch[1].trim();
+      inline = dashMatch[2].trim();
+    }
+  }
+
+  if (headerCandidate.split(/\s+/).length > 5) return null;
+  for (const p of SECTION_PATTERNS) {
+    if (p.re.test(headerCandidate)) {
+      return { key: p.key, inline };
+    }
+  }
+  if (wordCount <= 5) return null;
+  return null;
+};
+
+const toBullets = (text: string): string[] =>
+  text
+    .split("\n")
+    .map((l) => l.replace(/^[\-\*•\d\.\)\s]+/, "").trim())
+    .filter(Boolean);
+
+const parseReview = (text: string): ParsedReview => {
+  const empty: ParsedReview = {
+    matched: false,
+    approach: "",
+    bugs: [],
+    edgeCases: [],
+    timeComplexity: "",
+    spaceComplexity: "",
+    optimizations: [],
+    raw: text || "",
+  };
+  if (!text) return empty;
+
+  const lines = text.split("\n");
+  const buffers: Record<ReviewSectionKey, string[]> = {
+    approach: [],
+    bugs: [],
+    edgeCases: [],
+    timeComplexity: [],
+    spaceComplexity: [],
+    optimizations: [],
+  };
+
+  let current: ReviewSectionKey | null = null;
+  let foundAny = false;
+
+  for (const line of lines) {
+    const header = matchHeader(line);
+    if (header) {
+      current = header.key;
+      foundAny = true;
+      if (header.inline) buffers[header.key].push(header.inline);
+      continue;
+    }
+    if (current && line.trim()) {
+      buffers[current].push(line.trim());
+    }
+  }
+
+  if (!foundAny) return empty;
+
+  return {
+    matched: true,
+    approach: buffers.approach.join("\n").trim(),
+    bugs: toBullets(buffers.bugs.join("\n")),
+    edgeCases: toBullets(buffers.edgeCases.join("\n")),
+    timeComplexity: buffers.timeComplexity.join(" ").trim(),
+    spaceComplexity: buffers.spaceComplexity.join(" ").trim(),
+    optimizations: toBullets(buffers.optimizations.join("\n")),
+    raw: text,
+  };
+};
+
+// ─── Complexity level mapping (illustrative, not measured) ────────────────
+// Same classification keys as classifyBigO() above, mapped to a numeric
+// level (for the bar height) plus a display label (for axis ticks/tooltips).
+const COMPLEXITY_LEVELS: { key: string; level: number; label: string }[] = [
+  { key: "O(1)", level: 1, label: "O(1)" },
+  { key: "O(log n)", level: 2, label: "O(log n)" },
+  { key: "O(n)", level: 3, label: "O(n)" },
+  { key: "O(n log n)", level: 4, label: "O(n log n)" },
+  { key: "O(n^2)", level: 5, label: "O(n²)" },
+  { key: "O(2^n)", level: 6, label: "O(2ⁿ)" },
+];
+
+const COMPLEXITY_LEVEL_BY_KEY: Record<string, { level: number; label: string }> =
+  Object.fromEntries(COMPLEXITY_LEVELS.map((c) => [c.key, c]));
+
+function ComplexityBarChartTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0].payload;
+  return (
+    <div
+      style={{
+        background: "#0f1420",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: "8px",
+        padding: "6px 10px",
+        fontSize: "12px",
+      }}
+    >
+      <div style={{ fontWeight: 700, color: "#e5e7eb", marginBottom: "2px" }}>
+        {item.name}
+      </div>
+      <div style={{ color: item.key === "yourCode" ? "#ff6500" : "#22c55e", fontWeight: 600 }}>
+        {item.display}
+      </div>
+    </div>
+  );
+}
+
+// ─── Complexity comparison chart (illustrative, not measured) ─────────────
+// Bar chart comparing "Your Code" vs "Optimal" for a single metric (time or
+// space). Bar height = complexity level (O(1)=1 ... O(2^n)=6); the actual
+// Big-O label is shown via the Y-axis ticks and the tooltip, not just the
+// numeric level.
+function ComplexityBarChart({
+  title,
+  yourClass,
+  yourLabel,
+  optimalClass,
+  optimalLabel,
+}: {
+  title: string;
+  yourClass: string | null;
+  yourLabel: string | null;
+  optimalClass: string | null;
+  optimalLabel: string | null;
+}) {
+  const data = [
+    {
+      name: "Your Code",
+      key: "yourCode",
+      level: yourClass ? COMPLEXITY_LEVEL_BY_KEY[yourClass]?.level ?? 0 : 0,
+      display: yourLabel || "Not detected",
+    },
+    {
+      name: "Optimal",
+      key: "optimal",
+      level: optimalClass ? COMPLEXITY_LEVEL_BY_KEY[optimalClass]?.level ?? 0 : 0,
+      display: optimalLabel || "Unknown",
+    },
+  ];
+
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: "10px",
+          fontWeight: 700,
+          color: "#6b7280",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: "6px",
+        }}
+      >
+        {title}
+      </div>
+      <ResponsiveContainer width="100%" height={170}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={{ fill: "#9ca3af", fontSize: 11, fontWeight: 600 }}
+            axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+            tickLine={false}
+          />
+          <YAxis
+            domain={[0, 6]}
+            ticks={[1, 2, 3, 4, 5, 6]}
+            tickFormatter={(v: number) => COMPLEXITY_LEVELS[v - 1]?.label ?? ""}
+            tick={{ fill: "#4a5568", fontSize: 9 }}
+            axisLine={false}
+            tickLine={false}
+            width={70}
+          />
+          <Tooltip content={<ComplexityBarChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+          <Bar dataKey="level" radius={[6, 6, 0, 0]} maxBarSize={56}>
+            {data.map((entry) => (
+              <Cell
+                key={entry.key}
+                fill={entry.key === "yourCode" ? "#ff6500" : "#22c55e"}
+                fillOpacity={entry.level === 0 ? 0.15 : 0.85}
+              />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <p style={{ fontSize: "10px", color: "#4a5568", marginTop: "2px" }}>
+        Illustrative complexity comparison, not measured runtime.
+      </p>
+    </div>
+  );
+}
+
 export default function ProblemDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { progress, incrementQuestionsAttempted, incrementQuestionsSolved, updateTopicStrength, setProblemStatus } = useUserProgress();
-  
-  const problem = problems.find((p: any) => p.id === id) || problems[0];
- const currentStatus =
-  progress?.problemStatus?.[problem.id] ?? "unsolved";
 
-  const [code, setCode] = useState(problem.starterCode || "");
+  const {
+    progress,
+    incrementQuestionsAttempted,
+    incrementQuestionsSolved,
+    updateTopicStrength,
+    setProblemStatus,
+  } = useUserProgress();
 
+  // ─── Problem ─────────────────────────────────────────────
+  const [problem, setProblem] = useState<any>(null);
+
+  useEffect(() => {
+    const loadProblem = async () => {
+      try {
+        const response = await getProblemById(id!);
+        setProblem(response.data);
+      } catch (error) {
+        console.error("Failed to load problem:", error);
+      }
+    };
+
+    if (id) {
+      loadProblem();
+    }
+  }, [id]);
+
+  // ─── Code ────────────────────────────────────────────────
+  const [code, setCode] = useState("");
   const saveProblemProgress = async (status: "attempted" | "solved") => {
     if (!user) return;
     try {
@@ -85,30 +496,293 @@ export default function ProblemDetail() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<"description" | "solution" | "notes">("description");
-  const [rightTab, setRightTab] = useState<"code" | "ai">("code");
+  // ─── Problem Status ─────────────────────────────────────
+  const currentStatus = problem
+    ? progress?.problemStatus?.[problem.id] ?? "unsolved"
+    : "unsolved";
+
+  // ─── Tabs ────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<
+    "description" | "solution" | "notes"
+  >("description");
+
+  const [rightTab, setRightTab] = useState<
+    "code" | "review"
+  >("code");
+
+  // ─── Hints ───────────────────────────────────────────────
   const [showHints, setShowHints] = useState(false);
   const [revealedHints, setRevealedHints] = useState(0);
   const [aiHints, setAiHints] = useState<string[]>([]);
-const [isHintLoading, setIsHintLoading] = useState(false);
-const [hintNotice, setHintNotice] = useState<string | null>(null);
-const MAX_HINTS = 3;
-  const [runResult, setRunResult] = useState<null | "success" | "error">(null);
+  const [isHintLoading, setIsHintLoading] = useState(false);
+  const [hintNotice, setHintNotice] = useState<string | null>(null);
+
+  const MAX_HINTS = 3;
+
+  // ─── Run / Compiler ──────────────────────────────────────
+  const [runResult, setRunResult] =
+    useState<null | "success" | "error">(null);
+
+  const [runMeta, setRunMeta] = useState<{
+    cpuTime?: string | number | null;
+    memory?: string | number | null;
+  } | null>(null);
+
+  const [passedCount, setPassedCount] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [compilerOutput, setCompilerOutput] = useState<string | null>(null);
+
+  // ─── AI Review ───────────────────────────────────────────
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [showSolution, setShowSolution] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "ai"; content: string }[]>([
-    {
-      role: "ai",
-      content: `Hey! I'm your AI tutor for "${problem.title}". Ask me anything — hints, approach, complexity, or interview tips! 🎯`,
-    },
-  ]);
+
+  const parsedReview = useMemo(() => parseReview(aiAnalysis), [aiAnalysis]);
+
+  // Resolved complexity text: prefer the parsed section (from a recognized
+  // header), otherwise fall back to scanning the raw review text for an
+  // inline "time/space ... O(...)" mention. This single resolved value
+  // drives BOTH the classification (chart) AND the displayed Big-O label,
+  // so they can never disagree with each other.
+  const resolvedTimeText = useMemo(
+    () => parsedReview.timeComplexity || extractComplexityMention(aiAnalysis, "time") || "",
+    [parsedReview.timeComplexity, aiAnalysis]
+  );
+  const resolvedSpaceText = useMemo(
+    () => parsedReview.spaceComplexity || extractComplexityMention(aiAnalysis, "space") || "",
+    [parsedReview.spaceComplexity, aiAnalysis]
+  );
+
+  const yourComplexityClass = useMemo(
+    () => classifyBigO(resolvedTimeText),
+    [resolvedTimeText]
+  );
+  const optimalComplexityClass = useMemo(
+    () => classifyBigO(problem?.timeComplexity),
+    [problem?.timeComplexity]
+  );
+  const yourSpaceClass = useMemo(
+    () => classifyBigO(resolvedSpaceText),
+    [resolvedSpaceText]
+  );
+  const optimalSpaceClass = useMemo(
+    () => classifyBigO(problem?.spaceComplexity),
+    [problem?.spaceComplexity]
+  );
+
+  const yourTimeLabel = useMemo(() => extractBigO(resolvedTimeText), [resolvedTimeText]);
+  const yourSpaceLabel = useMemo(() => extractBigO(resolvedSpaceText), [resolvedSpaceText]);
+  const optimalTimeLabel = useMemo(
+    () => extractBigO(problem?.timeComplexity) || problem?.timeComplexity || null,
+    [problem?.timeComplexity]
+  );
+  const optimalSpaceLabel = useMemo(
+    () => extractBigO(problem?.spaceComplexity) || problem?.spaceComplexity || null,
+    [problem?.spaceComplexity]
+  );
+
+  // ─── Notes / Language ────────────────────────────────────
   const [notes, setNotes] = useState("");
-  const [bookmarked, setBookmarked] = useState(problem.status === "bookmarked");
-  const [language, setLanguage] = useState("javascript");
+  const [bookmarked, setBookmarked] = useState(false);
+  const [language, setLanguage] = useState<SupportedLanguage>("javascript");
+
+  // ─── Load problem-dependent state ────────────────────────
+  // Resumes the language you last used for THIS problem, then restores an
+  // auto-saved draft for that (problem, language) pair if one exists —
+  // otherwise falls back to the problem's per-language starter code (with
+  // the legacy single-language `starterCode` as the last-resort fallback
+  // for problems that haven't been migrated to per-language data yet).
+  useEffect(() => {
+    if (!problem) return;
+
+    const resumeLanguage = normalizeLanguage(readLastLanguage(problem.id));
+    setLanguage(resumeLanguage);
+
+    const draft = readDraft(problem.id, resumeLanguage);
+    if (draft?.code) {
+      setCode(draft.code);
+    } else {
+      setCode(
+        resolveStarterCode(
+          problem.starterCodeByLang,
+          problem.starterCode,
+          resumeLanguage,
+        ),
+      );
+    }
+
+    setBookmarked(problem.status === "bookmarked");
+  }, [problem]);
+
+  // ─── Language switch ─────────────────────────────────────
+  // Loads the correct starter code for the newly selected language while
+  // preserving whatever draft already exists for that (problem, language)
+  // pair — and never touches the draft of the language you're switching
+  // away from (it was already captured by the debounced autosave below).
+  const changeLanguage = (rawLanguage: string) => {
+    if (!problem) {
+      setLanguage(normalizeLanguage(rawLanguage));
+      return;
+    }
+
+    const nextLanguage = normalizeLanguage(rawLanguage);
+    if (nextLanguage === language) return;
+
+    // Flush the current language's draft immediately (non-debounced) before
+    // switching, so a fast language toggle can never lose the last few
+    // keystrokes typed in the language being left behind.
+    writeDraft(problem.id, language, { code, language, updatedAt: Date.now() });
+
+    const draft = readDraft(problem.id, nextLanguage);
+    setLanguage(nextLanguage);
+    writeLastLanguage(problem.id, nextLanguage);
+
+    if (draft?.code) {
+      setCode(draft.code);
+    } else {
+      setCode(
+        resolveStarterCode(
+          problem.starterCodeByLang,
+          problem.starterCode,
+          nextLanguage,
+        ),
+      );
+    }
+  };
+
+  // ─── Draft auto-save ────────────────────────────────────
+  // Debounced save on every code/language change while a problem is loaded.
+  useEffect(() => {
+    if (!problem) return;
+    const timeout = setTimeout(() => {
+      writeDraft(problem.id, language, { code, language, updatedAt: Date.now() });
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [code, language, problem]);
+
+  // Forces an immediate (non-debounced) save — used right before navigating
+  // away to the AI Tutor so the draft is guaranteed to be current.
+  const saveDraftNow = () => {
+    if (!problem) return;
+    writeDraft(problem.id, language, { code, language, updatedAt: Date.now() });
+  };
+
+  const openAiTutor = () => {
+    saveDraftNow();
+    navigate("/chatbot", {
+      state: {
+        problemId: problem?.id,
+        problemTitle: problem?.title,
+        language,
+        code,
+        review: aiAnalysis || null,
+      },
+    });
+  };
+
+  // ─── Success screen ─────────────────────────────────────
+  const [successDismissed, setSuccessDismissed] = useState(false);
+
+  const showSuccessScreen =
+    runResult === "success" && !successDismissed;
+
+  // ─── Resizable panels ────────────────────────────────────
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== "undefined"
+      ? window.innerWidth >= 1024
+      : true
+  );
+
+  const [leftWidth, setLeftWidth] = useState(500);
+  const [editorHeightPct, setEditorHeightPct] = useState(65);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorAndResultRef = useRef<HTMLDivElement>(null);
+
+  const isResizingHorizontal = useRef(false);
+  const isResizingVertical = useRef(false);
+
+  // ─── Loading guard ───────────────────────────────────────
+  // IMPORTANT: all hooks are above this point.
+  
+
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingHorizontal.current && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const newWidth = e.clientX - rect.left;
+        const clamped = Math.min(
+          Math.max(newWidth, MIN_LEFT_WIDTH),
+          rect.width - MIN_RIGHT_WIDTH,
+        );
+        setLeftWidth(clamped);
+      }
+
+      if (isResizingVertical.current && editorAndResultRef.current) {
+        const rect = editorAndResultRef.current.getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+        const pct = (relativeY / rect.height) * 100;
+        setEditorHeightPct(
+          Math.min(Math.max(pct, MIN_EDITOR_PCT), MAX_EDITOR_PCT),
+        );
+      }
+    };
+    
+
+    const handleMouseUp = () => {
+      isResizingHorizontal.current = false;
+      isResizingVertical.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  const startHorizontalResize = () => {
+    isResizingHorizontal.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const startVerticalResize = () => {
+    isResizingVertical.current = true;
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  };
+  
+  // ─── Loading guard ───────────────────────────────────────
+if (!problem) {
+  return (
+    <div
+      className="flex items-center justify-center min-h-screen"
+      style={{
+        background: "#080b14",
+        color: "white",
+      }}
+    >
+      Loading problem...
+    </div>
+  );
+}
+  const dismissRunResult = () => {
+    setRunResult(null);
+    setCompilerOutput(null);
+    setRunMeta(null);
+    setPassedCount(null);
+  };
 
   const diff = diffConfig[problem.difficulty] || diffConfig["Easy"];
   const displayExamples = (
@@ -124,17 +798,30 @@ const MAX_HINTS = 3;
   setIsRunning(true);
   setRunResult(null);
   setCompilerOutput(null);
+  setRunMeta(null);
+  setPassedCount(null);
+  setSuccessDismissed(false);
 
   const testCases = problem.testCases ?? [];
   const isFirstProblemAttempt =
     currentStatus === "unsolved" || currentStatus === "bookmarked";
+
+  // Resolved once per run: which function the harness should call, and how
+  // to format its return value. Falls back to backend regex-detection when
+  // the problem has no per-language signature yet (older/unmigrated problems).
+  const signature = resolveFunctionSignature(problem.functionSignatures, language);
+  const runMetaPayload = {
+    problemId: problem.id,
+    functionName: signature?.functionName,
+    dataStructure: signature?.dataStructure,
+  };
 
   try {
     // ─────────────────────────────────────────────
     // No test cases
     // ─────────────────────────────────────────────
     if (testCases.length === 0) {
-      const result: any = await runCode(code, language, "");
+      const result: any = await runCode(code, language, "", runMetaPayload);
 
       if (!result.success || result.run?.code !== 0) {
         // RECORD FAILED ATTEMPT
@@ -168,6 +855,7 @@ const MAX_HINTS = 3;
       });
 
       setRunResult("success");
+      setRunMeta(result.meta || null);
       setCompilerOutput(result.run?.stdout || "(no output)");
 
 await saveProblemProgress("solved");
@@ -198,12 +886,17 @@ if (currentStatus !== "solved") {
     // ─────────────────────────────────────────────
     // Run test cases
     // ─────────────────────────────────────────────
+    let lastMeta: any = null;
+
     for (const testCase of testCases) {
       const result: any = await runCode(
         code,
         language,
-        testCase.input
+        testCase.input,
+        runMetaPayload,
       );
+
+      lastMeta = result.meta || lastMeta;
 
       // Compilation / runtime failure
       if (!result.success || result.run?.code !== 0) {
@@ -232,14 +925,29 @@ if (currentStatus !== "solved") {
       }
 
       const actual = (result.run?.stdout || "").trim();
-      const expected = testCase.output.trim();
+const expected = testCase.output.trim();
 
-      // Wrong answer
-      if (actual !== expected) {
-        await recordSubmission({
-          problemId: problem.id,
-          status: "failed",
-        });
+const normalizeOutput = (output: string) => {
+  try {
+    return JSON.stringify(JSON.parse(output));
+  } catch {
+    return output
+      .trim()
+      .replace(/\r\n/g, "\n")
+      .replace(/,\s*/g, ";")
+      .replace(/;\s*/g, ";")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+};
+
+const normalizedActual = normalizeOutput(actual);
+const normalizedExpected = normalizeOutput(expected);
+
+// Wrong answer
+if (normalizedActual !== normalizedExpected) {
 
         if (isFirstProblemAttempt) {
           incrementQuestionsAttempted();
@@ -269,6 +977,8 @@ Actual: ${actual}`
     });
 
     setRunResult("success");
+    setRunMeta(lastMeta);
+    setPassedCount(testCases.length);
 
     setCompilerOutput(
       `Passed ${testCases.length} test case${
@@ -342,34 +1052,39 @@ if (currentStatus !== "solved") {
     }
   };
   const handleAiAnalysis = async () => {
-    setIsAnalyzing(true);
-    setAiAnalysis("");
-    setRightTab("ai");
-    await new Promise((r) => setTimeout(r, 2000));
+  setIsAnalyzing(true);
+  setAiAnalysis("");
+  setReviewError(null);
+  setRightTab("review");
+
+  try {
+    const result = await reviewCode({
+      problem_title: problem.title,
+      problem_description: problem.description ?? "",
+      language,
+      code,
+    });
+
+    console.log("AI Code Review:", result);
+
+    setAiAnalysis(
+      result.review ||
+      result.message ||
+      "No review was returned by AI."
+    );
+  } catch (error: any) {
+    console.error("AI Code Review Error:", error);
+
+    const message =
+      error?.response?.data?.detail ||
+      error?.message ||
+      "Unable to connect to AI service.";
+
+    setReviewError(message);
+  } finally {
     setIsAnalyzing(false);
-    setAiAnalysis(`🤖 AI Code Review\n\n❌ Issue Detected:\nYour current approach has a potential inefficiency. You're not using an optimal data structure for O(1) lookup.\n\n⏱ Complexity Analysis:\n• Time: O(n²) — Nested iteration detected\n• Space: O(1) — Only constant extra space used\n\n💡 Suggested Approach (O(n)):\nUse a HashMap for complement lookup:\n\nconst map = new Map();\nfor (let i = 0; i < nums.length; i++) {\n  const complement = target - nums[i];\n  if (map.has(complement)) return [map.get(complement), i];\n  map.set(nums[i], i);\n}\n\n🎯 Key Insight:\nFor each number, check if its complement (target - num) has been seen before. HashMap gives O(1) lookup vs O(n) linear scan.\n\n✅ Optimized: O(n) time, O(n) space`);
-  };
-
-  const handleChat = async () => {
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput;
-    setChatInput("");
-    setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    await new Promise((r) => setTimeout(r, 1200));
-
-    const lower = userMsg.toLowerCase();
-    let response = `Great question! The key insight for "${problem.title}" is: ${problem.hints?.[0] || "Think about optimal data structures."}. Try implementing it and come back if you're stuck! 💪`;
-    
-    if (lower.includes("hint")) {
-      response = `Here's hint ${Math.min(revealedHints + 1, problem.hints?.length || 1)}: ${problem.hints?.[revealedHints] || "Check the tags!"}`;
-    } else if (lower.includes("complex")) {
-      response = `📊 Complexity:\n• Time: ${problem.timeComplexity}\n• Space: ${problem.spaceComplexity}\n\nThis leverages ${problem.tags?.[0]} optimally.`;
-    } else if (lower.includes("interview")) {
-      response = `🎯 Interview approach: "This is a ${problem.tags?.[0]} problem. Time: ${problem.timeComplexity}, Space: ${problem.spaceComplexity}."`;
-    }
-
-    setChatMessages((prev) => [...prev, { role: "ai", content: response }]);
-  };
+  }
+};
 
   return (
     <div
@@ -445,11 +1160,14 @@ if (currentStatus !== "solved") {
       </div>
 
       {/* Main Split */}
-      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden" ref={containerRef}>
         {/* Left Panel */}
         <div
-          className="lg:w-[480px] xl:w-[520px] flex flex-col overflow-hidden flex-shrink-0"
-          style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}
+          className="w-full flex flex-col overflow-hidden flex-shrink-0"
+          style={{
+            borderRight: "1px solid rgba(255,255,255,0.06)",
+            width: isDesktop ? leftWidth : undefined,
+          }}
         >
           {/* Tabs */}
           <div
@@ -462,7 +1180,10 @@ if (currentStatus !== "solved") {
             {(["description", "solution", "notes"] as const).map((t) => (
               <button
                 key={t}
-                onClick={() => setActiveTab(t)}
+                onClick={() => {
+                  setActiveTab(t);
+                  setSuccessDismissed(true);
+                }}
                 className="px-5 py-3 capitalize transition-all"
                 style={{
                   fontSize: "13px",
@@ -479,10 +1200,127 @@ if (currentStatus !== "solved") {
                 {t}
               </button>
             ))}
+
+            {showSuccessScreen && (
+              <div
+                className="ml-auto flex items-center gap-1.5 pr-4"
+                style={{ fontSize: "11px", fontWeight: 700, color: "#22c55e" }}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> Accepted
+              </div>
+            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
+            {showSuccessScreen ? (
+              // ─────────────────────────────────────────────
+              // LeetCode-style success "landing" screen
+              // ─────────────────────────────────────────────
+              <div className="h-full flex flex-col items-center justify-center text-center px-8 py-10 relative">
+                <button
+                  onClick={() => setSuccessDismissed(true)}
+                  className="absolute top-4 right-4 p-1.5 rounded-lg transition-all"
+                  style={{ color: "#4a5568" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "#4a5568")}
+                  aria-label="Back to problem"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <motion.div
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                  className="relative mb-5"
+                >
+                  <div
+                    className="absolute inset-0 rounded-full blur-xl"
+                    style={{ background: "rgba(34,197,94,0.35)" }}
+                  />
+                  <div
+                    className="relative w-20 h-20 rounded-full flex items-center justify-center"
+                    style={{
+                      background: "rgba(34,197,94,0.12)",
+                      border: "2px solid rgba(34,197,94,0.4)",
+                    }}
+                  >
+                    <CheckCircle2 className="w-10 h-10" style={{ color: "#22c55e" }} />
+                  </div>
+                </motion.div>
+
+                <h2 className="text-white mb-1" style={{ fontSize: "22px", fontWeight: 800 }}>
+                  Accepted
+                </h2>
+                <p style={{ fontSize: "12px", color: "#6b7280", marginBottom: "24px", maxWidth: "280px" }}>
+                  {passedCount
+                    ? `Your solution passed all ${passedCount} test case${passedCount === 1 ? "" : "s"} for "${problem.title}".`
+                    : `Your solution for "${problem.title}" ran successfully.`}
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 w-full max-w-xs mb-8">
+                  <div
+                    className="rounded-xl p-3"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+                  >
+                    <div className="flex items-center gap-1.5 justify-center mb-1" style={{ color: "#4a5568" }}>
+                      <Clock className="w-3.5 h-3.5" />
+                      <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        Runtime
+                      </span>
+                    </div>
+                    <div className="text-white" style={{ fontSize: "14px", fontWeight: 700 }}>
+                      {runMeta?.cpuTime ? `${runMeta.cpuTime}s` : "—"}
+                    </div>
+                  </div>
+                  <div
+                    className="rounded-xl p-3"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+                  >
+                    <div className="flex items-center gap-1.5 justify-center mb-1" style={{ color: "#4a5568" }}>
+                      <Cpu className="w-3.5 h-3.5" />
+                      <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        Memory
+                      </span>
+                    </div>
+                    <div className="text-white" style={{ fontSize: "14px", fontWeight: 700 }}>
+                      {runMeta?.memory ? `${runMeta.memory} KB` : "—"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSuccessDismissed(true)}
+                    className="rounded-xl px-4 py-2 transition-all"
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "white",
+                    }}
+                  >
+                    Back to Problem
+                  </button>
+                  <button
+                    onClick={() => navigate("/problems")}
+                    className="flex items-center gap-1.5 rounded-xl px-4 py-2 transition-all"
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      background: "linear-gradient(135deg, #ff6500, #ff9500)",
+                      color: "white",
+                      boxShadow: "0 0 15px rgba(255,101,0,0.25)",
+                    }}
+                  >
+                    Next Problem <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
             {activeTab === "description" && (
               <div className="p-5 space-y-5">
                 {/* Tags */}
@@ -841,6 +1679,8 @@ if (currentStatus !== "solved") {
     />
   </div>
 )}
+              </>
+            )}
 
 {/* Close Content */}
 </div>
@@ -848,7 +1688,17 @@ if (currentStatus !== "solved") {
 {/* Close Left Panel */}
 </div>
 
-
+        {/* Horizontal resize handle (desktop only) */}
+        <div
+          className="hidden lg:flex items-center justify-center flex-shrink-0 group"
+          style={{ width: "6px", cursor: "col-resize", background: "rgba(255,255,255,0.015)" }}
+          onMouseDown={startHorizontalResize}
+        >
+          <GripVertical
+            className="w-3 h-3 transition-colors"
+            style={{ color: "#2d3748" }}
+          />
+        </div>
 
         {/* Right Panel */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -876,20 +1726,46 @@ if (currentStatus !== "solved") {
               <Code2 className="w-4 h-4" /> Code Editor
             </button>
             <button
-              onClick={() => setRightTab("ai")}
-              className="px-5 py-3 flex items-center gap-2 transition-all"
-              style={{
-                fontSize: "13px",
-                fontWeight: 600,
-                color: rightTab === "ai" ? "#a855f7" : "#4a5568",
-                borderBottom:
-                  rightTab === "ai"
-                    ? "2px solid #a855f7"
-                    : "2px solid transparent",
-              }}
-            >
-              <Brain className="w-4 h-4" /> AI Tutor
-            </button>
+  onClick={() => setRightTab("review")}
+  className="px-5 py-3 flex items-center gap-2 transition-all"
+  style={{
+    fontSize: "13px",
+    fontWeight: 600,
+    color: rightTab === "review" ? "#a855f7" : "#4a5568",
+    borderBottom:
+      rightTab === "review"
+        ? "2px solid #a855f7"
+        : "2px solid transparent",
+  }}
+>
+  <Brain className="w-4 h-4" />
+  AI Code Review
+</button>
+
+<button
+  onClick={openAiTutor}
+  className="px-5 py-3 flex items-center gap-2 transition-all"
+  style={{
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#00d4ff",
+  }}
+>
+  <MessageCircle className="w-4 h-4" />
+  AI Tutor
+</button>
+<button
+  onClick={() => navigate("/visualizer")}
+  className="px-5 py-3 flex items-center gap-2 transition-all"
+  style={{
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#22c55e",
+  }}
+>
+  <Eye className="w-4 h-4" />
+  AI Code Visualizer
+</button>
           </div>
 
           {rightTab === "code" && (
@@ -904,7 +1780,7 @@ if (currentStatus !== "solved") {
               >
                 <select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onChange={(e) => changeLanguage(e.target.value)}
                   className="rounded-lg px-2 py-1 text-white focus:outline-none"
                   style={{
                     fontSize: "12px",
@@ -920,7 +1796,15 @@ if (currentStatus !== "solved") {
                   <option value="cpp">C++</option>
                 </select>
                 <button
-                  onClick={() => setCode(problem.starterCode || "")}
+                  onClick={() =>
+                    setCode(
+                      resolveStarterCode(
+                        problem.starterCodeByLang,
+                        problem.starterCode,
+                        language,
+                      ),
+                    )
+                  }
                   className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all"
                   style={{ fontSize: "12px", color: "#4a5568" }}
                   onMouseEnter={(e) =>
@@ -960,109 +1844,155 @@ if (currentStatus !== "solved") {
                 </div>
               </div>
 
-              {/* Monaco Editor */}
-              <div className="flex-1 overflow-hidden">
-                <Editor
-                  height="100%"
-                  language={language}
-                  value={code}
-                  onChange={(v: string | undefined) => setCode(v || "")}
-                  theme="vs-dark"
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                    fontLigatures: true,
-                    lineNumbers: "on",
-                    scrollBeyondLastLine: false,
-                    tabSize: 2,
-                    automaticLayout: true,
-                    scrollbar: {
-                      verticalScrollbarSize: 4,
-                      horizontalScrollbarSize: 4,
-                    },
-                    renderLineHighlight: "gutter",
-                    cursorBlinking: "smooth",
-                    smoothScrolling: true,
+              {/* Editor + Run Result (resizable) */}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0" ref={editorAndResultRef}>
+                {/* Monaco Editor */}
+                <div
+                  className="overflow-hidden"
+                  style={{
+                    height: runResult ? `${editorHeightPct}%` : "100%",
+                    flexShrink: 0,
                   }}
-                />
-              </div>
+                >
+                  <Editor
+                    height="100%"
+                    language={language}
+                    value={code}
+                    onChange={(v: string | undefined) => setCode(v || "")}
+                    theme="vs-dark"
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      fontLigatures: true,
+                      lineNumbers: "on",
+                      scrollBeyondLastLine: false,
+                      tabSize: 2,
+                      automaticLayout: true,
+                      scrollbar: {
+                        verticalScrollbarSize: 4,
+                        horizontalScrollbarSize: 4,
+                      },
+                      renderLineHighlight: "gutter",
+                      cursorBlinking: "smooth",
+                      smoothScrolling: true,
+                    }}
+                  />
+                </div>
 
-              {/* Run Result */}
-              <AnimatePresence>
+                {/* Vertical resize handle — only when there's a result to size against */}
                 {runResult && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="flex-shrink-0"
-                    style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                  <div
+                    className="flex-shrink-0 flex items-center justify-center"
+                    style={{
+                      height: "6px",
+                      cursor: "row-resize",
+                      background: "rgba(255,255,255,0.015)",
+                    }}
+                    onMouseDown={startVerticalResize}
                   >
                     <div
-                      className="p-4"
                       style={{
-                        background:
-                          runResult === "success"
-                            ? "rgba(34,197,94,0.06)"
-                            : "rgba(239,68,68,0.06)",
+                        width: "32px",
+                        height: "3px",
+                        borderRadius: "2px",
+                        background: "rgba(255,255,255,0.15)",
                       }}
+                    />
+                  </div>
+                )}
+
+                {/* Run Result */}
+                <AnimatePresence>
+                  {runResult && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="flex-1 overflow-y-auto min-h-0"
+                      style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        {runResult === "success" ? (
-                          <CheckCircle2
-                            className="w-4 h-4"
-                            style={{ color: "#22c55e" }}
-                          />
-                        ) : (
-                          <XCircle
-                            className="w-4 h-4"
-                            style={{ color: "#ef4444" }}
-                          />
-                        )}
-                        <span
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            color:
-                              runResult === "success" ? "#22c55e" : "#ef4444",
-                          }}
-                        >
-                          {runResult === "success"
-                            ? "All Test Cases Passed! ✅"
-                            : "Wrong Answer ❌"}
-                        </span>
-                        {runResult === "error" && (
-                          <button
-                            onClick={handleAiAnalysis}
-                            className="ml-auto flex items-center gap-1 px-3 py-1 rounded-lg transition-all"
+                      <div
+                        className="p-4"
+                        style={{
+                          background:
+                            runResult === "success"
+                              ? "rgba(34,197,94,0.06)"
+                              : "rgba(239,68,68,0.06)",
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          {runResult === "success" ? (
+                            <CheckCircle2
+                              className="w-4 h-4"
+                              style={{ color: "#22c55e" }}
+                            />
+                          ) : (
+                            <XCircle
+                              className="w-4 h-4"
+                              style={{ color: "#ef4444" }}
+                            />
+                          )}
+                          <span
                             style={{
-                              fontSize: "11px",
-                              fontWeight: 600,
-                              background: "rgba(255,101,0,0.1)",
-                              color: "#ff6500",
-                              border: "1px solid rgba(255,101,0,0.25)",
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              color:
+                                runResult === "success" ? "#22c55e" : "#ef4444",
                             }}
                           >
-                            <Brain className="w-3 h-3" /> Get AI Feedback
+                            {runResult === "success"
+                              ? "All Test Cases Passed! ✅"
+                              : "Wrong Answer ❌"}
+                          </span>
+                          {runResult === "error" && (
+                            <button
+                              onClick={handleAiAnalysis}
+                              className="ml-2 flex items-center gap-1 px-3 py-1 rounded-lg transition-all"
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                background: "rgba(255,101,0,0.1)",
+                                color: "#ff6500",
+                                border: "1px solid rgba(255,101,0,0.25)",
+                              }}
+                            >
+                              <Brain className="w-3 h-3" /> Get AI Feedback
+                            </button>
+                          )}
+                          <button
+                            onClick={dismissRunResult}
+                            className="ml-auto p-1 rounded-lg transition-all"
+                            style={{ color: "#4a5568" }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.color =
+                                runResult === "success" ? "#22c55e" : "#ef4444")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.color = "#4a5568")
+                            }
+                            aria-label="Dismiss result"
+                          >
+                            <X className="w-3.5 h-3.5" />
                           </button>
+                        </div>
+                        {compilerOutput && (
+                          <pre
+                            className="mt-2 whitespace-pre-wrap rounded-lg px-3 py-2 text-[11px]"
+                            style={{
+                              background: "rgba(15,23,42,0.9)",
+                              color: "#cbd5e1",
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {compilerOutput}
+                          </pre>
                         )}
                       </div>
-                      {compilerOutput && (
-                        <pre
-                          className="mt-2 whitespace-pre-wrap rounded-lg px-3 py-2 text-[11px]"
-                          style={{
-                            background: "rgba(15,23,42,0.9)",
-                            color: "#cbd5e1",
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          {compilerOutput}
-                        </pre>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Action Buttons */}
               <div
@@ -1122,196 +2052,328 @@ if (currentStatus !== "solved") {
             </div>
           )}
 
-          {rightTab === "ai" && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* AI Analysis */}
-              {(aiAnalysis || isAnalyzing) && (
-                <div
-                  className="flex-shrink-0 max-h-56 overflow-y-auto"
-                  style={{
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
-                    background: "rgba(168,85,247,0.05)",
-                  }}
-                >
-                  <div className="p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Brain className="w-4 h-4" style={{ color: "#a855f7" }} />
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          color: "#a855f7",
-                        }}
-                      >
-                        AI Code Analysis
-                      </span>
-                    </div>
-                    {isAnalyzing ? (
-                      <div
-                        className="flex items-center gap-3"
-                        style={{ color: "#6b7280", fontSize: "13px" }}
-                      >
-                        <div
-                          className="w-4 h-4 border-2 rounded-full animate-spin"
-                          style={{
-                            borderColor: "rgba(168,85,247,0.3)",
-                            borderTopColor: "#a855f7",
-                          }}
-                        />
-                        Analyzing your code with AI...
-                      </div>
-                    ) : (
-                      <pre
-                        className="whitespace-pre-wrap"
-                        style={{
-                          fontSize: "12px",
-                          lineHeight: 1.7,
-                          color: "#d4d4d8",
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        {aiAnalysis}
-                      </pre>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {chatMessages.map((msg, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-                  >
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs"
-                      style={{
-                        background:
-                          msg.role === "ai"
-                            ? "rgba(168,85,247,0.2)"
-                            : "rgba(255,101,0,0.2)",
-                        color: msg.role === "ai" ? "#a855f7" : "#ff6500",
-                      }}
-                    >
-                      {msg.role === "ai" ? <Brain className="w-4 h-4" /> : "U"}
-                    </div>
-                    <div
-                      className="max-w-xs lg:max-w-sm rounded-2xl px-4 py-3"
-                      style={{
-                        background:
-                          msg.role === "ai"
-                            ? "rgba(255,255,255,0.05)"
-                            : "linear-gradient(135deg, #ff6500, #ff9500)",
-                        border:
-                          msg.role === "ai"
-                            ? "1px solid rgba(255,255,255,0.08)"
-                            : "none",
-                        borderRadius:
-                          msg.role === "user"
-                            ? "20px 20px 4px 20px"
-                            : "4px 20px 20px 20px",
-                        boxShadow:
-                          msg.role === "user"
-                            ? "0 4px 15px rgba(255,101,0,0.2)"
-                            : "none",
-                      }}
-                    >
-                      <pre
-                        className="whitespace-pre-wrap text-white"
-                        style={{
-                          fontSize: "12px",
-                          lineHeight: 1.6,
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        {msg.content}
-                      </pre>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Quick Actions */}
+          {rightTab === "review" && (
+            <div className="flex-1 overflow-y-auto">
+              {/* Header row: actions */}
               <div
-                className="px-4 py-2 flex gap-2 flex-wrap flex-shrink-0"
-                style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+                className="flex items-center gap-2 px-4 py-3 flex-wrap"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
               >
-                {[
-                  "Give me a hint",
-                  "Explain complexity",
-                  "Interview approach",
-                ].map((q) => (
+                <Brain className="w-4 h-4" style={{ color: "#a855f7" }} />
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "#a855f7" }}>
+                  AI Code Review
+                </span>
+
+                <div className="ml-auto flex items-center gap-2">
                   <button
-                    key={q}
-                    onClick={() => setChatInput(q)}
-                    className="rounded-full px-3 py-1 transition-all"
+                    onClick={handleAiAnalysis}
+                    disabled={isAnalyzing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
                     style={{
                       fontSize: "11px",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      color: "#6b7280",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.color =
-                        "#ff6500";
-                      (e.currentTarget as HTMLButtonElement).style.borderColor =
-                        "rgba(255,101,0,0.3)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.color =
-                        "#6b7280";
-                      (e.currentTarget as HTMLButtonElement).style.borderColor =
-                        "rgba(255,255,255,0.08)";
+                      fontWeight: 600,
+                      background: "rgba(168,85,247,0.1)",
+                      border: "1px solid rgba(168,85,247,0.3)",
+                      color: "#a855f7",
                     }}
                   >
-                    {q}
+                    <Brain className="w-3.5 h-3.5" />
+                    {aiAnalysis ? "Re-run Review" : "Run AI Review"}
                   </button>
-                ))}
+                  <button
+                    onClick={openAiTutor}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: "rgba(0,212,255,0.1)",
+                      border: "1px solid rgba(0,212,255,0.3)",
+                      color: "#00d4ff",
+                    }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Ask AI Tutor
+                  </button>
+                  <button
+                    onClick={() => navigate("/visualizer")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all"
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: "rgba(34,197,94,0.1)",
+                      border: "1px solid rgba(34,197,94,0.3)",
+                      color: "#22c55e",
+                    }}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    AI Code Visualizer
+                  </button>
+                </div>
               </div>
 
-              {/* Chat Input */}
-              <div
-                className="flex items-center gap-2 p-3 flex-shrink-0"
-                style={{
-                  borderTop: "1px solid rgba(255,255,255,0.06)",
-                  background: "rgba(255,255,255,0.02)",
-                }}
-              >
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleChat()}
-                  placeholder="Ask about this problem..."
-                  className="flex-1 rounded-xl px-4 py-2.5 text-white placeholder-[#4a5568] focus:outline-none transition-all"
-                  style={{
-                    fontSize: "13px",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                  onFocus={(e) =>
-                    (e.currentTarget.style.borderColor = "rgba(168,85,247,0.4)")
-                  }
-                  onBlur={(e) =>
-                    (e.currentTarget.style.borderColor =
-                      "rgba(255,255,255,0.08)")
-                  }
-                />
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleChat}
-                  className="p-2.5 rounded-xl cyber-btn"
-                  style={{
-                    background: "linear-gradient(135deg, #a855f7, #7c3aed)",
-                    boxShadow: "0 0 15px rgba(168,85,247,0.3)",
-                  }}
-                >
-                  <Send className="w-4 h-4 text-white" />
-                </motion.button>
+              <div className="p-4 space-y-4">
+                {/* Loading state */}
+                {isAnalyzing && (
+                  <div
+                    className="flex items-center gap-3 rounded-xl p-4"
+                    style={{
+                      background: "rgba(168,85,247,0.05)",
+                      border: "1px solid rgba(168,85,247,0.15)",
+                      color: "#6b7280",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div
+                      className="w-4 h-4 border-2 rounded-full animate-spin flex-shrink-0"
+                      style={{
+                        borderColor: "rgba(168,85,247,0.3)",
+                        borderTopColor: "#a855f7",
+                      }}
+                    />
+                    Analyzing your code with AI...
+                  </div>
+                )}
+
+                {/* Error state */}
+                {!isAnalyzing && reviewError && (
+                  <div
+                    className="rounded-xl p-4"
+                    style={{
+                      background: "rgba(239,68,68,0.06)",
+                      border: "1px solid rgba(239,68,68,0.2)",
+                      color: "#ef4444",
+                      fontSize: "13px",
+                    }}
+                  >
+                    ❌ AI Code Review Failed — {reviewError}
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {!isAnalyzing && !reviewError && !aiAnalysis && (
+                  <div
+                    className="rounded-xl p-6 text-center"
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px dashed rgba(255,255,255,0.1)",
+                      color: "#6b7280",
+                      fontSize: "13px",
+                    }}
+                  >
+                    Run the AI review to get feedback on your approach, bugs,
+                    edge cases, and complexity for this solution.
+                  </div>
+                )}
+
+                {/* Results */}
+                {!isAnalyzing && !reviewError && aiAnalysis && (
+                  <>
+                    {parsedReview.matched ? (
+                      <>
+                        {/* Approach */}
+                        {parsedReview.approach && (
+                          <section
+                            className="rounded-xl p-4"
+                            style={{
+                              background: "rgba(255,255,255,0.03)",
+                              border: "1px solid rgba(255,255,255,0.06)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <Sparkles className="w-4 h-4" style={{ color: "#00d4ff" }} />
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#00d4ff" }}>
+                                Approach
+                              </span>
+                            </div>
+                            <p style={{ fontSize: "13px", color: "#d4d4d8", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                              {parsedReview.approach}
+                            </p>
+                          </section>
+                        )}
+
+                        {/* Bugs / Issues */}
+                        {parsedReview.bugs.length > 0 && (
+                          <section
+                            className="rounded-xl p-4"
+                            style={{
+                              background: "rgba(239,68,68,0.05)",
+                              border: "1px solid rgba(239,68,68,0.15)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <Bug className="w-4 h-4" style={{ color: "#ef4444" }} />
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#ef4444" }}>
+                                Bugs / Issues
+                              </span>
+                            </div>
+                            <ul className="space-y-1.5">
+                              {parsedReview.bugs.map((b, i) => (
+                                <li key={i} className="flex items-start gap-2" style={{ fontSize: "13px", color: "#d4d4d8", lineHeight: 1.6 }}>
+                                  <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#ef4444" }} />
+                                  {b}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        )}
+
+                        {/* Edge cases */}
+                        {parsedReview.edgeCases.length > 0 && (
+                          <section
+                            className="rounded-xl p-4"
+                            style={{
+                              background: "rgba(245,158,11,0.05)",
+                              border: "1px solid rgba(245,158,11,0.15)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <Puzzle className="w-4 h-4" style={{ color: "#f59e0b" }} />
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#f59e0b" }}>
+                                Edge Cases
+                              </span>
+                            </div>
+                            <ul className="space-y-1.5">
+                              {parsedReview.edgeCases.map((e, i) => (
+                                <li key={i} className="flex items-start gap-2" style={{ fontSize: "13px", color: "#d4d4d8", lineHeight: 1.6 }}>
+                                  <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#f59e0b" }} />
+                                  {e}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        )}
+
+                        {/* Complexity comparison */}
+                        {(resolvedTimeText || resolvedSpaceText || problem.timeComplexity || problem.spaceComplexity) && (
+                          <section
+                            className="rounded-xl p-4"
+                            style={{
+                              background: "rgba(0,212,255,0.05)",
+                              border: "1px solid rgba(0,212,255,0.15)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 mb-3">
+                              <Clock className="w-4 h-4" style={{ color: "#00d4ff" }} />
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#00d4ff" }}>
+                                Complexity — Your Code vs Optimal
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div style={{ fontSize: "10px", fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  Time — Your Code
+                                </div>
+                                <div style={{ fontSize: "15px", fontWeight: 700, color: "#ff6500", marginTop: "4px" }}>
+                                  {yourTimeLabel || "Not detected"}
+                                </div>
+                              </div>
+                              <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div style={{ fontSize: "10px", fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  Time — Optimal
+                                </div>
+                                <div style={{ fontSize: "15px", fontWeight: 700, color: "#22c55e", marginTop: "4px" }}>
+                                  {problem.timeComplexity || "Unknown"}
+                                </div>
+                              </div>
+                              <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div style={{ fontSize: "10px", fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  Space — Your Code
+                                </div>
+                                <div style={{ fontSize: "15px", fontWeight: 700, color: "#ff6500", marginTop: "4px" }}>
+                                  {yourSpaceLabel || "Not detected"}
+                                </div>
+                              </div>
+                              <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <div style={{ fontSize: "10px", fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  Space — Optimal
+                                </div>
+                                <div style={{ fontSize: "15px", fontWeight: 700, color: "#22c55e", marginTop: "4px" }}>
+                                  {problem.spaceComplexity || "Unknown"}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <ComplexityBarChart
+                                title="Time Complexity"
+                                yourClass={yourComplexityClass}
+                                yourLabel={yourTimeLabel}
+                                optimalClass={optimalComplexityClass}
+                                optimalLabel={optimalTimeLabel}
+                              />
+                              <ComplexityBarChart
+                                title="Space Complexity"
+                                yourClass={yourSpaceClass}
+                                yourLabel={yourSpaceLabel}
+                                optimalClass={optimalSpaceClass}
+                                optimalLabel={optimalSpaceLabel}
+                              />
+                            </div>
+
+                            {runMeta?.cpuTime && (
+                              <div
+                                className="mt-3 pt-3 flex items-center gap-4"
+                                style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+                              >
+                                <span style={{ fontSize: "10px", fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  Measured (last run)
+                                </span>
+                                <span style={{ fontSize: "11px", color: "#6b7280" }}>
+                                  Runtime {runMeta.cpuTime}s
+                                  {runMeta.memory ? ` · Memory ${runMeta.memory} KB` : ""}
+                                </span>
+                              </div>
+                            )}
+                          </section>
+                        )}
+
+                        {/* Optimization suggestions */}
+                        {parsedReview.optimizations.length > 0 && (
+                          <section
+                            className="rounded-xl p-4"
+                            style={{
+                              background: "rgba(34,197,94,0.05)",
+                              border: "1px solid rgba(34,197,94,0.15)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <Sparkles className="w-4 h-4" style={{ color: "#22c55e" }} />
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: "#22c55e" }}>
+                                Optimization Suggestions
+                              </span>
+                            </div>
+                            <ul className="space-y-1.5">
+                              {parsedReview.optimizations.map((o, i) => (
+                                <li key={i} className="flex items-start gap-2" style={{ fontSize: "13px", color: "#d4d4d8", lineHeight: 1.6 }}>
+                                  <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: "#22c55e" }} />
+                                  {o}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        )}
+                      </>
+                    ) : (
+                      // Fallback: backend didn't return recognizable section headers —
+                      // show the raw text so nothing is ever hidden from the user.
+                      <section
+                        className="rounded-xl p-4"
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        <pre
+                          className="whitespace-pre-wrap"
+                          style={{ fontSize: "12px", lineHeight: 1.7, color: "#d4d4d8", fontFamily: "inherit" }}
+                        >
+                          {parsedReview.raw}
+                        </pre>
+                      </section>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}
