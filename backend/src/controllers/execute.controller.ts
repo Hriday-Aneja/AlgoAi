@@ -218,10 +218,16 @@ const buildCppHarness = (
         }
       }
 
-      const initializer = trimmed
-        .replace(/^\[/, "{")
-        .replace(/\]$/, "}");
+      let initializer = trimmed
+  .replace(/\[/g, "{")
+  .replace(/\]/g, "}");
 
+if (/^vector\s*<\s*vector\s*<\s*char\s*>\s*>$/i.test(vectorType)) {
+  initializer = initializer.replace(
+    /(?<!['"])(\b[01]\b)(?!['"])/g,
+    "'$1'"
+  );
+}
       declarations.push(
         `${vectorType} __algo_arg${index} = ${vectorType}${initializer};`,
       );
@@ -303,6 +309,39 @@ int main() {
 `;
 };
 
+const getJavaParameterTypes = (source: string, functionName: string): string[] => {
+  const escapedFn = functionName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(new RegExp(
+    `(?:public|private|protected)?\\s*(?:static\\s+)?[A-Za-z_][\\w<>,\\[\\]]*\\s+${escapedFn}\\s*\\(([^)]*)\\)`,
+    "m",
+  ));
+  if (!match || !match[1].trim()) return [];
+  return match[1].split(",").map((param) =>
+    param.trim()
+      .replace(/\bfinal\b\s*/g, "")
+      .replace(/\s+[A-Za-z_$][\w$]*\s*$/, "")
+      .trim(),
+  );
+};
+
+const javaLiteralFromInput = (raw: string, expectedType: string): string => {
+  const trimmed = raw.trim();
+  const type = expectedType.replace(/\s+/g, "");
+  if (!type.includes("[]")) return trimmed;
+
+  let value = trimmed.replace(/\[/g, "{").replace(/\]/g, "}");
+
+  if (/^String(?:\[\])+$/.test(type)) {
+    value = value.replace(/(?<!["'])\b\d+\b(?!["'])/g, '"$&"');
+  } else if (/^char(?:\[\])+$/.test(type)) {
+    value = value.replace(/"([^"\\\\])"/g, "'$1'");
+  } else if (/^boolean(?:\[\])+$/.test(type)) {
+    value = value.replace(/"?(true|false)"?/gi, "$1");
+  }
+
+  return `new ${type}${value}`;
+};
+
 const buildJavaHarness = (
   source: string,
   functionName: string,
@@ -311,13 +350,14 @@ const buildJavaHarness = (
   const args = parseInputAssignments(stdin);
   const returnType = getJavaReturnType(source, functionName);
 
-  const javaArgs = args.map((arg) => {
-    const trimmed = arg.trim();
+  const parameterTypes = getJavaParameterTypes(source, functionName);
 
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      return `new int[]${trimmed
-        .replace(/^\[/, "{")
-        .replace(/\]$/, "}")}`;
+  const javaArgs = args.map((arg, index) => {
+    const trimmed = arg.trim();
+    const expectedType = parameterTypes[index] || "";
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]") && expectedType.includes("[]")) {
+      return javaLiteralFromInput(trimmed, expectedType);
     }
 
     return trimmed;
@@ -339,14 +379,7 @@ const buildJavaHarness = (
 `;
   } else if (normalizedReturnType.endsWith("[]")) {
     outputCode = `
-        System.out.print("[");
-        for (int i = 0; i < __algo_result.length; i++) {
-            if (i > 0) {
-                System.out.print(",");
-            }
-            System.out.print(__algo_result[i]);
-        }
-        System.out.print("]");
+        System.out.print(__algoSerializeArray(__algo_result));
 `;
   } else {
     outputCode = `
@@ -358,6 +391,22 @@ const buildJavaHarness = (
 // --- AlgoAI Java Test Harness ---
 
 class Main {
+    private static String __algoSerializeArray(Object value) {
+    if (value == null) return "null";
+    if (!value.getClass().isArray()) {
+        if (value instanceof String || value instanceof Character) return "\\"" + value + "\\"";
+        return String.valueOf(value);
+    }
+    int length = java.lang.reflect.Array.getLength(value);
+    StringBuilder out = new StringBuilder("[");
+    for (int i = 0; i < length; i++) {
+        if (i > 0) out.append(",");
+        out.append(__algoSerializeArray(java.lang.reflect.Array.get(value, i)));
+    }
+    out.append("]");
+    return out.toString();
+}
+
     public static void main(String[] args) {
 
         Solution solution = new Solution();
@@ -829,6 +878,975 @@ class Main {
 `;
 };
 
+const isNodeDataStructure = (
+  value: ReturnDataStructure | undefined,
+): value is Extract<ReturnDataStructure, "linked-list" | "tree" | "graph"> =>
+  value === "linked-list" || value === "tree" || value === "graph";
+
+const hasClassDefinition = (source: string, className: string): boolean =>
+  new RegExp(`\\b(?:class|struct)\\s+${className}\\b`).test(source);
+
+const buildJavaScriptNodeHarness = (
+  source: string,
+  functionName: string,
+  stdin: string,
+  dataStructure: Extract<ReturnDataStructure, "linked-list" | "tree" | "graph">,
+): string => {
+  const escapedInput = JSON.stringify(stdin);
+  const prelude: string[] = [];
+
+  if (!hasClassDefinition(source, "ListNode")) {
+    prelude.push(`class ListNode {
+  constructor(val = 0, next = null) {
+    this.val = val;
+    this.next = next;
+  }
+}`);
+  }
+
+  if (!hasClassDefinition(source, "TreeNode")) {
+    prelude.push(`class TreeNode {
+  constructor(val = 0, left = null, right = null) {
+    this.val = val;
+    this.left = left;
+    this.right = right;
+  }
+}`);
+  }
+
+  if (!hasClassDefinition(source, "Node")) {
+    prelude.push(`class Node {
+  constructor(val = 0, neighbors = []) {
+    this.val = val;
+    this.neighbors = neighbors;
+  }
+}`);
+  }
+
+  const buildArgExpr =
+    dataStructure === "linked-list"
+      ? `Array.isArray(arg) ? __algoBuildList(arg) : arg`
+      : dataStructure === "tree"
+      ? `Array.isArray(arg) ? __algoBuildTree(arg) : arg`
+      : `Array.isArray(arg) ? __algoBuildGraph(arg) : arg`;
+
+  const serializeExpr =
+    dataStructure === "linked-list"
+      ? `__algoSerializeList(__algoResult)`
+      : dataStructure === "tree"
+      ? `__algoSerializeTree(__algoResult)`
+      : `__algoSerializeGraph(__algoResult)`;
+
+  return `${prelude.join("\n\n")}
+
+// --- AlgoAI JS Node Harness ---
+const __algoInput = ${escapedInput};
+const __algoFnName = ${JSON.stringify(functionName)};
+
+const __algoNormalized = __algoInput
+  .replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, "")
+  .trim();
+
+const __algoArgs =
+  __algoNormalized.length > 0
+    ? eval("[" + __algoNormalized + "]")
+    : [];
+
+const __algoBuildList = (values) => {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const head = new ListNode(values[0]);
+  let current = head;
+  for (let i = 1; i < values.length; i++) {
+    current.next = new ListNode(values[i]);
+    current = current.next;
+  }
+  return head;
+};
+
+const __algoBuildTree = (values) => {
+  if (!Array.isArray(values) || values.length === 0 || values[0] == null) return null;
+  const root = new TreeNode(values[0]);
+  const queue = [root];
+  let index = 1;
+
+  while (queue.length > 0 && index < values.length) {
+    const node = queue.shift();
+    if (!node) continue;
+
+    if (index < values.length) {
+      const leftValue = values[index++];
+      if (leftValue != null) {
+        node.left = new TreeNode(leftValue);
+        queue.push(node.left);
+      }
+    }
+
+    if (index < values.length) {
+      const rightValue = values[index++];
+      if (rightValue != null) {
+        node.right = new TreeNode(rightValue);
+        queue.push(node.right);
+      }
+    }
+  }
+
+  return root;
+};
+
+const __algoBuildGraph = (adjacency) => {
+  if (!Array.isArray(adjacency) || adjacency.length === 0) return null;
+  const nodes = adjacency.map((_, index) => new Node(index + 1, []));
+
+  adjacency.forEach((neighbors, index) => {
+    if (!Array.isArray(neighbors)) return;
+    nodes[index].neighbors = neighbors
+      .map((neighborValue) => nodes[(neighborValue || 0) - 1])
+      .filter(Boolean);
+  });
+
+  return nodes[0] ?? null;
+};
+
+const __algoSerializeList = (head) => {
+  const values = [];
+  const seen = new Set();
+  let current = head;
+
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    values.push(current.val);
+    current = current.next;
+  }
+
+  return values;
+};
+
+const __algoSerializeTree = (root) => {
+  if (!root) return [];
+  const values = [];
+  const queue = [root];
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!node) {
+      values.push(null);
+      continue;
+    }
+
+    values.push(node.val);
+    queue.push(node.left);
+    queue.push(node.right);
+  }
+
+  while (values.length > 0 && values[values.length - 1] == null) {
+    values.pop();
+  }
+
+  return values;
+};
+
+const __algoSerializeGraph = (node) => {
+  if (!node) return [];
+  const queue = [node];
+  const seen = new Set([node]);
+  const order = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    order.push(current);
+    for (const neighbor of current.neighbors || []) {
+      if (neighbor && !seen.has(neighbor)) {
+        seen.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  return order.map((current) => (current.neighbors || []).map((neighbor) => neighbor?.val ?? null));
+};
+
+const __algoFn = eval(__algoFnName);
+const __algoResult = __algoFn(
+  ...__algoArgs.map((arg) => ${buildArgExpr})
+);
+
+console.log(JSON.stringify(${serializeExpr}));
+`;
+};
+
+const buildPythonNodeHarness = (
+  source: string,
+  functionName: string,
+  stdin: string,
+  dataStructure: Extract<ReturnDataStructure, "linked-list" | "tree" | "graph">,
+): string => {
+  const escaped = JSON.stringify(stdin);
+  const prelude: string[] = [];
+
+  if (!hasClassDefinition(source, "ListNode")) {
+    prelude.push(`class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next`);
+  }
+
+  if (!hasClassDefinition(source, "TreeNode")) {
+    prelude.push(`class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right`);
+  }
+
+  if (!hasClassDefinition(source, "Node")) {
+    prelude.push(`class Node:
+    def __init__(self, val=0, neighbors=None):
+        self.val = val
+        self.neighbors = neighbors or []`);
+  }
+
+  const buildArgExpr =
+    dataStructure === "linked-list"
+      ? `__algo_build_list(arg) if isinstance(arg, list) else arg`
+      : dataStructure === "tree"
+      ? `__algo_build_tree(arg) if isinstance(arg, list) else arg`
+      : `__algo_build_graph(arg) if isinstance(arg, list) else arg`;
+
+  const serializeExpr =
+    dataStructure === "linked-list"
+      ? `__algo_serialize_list(__algo_result)`
+      : dataStructure === "tree"
+      ? `__algo_serialize_tree(__algo_result)`
+      : `__algo_serialize_graph(__algo_result)`;
+
+  return `${prelude.join("\n\n")}
+
+# --- AlgoAI Python Node Harness ---
+import ast
+import json
+
+__algo_input = ${escaped}
+__algo_args = ast.literal_eval("[" + __algo_input + "]") if __algo_input.strip() else []
+
+def __algo_build_list(values):
+    if not isinstance(values, list) or not values:
+        return None
+    head = ListNode(values[0])
+    current = head
+    for value in values[1:]:
+        current.next = ListNode(value)
+        current = current.next
+    return head
+
+def __algo_build_tree(values):
+    if not isinstance(values, list) or not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = [root]
+    index = 1
+    while queue and index < len(values):
+        node = queue.pop(0)
+        if node is None:
+            continue
+        if index < len(values):
+            left_value = values[index]
+            index += 1
+            if left_value is not None:
+                node.left = TreeNode(left_value)
+                queue.append(node.left)
+        if index < len(values):
+            right_value = values[index]
+            index += 1
+            if right_value is not None:
+                node.right = TreeNode(right_value)
+                queue.append(node.right)
+    return root
+
+def __algo_build_graph(adjacency):
+    if not isinstance(adjacency, list) or not adjacency:
+        return None
+    nodes = [Node(i + 1, []) for i in range(len(adjacency))]
+    for index, neighbors in enumerate(adjacency):
+        if not isinstance(neighbors, list):
+            continue
+        nodes[index].neighbors = [nodes[neighbor - 1] for neighbor in neighbors if isinstance(neighbor, int) and 1 <= neighbor <= len(nodes)]
+    return nodes[0]
+
+def __algo_serialize_list(head):
+    values = []
+    seen = set()
+    current = head
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        values.append(current.val)
+        current = current.next
+    return values
+
+def __algo_serialize_tree(root):
+    if root is None:
+        return []
+    values = []
+    queue = [root]
+    while queue:
+        node = queue.pop(0)
+        if node is None:
+            values.append(None)
+            continue
+        values.append(node.val)
+        queue.append(node.left)
+        queue.append(node.right)
+    while values and values[-1] is None:
+        values.pop()
+    return values
+
+def __algo_serialize_graph(node):
+    if node is None:
+        return []
+    queue = [node]
+    seen = {id(node)}
+    order = []
+    while queue:
+        current = queue.pop(0)
+        order.append(current)
+        for neighbor in current.neighbors or []:
+            if neighbor is not None and id(neighbor) not in seen:
+                seen.add(id(neighbor))
+                queue.append(neighbor)
+    return [[neighbor.val for neighbor in current.neighbors or [] if neighbor is not None] for current in order]
+
+__algo_fn = eval(${JSON.stringify(functionName)})
+__algo_result = __algo_fn(*[${buildArgExpr} for arg in __algo_args])
+
+print(json.dumps(${serializeExpr}))
+`;
+};
+
+const buildJavaNodeHarness = (
+  source: string,
+  functionName: string,
+  stdin: string,
+  dataStructure: Extract<ReturnDataStructure, "linked-list" | "tree" | "graph">,
+): string => {
+  const escaped = JSON.stringify(stdin);
+  const helperClasses: string[] = [];
+
+  if (!hasClassDefinition(source, "ListNode")) {
+    helperClasses.push(`class ListNode {
+  int val;
+  ListNode next;
+  ListNode(int val) { this.val = val; }
+  ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+}`);
+  }
+
+  if (!hasClassDefinition(source, "TreeNode")) {
+    helperClasses.push(`class TreeNode {
+  int val;
+  TreeNode left;
+  TreeNode right;
+  TreeNode(int val) { this.val = val; }
+  TreeNode(int val, TreeNode left, TreeNode right) {
+    this.val = val;
+    this.left = left;
+    this.right = right;
+  }
+}`);
+  }
+
+  if (!hasClassDefinition(source, "Node")) {
+    helperClasses.push(`class Node {
+  int val;
+  java.util.List<Node> neighbors;
+  Node(int val) {
+    this.val = val;
+    this.neighbors = new java.util.ArrayList<>();
+  }
+}`);
+  }
+
+  const nodeType =
+    dataStructure === "linked-list"
+      ? "ListNode"
+      : dataStructure === "tree"
+      ? "TreeNode"
+      : "Node";
+
+  const serializer =
+    dataStructure === "linked-list"
+      ? "serializeList"
+      : dataStructure === "tree"
+      ? "serializeTree"
+      : "serializeGraph";
+
+  const serializedResultExpr =
+    dataStructure === "linked-list"
+      ? `__AlgoDS.serializeList((ListNode) __algo_result)`
+      : dataStructure === "tree"
+      ? `__AlgoDS.serializeTree((TreeNode) __algo_result)`
+      : `__AlgoDS.serializeGraph((Node) __algo_result)`;
+
+  return `${helperClasses.join("\n\n")}
+
+class __AlgoDS {
+   static java.util.List<String> parseArguments(String raw) {
+    java.util.List<String> values = new java.util.ArrayList<>();
+    if (raw == null) return values;
+
+    String text = raw.trim();
+    if (text.isEmpty()) return values;
+
+    StringBuilder current = new StringBuilder();
+    int depth = 0;
+    boolean inString = false;
+    for (int i = 0; i < text.length(); i++) {
+      char ch = text.charAt(i);
+      if (ch == '"' && (i == 0 || text.charAt(i - 1) != '\\\\')) {
+        inString = !inString;
+      }
+      if (!inString) {
+        if (ch == '[' || ch == '{' || ch == '(') depth++;
+        if (ch == ']' || ch == '}' || ch == ')') depth--;
+      }
+      if (ch == ',' && depth == 0 && !inString) {
+        String token = current.toString().trim();
+        if (!token.isEmpty()) values.add(token);
+        current.setLength(0);
+      } else {
+        current.append(ch);
+      }
+    }
+
+    String token = current.toString().trim();
+    if (!token.isEmpty()) values.add(token);
+    return values;
+  }
+
+  private static java.util.List<String> parseElements(String raw) {
+    java.util.List<String> values = new java.util.ArrayList<>();
+    if (raw == null) return values;
+
+    String text = raw.trim();
+    if (text.isEmpty()) return values;
+    if (text.startsWith("[") && text.endsWith("]")) {
+      text = text.substring(1, text.length() - 1);
+    }
+
+    StringBuilder current = new StringBuilder();
+    int depth = 0;
+    boolean inString = false;
+    for (int i = 0; i < text.length(); i++) {
+      char ch = text.charAt(i);
+      if (ch == '"' && (i == 0 || text.charAt(i - 1) != '\\\\')) {
+        inString = !inString;
+      }
+      if (!inString) {
+        if (ch == '[' || ch == '{' || ch == '(') depth++;
+        if (ch == ']' || ch == '}' || ch == ')') depth--;
+      }
+      if (ch == ',' && depth == 0 && !inString) {
+        String element = current.toString().trim();
+        if (!element.isEmpty()) values.add(element);
+        current.setLength(0);
+      } else {
+        current.append(ch);
+      }
+    }
+
+    String element = current.toString().trim();
+    if (!element.isEmpty()) values.add(element);
+    return values;
+  }
+
+  private static Integer parseNullableInt(String token) {
+    String value = token.trim();
+    if (value.equalsIgnoreCase("null")) return null;
+    if (value.length() >= 2 && value.charAt(0) == '"' && value.charAt(value.length() - 1) == '"') {
+      value = value.substring(1, value.length() - 1);
+    }
+    return Integer.parseInt(value);
+  }
+
+  static ListNode buildList(String raw) {
+    java.util.List<String> values = parseElements(raw);
+    if (values.isEmpty()) return null;
+    ListNode dummy = new ListNode(0);
+    ListNode current = dummy;
+    for (String token : values) {
+      Integer value = parseNullableInt(token);
+      if (value == null) continue;
+      current.next = new ListNode(value);
+      current = current.next;
+    }
+    return dummy.next;
+  }
+
+  static TreeNode buildTree(String raw) {
+    java.util.List<String> values = parseElements(raw);
+    if (values.isEmpty()) return null;
+    Integer rootValue = parseNullableInt(values.get(0));
+    if (rootValue == null) return null;
+    TreeNode root = new TreeNode(rootValue);
+    java.util.Queue<TreeNode> queue = new java.util.ArrayDeque<>();
+    queue.add(root);
+    int index = 1;
+    while (!queue.isEmpty() && index < values.size()) {
+      TreeNode node = queue.poll();
+      if (index < values.size()) {
+        Integer leftValue = parseNullableInt(values.get(index++));
+        if (leftValue != null) {
+          node.left = new TreeNode(leftValue);
+          queue.add(node.left);
+        }
+      }
+      if (index < values.size()) {
+        Integer rightValue = parseNullableInt(values.get(index++));
+        if (rightValue != null) {
+          node.right = new TreeNode(rightValue);
+          queue.add(node.right);
+        }
+      }
+    }
+    return root;
+  }
+
+  static Node buildGraph(String raw) {
+    java.util.List<String> rows = parseElements(raw);
+    if (rows.isEmpty()) return null;
+    java.util.List<Node> nodes = new java.util.ArrayList<>();
+    for (int i = 0; i < rows.size(); i++) {
+      nodes.add(new Node(i + 1));
+    }
+    for (int i = 0; i < rows.size(); i++) {
+      java.util.List<String> neighbors = parseElements(rows.get(i));
+      for (String token : neighbors) {
+        Integer value = parseNullableInt(token);
+        if (value != null && value >= 1 && value <= nodes.size()) {
+          nodes.get(i).neighbors.add(nodes.get(value - 1));
+        }
+      }
+    }
+    return nodes.get(0);
+  }
+
+  static String serializeList(ListNode head) {
+    java.util.List<Integer> values = new java.util.ArrayList<>();
+    java.util.Set<ListNode> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    while (head != null && !seen.contains(head)) {
+      seen.add(head);
+      values.add(head.val);
+      head = head.next;
+    }
+    return values.toString();
+  }
+
+  static String serializeTree(TreeNode root) {
+    if (root == null) return "[]";
+    java.util.List<Integer> values = new java.util.ArrayList<>();
+    java.util.Queue<TreeNode> queue = new java.util.ArrayDeque<>();
+    queue.add(root);
+    while (!queue.isEmpty()) {
+      TreeNode node = queue.poll();
+      if (node == null) {
+        values.add(null);
+        continue;
+      }
+      values.add(node.val);
+      queue.add(node.left);
+      queue.add(node.right);
+    }
+    int last = values.size() - 1;
+    while (last >= 0 && values.get(last) == null) last--;
+    return values.subList(0, last + 1).toString();
+  }
+
+  static String serializeGraph(Node node) {
+    if (node == null) return "[]";
+    java.util.List<Node> order = new java.util.ArrayList<>();
+    java.util.Queue<Node> queue = new java.util.ArrayDeque<>();
+    java.util.Set<Node> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    queue.add(node);
+    seen.add(node);
+    while (!queue.isEmpty()) {
+      Node current = queue.poll();
+      order.add(current);
+      for (Node neighbor : current.neighbors) {
+        if (neighbor != null && !seen.contains(neighbor)) {
+          seen.add(neighbor);
+          queue.add(neighbor);
+        }
+      }
+    }
+    java.util.List<java.util.List<Integer>> adjacency = new java.util.ArrayList<>();
+    for (Node current : order) {
+      java.util.List<Integer> row = new java.util.ArrayList<>();
+      for (Node neighbor : current.neighbors) {
+        if (neighbor != null) row.add(neighbor.val);
+      }
+      adjacency.add(row);
+    }
+    return adjacency.toString();
+  }
+}
+
+// --- AlgoAI Java Node Harness ---
+class Main {
+  public static void main(String[] args) {
+    Solution solution = new Solution();
+    String input = ${escaped};
+
+    java.util.List<String> rawArgs = __AlgoDS.parseArguments(input);
+    Object[] callArgs = new Object[rawArgs.size()];
+
+    for (int i = 0; i < rawArgs.size(); i++) {
+      String trimmed = rawArgs.get(i).trim();
+      int equalsIndex = trimmed.indexOf('=');
+      if (equalsIndex >= 0) {
+        trimmed = trimmed.substring(equalsIndex + 1).trim();
+      }
+
+      if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        if ("${dataStructure}".equals("linked-list")) {
+          callArgs[i] = __AlgoDS.buildList(trimmed);
+        } else if ("${dataStructure}".equals("tree")) {
+          callArgs[i] = __AlgoDS.buildTree(trimmed);
+        } else {
+          callArgs[i] = __AlgoDS.buildGraph(trimmed);
+        }
+      } else if (trimmed.length() >= 2 && trimmed.charAt(0) == '"' && trimmed.charAt(trimmed.length() - 1) == '"') {
+        callArgs[i] = trimmed.substring(1, trimmed.length() - 1);
+      } else if (trimmed.equalsIgnoreCase("true") || trimmed.equalsIgnoreCase("false")) {
+        callArgs[i] = Boolean.parseBoolean(trimmed);
+      } else {
+        try {
+          callArgs[i] = Integer.parseInt(trimmed);
+        } catch (NumberFormatException ex) {
+          try {
+            callArgs[i] = Double.parseDouble(trimmed);
+          } catch (NumberFormatException ex2) {
+            callArgs[i] = trimmed;
+          }
+        }
+      }
+    }
+
+    Object __algo_result = null;
+    try {
+      java.lang.reflect.Method target = null;
+      for (java.lang.reflect.Method method : Solution.class.getDeclaredMethods()) {
+        if (method.getName().equals("${functionName}") && method.getParameterCount() == callArgs.length) {
+          target = method;
+          break;
+        }
+      }
+
+      if (target == null) {
+        throw new RuntimeException("Unable to find matching method for ${functionName}");
+      }
+
+      target.setAccessible(true);
+      __algo_result = target.invoke(solution, callArgs);
+    } catch (Exception error) {
+      throw new RuntimeException(error);
+    }
+
+    System.out.print(${serializedResultExpr});
+  }
+}
+`;
+};
+
+const buildCppNodeHarness = (
+  source: string,
+  functionName: string,
+  stdin: string,
+  dataStructure: Extract<ReturnDataStructure, "linked-list" | "tree" | "graph">,
+): string => {
+  const args = parseInputAssignments(stdin);
+  const helperPrelude: string[] = [];
+
+  if (!hasClassDefinition(source, "ListNode")) {
+    helperPrelude.push(`struct ListNode {
+    int val;
+    ListNode* next;
+    ListNode(int x = 0) : val(x), next(nullptr) {}
+};`);
+  }
+
+  if (!hasClassDefinition(source, "TreeNode")) {
+    helperPrelude.push(`struct TreeNode {
+    int val;
+    TreeNode* left;
+    TreeNode* right;
+    TreeNode(int x = 0) : val(x), left(nullptr), right(nullptr) {}
+};`);
+  }
+
+  if (!hasClassDefinition(source, "Node")) {
+    helperPrelude.push(`class Node {
+public:
+    int val;
+    std::vector<Node*> neighbors;
+    Node() : val(0), neighbors() {}
+    Node(int _val) : val(_val), neighbors() {}
+};`);
+  }
+
+  const nodeType =
+    dataStructure === "linked-list"
+      ? "ListNode*"
+      : dataStructure === "tree"
+      ? "TreeNode*"
+      : "Node*";
+
+  const mappedArgs = args.map((arg) => {
+    const trimmed = arg.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      if (dataStructure === "linked-list") {
+        return `__algoBuildList(${JSON.stringify(trimmed)})`;
+      }
+      if (dataStructure === "tree") {
+        return `__algoBuildTree(${JSON.stringify(trimmed)})`;
+      }
+      return `__algoBuildGraph(${JSON.stringify(trimmed)})`;
+    }
+    return trimmed;
+  });
+
+  const serializer =
+    dataStructure === "linked-list"
+      ? "__algoSerializeList"
+      : dataStructure === "tree"
+      ? "__algoSerializeTree"
+      : "__algoSerializeGraph";
+
+    return `${helperPrelude.join("\n\n")}
+
+  ${source}
+
+  static string __algoTrim(const string& s) {
+    size_t start = 0;
+    while (start < s.size() && isspace(static_cast<unsigned char>(s[start]))) {
+      ++start;
+    }
+
+    size_t end = s.size();
+    while (end > start && isspace(static_cast<unsigned char>(s[end - 1]))) {
+      --end;
+    }
+
+    return s.substr(start, end - start);
+  }
+
+  static vector<string> __algoParseElements(const string& raw) {
+    vector<string> values;
+    string text = __algoTrim(raw);
+
+    if (text.size() >= 2 && text.front() == '[' && text.back() == ']') {
+      text = text.substr(1, text.size() - 2);
+    }
+
+    string current;
+    int depth = 0;
+
+    for (char ch : text) {
+      if (ch == '[') {
+        depth++;
+      } else if (ch == ']') {
+        depth--;
+      }
+
+      if (ch == ',' && depth == 0) {
+        string token = __algoTrim(current);
+        if (!token.empty()) values.push_back(token);
+        current.clear();
+      } else {
+        current.push_back(ch);
+      }
+    }
+
+    string token = __algoTrim(current);
+    if (!token.empty()) values.push_back(token);
+    return values;
+  }
+
+  static int __algoParseInt(const string& token) {
+    return stoi(__algoTrim(token));
+  }
+
+  static ListNode* __algoBuildList(const string& raw) {
+    vector<string> values = __algoParseElements(raw);
+    if (values.empty()) return nullptr;
+
+    ListNode dummy(0);
+    ListNode* current = &dummy;
+
+    for (const string& token : values) {
+      if (token == "null") continue;
+      current->next = new ListNode(__algoParseInt(token));
+      current = current->next;
+    }
+
+    return dummy.next;
+  }
+
+  static TreeNode* __algoBuildTree(const string& raw) {
+    vector<string> values = __algoParseElements(raw);
+    if (values.empty() || values[0] == "null") return nullptr;
+
+    TreeNode* root = new TreeNode(__algoParseInt(values[0]));
+    queue<TreeNode*> nodes;
+    nodes.push(root);
+
+    size_t index = 1;
+    while (!nodes.empty() && index < values.size()) {
+      TreeNode* node = nodes.front();
+      nodes.pop();
+
+      if (index < values.size() && values[index] != "null") {
+        node->left = new TreeNode(__algoParseInt(values[index]));
+        nodes.push(node->left);
+      }
+      ++index;
+
+      if (index < values.size() && values[index] != "null") {
+        node->right = new TreeNode(__algoParseInt(values[index]));
+        nodes.push(node->right);
+      }
+      ++index;
+    }
+
+    return root;
+  }
+
+  static Node* __algoBuildGraph(const string& raw) {
+    vector<string> rows = __algoParseElements(raw);
+    if (rows.empty()) return nullptr;
+
+    vector<Node*> nodes;
+    nodes.reserve(rows.size());
+    for (size_t i = 0; i < rows.size(); ++i) {
+      nodes.push_back(new Node(static_cast<int>(i + 1)));
+    }
+
+    for (size_t i = 0; i < rows.size(); ++i) {
+      vector<string> neighbors = __algoParseElements(rows[i]);
+      for (const string& token : neighbors) {
+        if (token == "null") continue;
+        int index = __algoParseInt(token) - 1;
+        if (index >= 0 && static_cast<size_t>(index) < nodes.size()) {
+          nodes[i]->neighbors.push_back(nodes[index]);
+        }
+      }
+    }
+
+    return nodes.front();
+  }
+
+  static string __algoSerializeList(ListNode* head) {
+    vector<int> values;
+    unordered_set<ListNode*> seen;
+
+    while (head && !seen.count(head)) {
+      seen.insert(head);
+      values.push_back(head->val);
+      head = head->next;
+    }
+
+    ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < values.size(); ++i) {
+      if (i > 0) out << ",";
+      out << values[i];
+    }
+    out << "]";
+    return out.str();
+  }
+
+  static string __algoSerializeTree(TreeNode* root) {
+    if (!root) return "[]";
+
+    vector<string> values;
+    queue<TreeNode*> nodes;
+    nodes.push(root);
+
+    while (!nodes.empty()) {
+      TreeNode* node = nodes.front();
+      nodes.pop();
+
+      if (!node) {
+        values.push_back("null");
+        continue;
+      }
+
+      values.push_back(to_string(node->val));
+      nodes.push(node->left);
+      nodes.push(node->right);
+    }
+
+    while (!values.empty() && values.back() == "null") {
+      values.pop_back();
+    }
+
+    ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < values.size(); ++i) {
+      if (i > 0) out << ",";
+      out << values[i];
+    }
+    out << "]";
+    return out.str();
+  }
+
+  static string __algoSerializeGraph(Node* node) {
+    if (!node) return "[]";
+
+    vector<Node*> order;
+    queue<Node*> nodes;
+    unordered_set<Node*> seen;
+    nodes.push(node);
+    seen.insert(node);
+
+    while (!nodes.empty()) {
+      Node* current = nodes.front();
+      nodes.pop();
+      order.push_back(current);
+
+      for (Node* neighbor : current->neighbors) {
+        if (neighbor && !seen.count(neighbor)) {
+          seen.insert(neighbor);
+          nodes.push(neighbor);
+        }
+      }
+    }
+
+    ostringstream out;
+    out << "[";
+    for (size_t i = 0; i < order.size(); ++i) {
+      if (i > 0) out << ",";
+      out << "[";
+      for (size_t j = 0; j < order[i]->neighbors.size(); ++j) {
+        if (j > 0) out << ",";
+        out << order[i]->neighbors[j]->val;
+      }
+      out << "]";
+    }
+    out << "]";
+    return out.str();
+  }
+
+  int main() {
+    Solution solution;
+
+    ${nodeType} __algo_result = solution.${functionName}(
+      ${mappedArgs.join(", ")}
+    );
+
+    cout << ${serializer}(__algo_result);
+    return 0;
+  }
+  `;
+};
+
 const getPrimaryFunctionName = (
   source: string,
   language: string,
@@ -930,6 +1948,39 @@ using namespace std;
     } else if (isJava) {
       finalCode = `import java.util.*;
 ` + userSource + buildJavaClassHarness(className, payload.stdin || "");
+    }
+  } else if (isNodeDataStructure(dataStructure) && fnName) {
+    if (isJsOrTsLanguage) {
+      finalCode += buildJavaScriptNodeHarness(
+        userSource,
+        fnName,
+        payload.stdin || "",
+        dataStructure,
+      );
+    } else if (isPython) {
+      finalCode += buildPythonNodeHarness(
+        userSource,
+        fnName,
+        payload.stdin || "",
+        dataStructure,
+      );
+    } else if (isCpp) {
+      finalCode = `#include <bits/stdc++.h>
+    using namespace std;
+    ` + buildCppNodeHarness(
+        userSource,
+        fnName,
+        payload.stdin || "",
+        dataStructure,
+      );
+    } else if (isJava) {
+      finalCode = `import java.util.*;
+` + userSource + buildJavaNodeHarness(
+        userSource,
+        fnName,
+        payload.stdin || "",
+        dataStructure,
+      );
     }
   } else if (fnName && isJsOrTsLanguage) {
     finalCode += buildJavaScriptHarness(
