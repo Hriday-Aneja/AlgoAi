@@ -183,17 +183,17 @@ export const notes: Note[] = [
 
 export const playlists: Playlist[] = [
   {
-    id: "p1",
-    title: "Striver's A2Z DSA Course",
-    channel: "take U forward",
-    topic: "DSA Complete",
-    videoCount: 455,
-    rating: 4.9,
-    url: "https://youtube.com",
-    isHidden: false,
-    thumbnail: "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=400",
-    description: "Complete DSA course from scratch to advanced. Best resource for Indian students."
-  },
+  id: "p1",
+  title: "Striver's A2Z DSA Course",
+  channel: "take U forward",
+  topic: "DSA Complete",
+  videoCount: 455,
+  rating: 4.9,
+  url: "https://www.youtube.com/@takeUforward",
+  isHidden: false,
+  thumbnail: "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=400",
+  description: "Complete DSA course from scratch to advanced. Best resource for Indian students."
+},
   {
     id: "p2",
     title: "NeetCode 150 Solutions",
@@ -201,7 +201,7 @@ export const playlists: Playlist[] = [
     topic: "LeetCode Patterns",
     videoCount: 150,
     rating: 4.8,
-    url: "https://youtube.com",
+    url: "https://www.youtube.com/@NeetCode",
     isHidden: false,
     thumbnail: "https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=400",
     description: "Clear explanations with visual animations for top 150 problems."
@@ -213,7 +213,7 @@ export const playlists: Playlist[] = [
     topic: "Graphs",
     videoCount: 48,
     rating: 4.9,
-    url: "https://youtube.com",
+    url: "https://www.youtube.com/@WilliamFiset-videos",
     isHidden: true,
     thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400",
     description: "Hidden gem! Best graph algorithms explanations on YouTube. Very underrated channel."
@@ -225,7 +225,7 @@ export const playlists: Playlist[] = [
     topic: "Dynamic Programming",
     videoCount: 32,
     rating: 4.7,
-    url: "https://youtube.com",
+    url: "https://www.youtube.com/@Errichto",
     isHidden: true,
     thumbnail: "https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400",
     description: "CP level DP explanations. Transform your DP skills completely."
@@ -237,7 +237,7 @@ export const playlists: Playlist[] = [
     topic: "System Design",
     videoCount: 89,
     rating: 4.8,
-    url: "https://youtube.com",
+    url: "https://www.youtube.com/@ByteByteGo",
     isHidden: false,
     thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400",
     description: "Industry standard system design content by Alex Xu (author of System Design Interview book)."
