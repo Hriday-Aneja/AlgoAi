@@ -105,7 +105,7 @@ export const getAvailableProblems = async (
 ): Promise<RecommendedProblem[]> => {
   try {
     // Get problems from the repository
-    const allProblems = getProblemsByTopics([topic]);
+    const allProblems = await getProblemsByTopics([topic]);
 
     // Filter by difficulty and exclude solved problems
     return allProblems
