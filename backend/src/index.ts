@@ -20,15 +20,20 @@ let PORT = env.PORT;
 // CORS — allow configured origins (supports multiple frontend ports)
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
-  'http://localhost:3000',  // React dev server
-  'http://localhost:5173',  // Vite dev server
-  'http://localhost:5174',  // Vite dev server (fallback port)
-  'http://localhost:5175',  // Vite dev server (fallback port)
-  'http://127.0.0.1:3000',  // Alternative localhost
-  'http://127.0.0.1:5173',  // Alternative localhost
-  'http://127.0.0.1:5174',  // Alternative localhost (fallback port)
-  'http://127.0.0.1:5175',  // Alternative localhost (fallback port)
-].filter(Boolean); // Remove undefined values
+
+  // Production frontend
+  'https://algo-ai-iota.vercel.app',
+
+  // Local development
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
