@@ -23,6 +23,7 @@ const api: AxiosInstance = axios.create({
 });
 
 // ─── Request Interceptor ──────────────────────────────────────────────────────
+const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL;
 
 api.interceptors.request.use(
   (config) => {
@@ -874,8 +875,7 @@ export const reviewCode = async ({
   language: string;
   code: string;
 }) => {
-  const response = await axios.post(
-    "http://127.0.0.1:8000/code-review",
+  const response = await axios.post(`${AI_SERVICE_URL}/code-review`,
     {
       problem_title,
       problem_description,
@@ -915,8 +915,7 @@ export interface TutorChatPayload {
 export const sendTutorMessage = async (
   payload: TutorChatPayload
 ): Promise<{ reply: string }> => {
-  const response = await axios.post(
-    "http://127.0.0.1:8000/chat",
+  const response = await axios.post(`${AI_SERVICE_URL}/chat`,
     payload
   );
   return response.data;
