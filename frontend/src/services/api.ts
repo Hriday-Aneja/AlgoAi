@@ -386,6 +386,8 @@ export interface BossProblem {
   difficulty: 'easy' | 'medium' | 'hard';
   description: string;
   starterCode?: string | null;
+  examples?: unknown;
+  constraints?: unknown;
   testCases?: Array<{ input: string; output: string }>;
 }
 
