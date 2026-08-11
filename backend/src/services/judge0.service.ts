@@ -1,10 +1,11 @@
 import axios from 'axios';
+import ts from 'typescript';
 
-const JUDGE0_API_URL = (
+export const JUDGE0_API_URL = (
   process.env.JUDGE0_API_URL || 'http://34.131.167.198:2358'
 ).replace(/\/+$/g, '');
 
-const LANGUAGE_MAPPING: Record<string, number> = {
+export const LANGUAGE_MAPPING: Record<string, number> = {
   javascript: 63,
   js: 63,
   typescript: 74,
@@ -17,64 +18,116 @@ const LANGUAGE_MAPPING: Record<string, number> = {
   cpp: 54,
 };
 
-const getPrimaryFunctionName = (source: string): string | null => {
-  const match = source.match(/function\s+([A-Za-z_$][\\w$]*)\s*\(/);
+export const stripTypeScript = (source: string): string => {
+  const result = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.None,
+      target: ts.ScriptTarget.ES2019,
+      removeComments: false,
+    },
+    reportDiagnostics: false,
+  });
+  return result.outputText;
+};
+
+export const getPrimaryFunctionName = (source: string): string | null => {
+  const match = source.match(/function\s+([A-Za-z_$][\w$]*)\s*\(/);
   return match?.[1] || null;
 };
 
-const buildHarness = (functionName: string, stdin: string): string => {
+const buildJavaScriptHarness = (functionName: string, stdin: string): string => {
   const escapedInput = JSON.stringify(stdin);
   const escapedFn = JSON.stringify(functionName);
 
-  return `\n;(() => {\n  try {\n    const __algoInput = ${escapedInput};\n    const __algoFnName = ${escapedFn};\n    let __algoFn;\n    try { __algoFn = eval(__algoFnName); } catch (e) { __algoFn = globalThis[__algoFnName]; }\n    if (typeof __algoFn !== 'function') { throw new Error('Could not locate function ' + __algoFnName); }\n    const __algoNormalized = String(__algoInput).replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, '').trim();\n    const __algoArgs = __algoNormalized.length > 0 ? eval('[' + __algoNormalized + ']') : [];\n    const __algoResult = __algoFn(...__algoArgs);\n    if (typeof __algoResult === 'string') {\n      console.log(__algoResult);\n    } else {\n      console.log(JSON.stringify(__algoResult));\n    }\n  } catch (e) {\n    console.error('@@HARNESS_ERROR@@', e && (e.stack || e.message));\n    throw e;\n  }\n})();\n`;
+  return `
+
+const __algoInput = ${escapedInput};
+const __algoFnName = ${escapedFn};
+
+const __algoNormalized = __algoInput
+  .replace(/([A-Za-z_$][\\w$]*\\s*=\\s*)/g, "")
+  .trim();
+
+const __algoArgs =
+  __algoNormalized.length > 0
+    ? eval("[" + __algoNormalized + "]")
+    : [];
+
+const __algoFn = eval(__algoFnName);
+const __algoResult = __algoFn(...__algoArgs);
+
+if (typeof __algoResult === "string") {
+  console.log(__algoResult);
+} else {
+  console.log(JSON.stringify(__algoResult));
+}
+`;
 };
 
-interface Judge0Result {
+export interface JudgeExecutionResult {
   stdout: string;
   stderr: string;
   compileOutput: string;
-  status: { id: number; description: string };
-  time: string | null;
-  memory: string | null;
+  statusId: number;
+  statusDescription: string;
+  success: boolean;
 }
 
-export const executeJudge0 = async (
+const decodeBase64Field = (value: string | null | undefined): string => {
+  if (!value) return '';
+  try {
+    return Buffer.from(value, 'base64').toString('utf8');
+  } catch {
+    return value;
+  }
+};
+
+export const executeJavaScript = async (
   sourceCode: string,
-  language: string,
-  stdin: string = '',
-): Promise<Judge0Result> => {
-  const normalizedLanguage = language.trim().toLowerCase();
-  const languageId = LANGUAGE_MAPPING[normalizedLanguage] || 93;
-  let finalSource = sourceCode;
+  stdin: string,
+): Promise<JudgeExecutionResult> => {
+  const preparedSource = stripTypeScript(sourceCode);
 
-  const primaryFunction = getPrimaryFunctionName(sourceCode);
-  const shouldInjectHarness =
-    Boolean(stdin?.trim()) &&
-    Boolean(primaryFunction) &&
-    !/console\.log|process\.stdout\.write/.test(sourceCode);
+  const fnName = getPrimaryFunctionName(preparedSource);
+  const hasDirectOutput = /console\.log|process\.stdout\.write/.test(preparedSource);
+  const shouldInjectHarness = Boolean(stdin?.trim()) && Boolean(fnName) && !hasDirectOutput;
 
-  if (shouldInjectHarness && primaryFunction && ['javascript', 'js', 'typescript', 'ts'].includes(normalizedLanguage)) {
-    finalSource += '\n' + buildHarness(primaryFunction, stdin);
+  let finalCode = preparedSource;
+  if (shouldInjectHarness && fnName) {
+    finalCode += buildJavaScriptHarness(fnName, stdin);
   }
 
+  const encodedSourceCode = Buffer.from(finalCode, 'utf8').toString('base64');
+
   const response = await axios.post(
-    `${JUDGE0_API_URL}/submissions/?base64_encoded=false&wait=true`,
+    `${JUDGE0_API_URL}/submissions/?base64_encoded=true&wait=true`,
     {
-      source_code: finalSource,
-      language_id: languageId,
-      stdin: stdin || '',
+      source_code: encodedSourceCode,
+      language_id: LANGUAGE_MAPPING.javascript,
+      stdin: shouldInjectHarness && fnName ? '' : stdin || '',
     },
-    { timeout: 30000 },
+    { timeout: 25000 },
   );
 
   const data = response.data;
 
+  if (!data.status) {
+    throw new Error(`Judge0 returned an unexpected response: ${JSON.stringify(data)}`);
+  }
+
+  const success = data.status.id === 3;
+
   return {
-    stdout: data.stdout ?? '',
-    stderr: data.stderr ?? '',
-    compileOutput: data.compile_output ?? '',
-    status: data.status ?? { id: -1, description: 'Unknown' },
-    time: data.time ?? null,
-    memory: data.memory ?? null,
+    stdout: success ? decodeBase64Field(data.stdout) : '',
+    stderr: success
+      ? ''
+      : decodeBase64Field(data.stderr) ||
+        decodeBase64Field(data.compile_output) ||
+        decodeBase64Field(data.message) ||
+        data.status.description,
+    compileOutput: decodeBase64Field(data.compile_output),
+    statusId: data.status.id,
+    statusDescription: data.status.description,
+    success,
   };
 };
