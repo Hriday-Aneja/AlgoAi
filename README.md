@@ -1,4 +1,3 @@
-
 DashBoard:
 <img width="1919" height="1080" alt="image" src="https://github.com/user-attachments/assets/9b953900-d809-4091-97b4-ab6714f1cb87" />
 
@@ -13,12 +12,14 @@ The system is built as three cooperating services — a **React/TypeScript front
 ## ✨ Key Features
 
 ### 🧩 Practice & Code Execution
+
 - Browse a curated DSA problem catalogue (`backend/src/data/problems.json`) by topic and difficulty
 - In-browser code editor (Monaco) with a **Judge0**-backed execution engine supporting JavaScript, TypeScript, Python, Java, C, and C++
 - Step-by-step **code visualizer** that instruments and traces code execution
 - Line-by-line **AI code explainer**
 
 ### 🤖 AI Tutoring (Groq-powered)
+
 - **AlgoAI Tutor chat** — general Q&A and problem-scoped chat, with both standard and streaming (SSE) responses
 - **Progressive hints** — three escalating hint levels (conceptual nudge → named approach → pseudocode) that analyze the student's current code
 - **AI code review** — approach summary, complexity analysis, bug detection, edge cases, and improvement suggestions
@@ -26,6 +27,7 @@ The system is built as three cooperating services — a **React/TypeScript front
 - **Mock DSA interviews** with a conversational interviewer flow and configurable interviewer personality
 
 ### 📈 Progress, Analytics & Personalization
+
 - Onboarding flow that generates a personalized multi-day DSA **roadmap** based on experience level, goals, and preferred topics
 - **Weak topic detection** based on accuracy, attempts, and recent performance
 - **Mistake pattern analysis** — per-topic performance, weak patterns (low solve rate), time-efficiency issues, and structured data for further AI/ML use
@@ -35,6 +37,7 @@ The system is built as three cooperating services — a **React/TypeScript front
 - Weekly activity view and general user analytics/dashboard
 
 ### 🔐 Accounts
+
 - Email/password registration and login with hashed passwords (bcrypt)
 - JWT-based authentication and route protection, with optional-auth support for guest onboarding
 
@@ -51,7 +54,7 @@ graph TD
     end
 
     subgraph Gateway [Orchestration Tier]
-        BE[Express.js + Prisma Backend<br/>Port 3001]
+        BE[Express.js + Prisma Backend<br/>Port 3005]
     end
 
     subgraph AI [AI Microservice Tier]
@@ -76,6 +79,7 @@ graph TD
 ```
 
 **Flow summary**
+
 1. The **frontend** talks exclusively to the Express **backend** over REST (and Server-Sent Events for streaming chat).
 2. The **backend** persists users, progress, streaks, roadmaps, and submissions in Postgres via **Prisma**, and also calls Groq directly for some AI features (code explanation, AI feedback, recommendations) through a pluggable AI provider layer.
 3. For chat, progressive hints, and mock interviews, the backend proxies requests to the standalone **FastAPI AI microservice**, which itself calls the **Groq API**.
@@ -85,15 +89,15 @@ graph TD
 
 ## 🛠️ Tech Stack
 
-| Layer | Technologies |
-|---|---|
-| **Frontend** | React 18, Vite 6, TypeScript, Tailwind CSS v4, Radix UI, Material UI, Monaco Editor, React Router, Recharts, Framer Motion |
-| **Backend** | Node.js, Express.js, TypeScript, Prisma ORM, JWT (`jsonwebtoken`), `bcrypt`, `zod`, Supabase JS client |
-| **Database** | PostgreSQL (hosted on Supabase) |
-| **AI Microservice** | Python, FastAPI, Pydantic, Groq SDK, Uvicorn |
-| **AI Models** | Groq `llama-3.3-70b-versatile` (chat, hints, code review, feedback) |
-| **Code Execution** | Judge0 (self-hosted / remote instance) |
-| **Tooling** | Nodemon, ts-node, Vitest/Jest-style tests |
+| Layer               | Technologies                                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**        | React 18, Vite 6, TypeScript, Tailwind CSS v4, Radix UI, Material UI, Monaco Editor, React Router, Recharts, Framer Motion |
+| **Backend**         | Node.js, Express.js, TypeScript, Prisma ORM, JWT (`jsonwebtoken`), `bcrypt`, `zod`, Supabase JS client                     |
+| **Database**        | PostgreSQL (hosted on Supabase)                                                                                            |
+| **AI Microservice** | Python, FastAPI, Pydantic, Groq SDK, Uvicorn                                                                               |
+| **AI Models**       | Groq `llama-3.3-70b-versatile` (chat, hints, code review, feedback)                                                        |
+| **Code Execution**  | Judge0 (self-hosted / remote instance)                                                                                     |
+| **Tooling**         | Nodemon, ts-node, Vitest/Jest-style tests                                                                                  |
 
 ---
 
@@ -152,23 +156,25 @@ AlgoAi/
 
 ## ⚙️ System Requirements
 
-* **Node.js** v18+ and **npm**
-* **Python** 3.12+ and **pip**
-* A **Supabase** project (PostgreSQL database)
-* A **Groq API key** ([console.groq.com](https://console.groq.com/))
-* Access to a **Judge0** API instance (a public/dev instance is used as a fallback default, but a self-hosted instance is recommended for production)
+- **Node.js** v18+ and **npm**
+- **Python** 3.12+ and **pip**
+- A **Supabase** project (PostgreSQL database)
+- A **Groq API key** ([console.groq.com](https://console.groq.com/))
+- Access to a **Judge0** API instance (a public/dev instance is used as a fallback default, but a self-hosted instance is recommended for production)
 
 ---
 
 ## 🚀 Setup & Installation
 
 ### 1. Clone the repository
+
 ```bash
 git clone https://github.com/<your-org>/AlgoAi.git
 cd AlgoAi
 ```
 
 ### 2. Database (Supabase / PostgreSQL)
+
 1. Create a Supabase project and note the **Project URL**, **Anon Key**, and Postgres **connection string**.
 2. From `backend/`, generate and apply the Prisma schema against your database:
    ```bash
@@ -179,15 +185,18 @@ cd AlgoAi
    (Or `npm run prisma:push` — see scripts below.)
 
 ### 3. Backend (Express + Prisma)
+
 ```bash
 cd backend
 npm install
 cp .env.example .env      # then fill in the values (see Environment Variables below)
 npm run dev
 ```
+
 The API starts on **`http://localhost:3005`** by default (auto-increments to the next free port if occupied). Health check: `http://localhost:3005/api/health`.
 
 ### 4. AI Microservice (FastAPI)
+
 ```bash
 cd ai-service
 python -m venv .venv
@@ -197,15 +206,18 @@ pip install -r requirements.txt
 # create a .env with GROQ_API_KEY=your_groq_api_key
 uvicorn main:app --reload --port 8000
 ```
+
 The AI service runs on **`http://localhost:8000`**. The backend expects this URL via `FASTAPI_URL` (defaults to `http://localhost:8000` if unset).
 
 ### 5. Frontend (React + Vite)
+
 ```bash
 cd frontend
 npm install
 cp .env.example .env      # then fill in the values
 npm run dev
 ```
+
 The client runs on **`http://localhost:5173`**.
 
 > ⚠️ Run the backend, AI service, and frontend **concurrently** in separate terminals — the frontend depends on the backend, and several backend features (chat, hints, mock interviews) depend on the AI microservice being reachable.
@@ -215,34 +227,37 @@ The client runs on **`http://localhost:5173`**.
 ## 🔑 Environment Variables
 
 ### `backend/.env`
-| Variable | Description |
-|---|---|
-| `PORT` | Backend port (default `3001`) |
-| `NODE_ENV` | `development` / `production` / `test` |
-| `CORS_ORIGIN` | Allowed frontend origin (e.g. `http://localhost:5173`) |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon/public API key |
-| `DATABASE_URL` | Postgres connection string (used by Prisma) |
-| `JWT_SECRET` | Secret used to sign/verify JWTs |
-| `AI_PROVIDER` | AI provider selector (`groq`) |
-| `GROQ_API_KEY` | Groq API key used by the backend's AI provider layer |
-| `GROQ_MODEL` | Groq model name |
-| `JDOODLE_CLIENT_ID` / `JDOODLE_CLIENT_SECRET` | Optional credentials referenced in the env template |
-| `ONBOARDING_PROMPT_PREFIX` | Optional custom prefix used when generating the onboarding roadmap prompt |
-| `JUDGE0_API_URL` | Judge0 execution API base URL (falls back to a default public instance) |
-| `FASTAPI_URL` | Base URL of the AI microservice, used by the hint and interview services (defaults to `http://localhost:8000`) |
+
+| Variable                                      | Description                                                                                                    |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                        | Backend port (default `3001`)                                                                                  |
+| `NODE_ENV`                                    | `development` / `production` / `test`                                                                          |
+| `CORS_ORIGIN`                                 | Allowed frontend origin (e.g. `http://localhost:5173`)                                                         |
+| `SUPABASE_URL`                                | Supabase project URL                                                                                           |
+| `SUPABASE_ANON_KEY`                           | Supabase anon/public API key                                                                                   |
+| `DATABASE_URL`                                | Postgres connection string (used by Prisma)                                                                    |
+| `JWT_SECRET`                                  | Secret used to sign/verify JWTs                                                                                |
+| `AI_PROVIDER`                                 | AI provider selector (`groq`)                                                                                  |
+| `GROQ_API_KEY`                                | Groq API key used by the backend's AI provider layer                                                           |
+| `GROQ_MODEL`                                  | Groq model name                                                                                                |
+| `JDOODLE_CLIENT_ID` / `JDOODLE_CLIENT_SECRET` | Optional credentials referenced in the env template                                                            |
+| `ONBOARDING_PROMPT_PREFIX`                    | Optional custom prefix used when generating the onboarding roadmap prompt                                      |
+| `JUDGE0_API_URL`                              | Judge0 execution API base URL (falls back to a default public instance)                                        |
+| `FASTAPI_URL`                                 | Base URL of the AI microservice, used by the hint and interview services (defaults to `http://localhost:8000`) |
 
 ### `frontend/.env`
-| Variable | Description |
-|---|---|
-| `VITE_GROQ_API_KEY` | Groq API key used for client-side AI calls |
-| `VITE_GROQ_MODEL` | Groq model name |
-| `VITE_API_URL` | Base URL of the backend API (e.g. `http://localhost:3005/api`) |
-| `VITE_EXECUTE_API` | Code execution endpoint (defaults to `VITE_API_URL` + `/execute`) |
+
+| Variable            | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `VITE_GROQ_API_KEY` | Groq API key used for client-side AI calls                        |
+| `VITE_GROQ_MODEL`   | Groq model name                                                   |
+| `VITE_API_URL`      | Base URL of the backend API (e.g. `http://localhost:3005/api`)    |
+| `VITE_EXECUTE_API`  | Code execution endpoint (defaults to `VITE_API_URL` + `/execute`) |
 
 ### `ai-service/.env`
-| Variable | Description |
-|---|---|
+
+| Variable       | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
 | `GROQ_API_KEY` | Groq API key used by the FastAPI service for chat, hints, and code review |
 
 ---
@@ -264,99 +279,110 @@ The client runs on **`http://localhost:5173`**.
 All backend routes are mounted under `http://localhost:3005/api`.
 
 ### Auth (`/auth`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/auth/register` | Public | Register a new user |
-| POST | `/auth/login` | Public | Log in and receive a JWT |
-| GET | `/auth/profile` | Private | Get the authenticated user's profile |
+
+| Method | Endpoint         | Access  | Description                          |
+| ------ | ---------------- | ------- | ------------------------------------ |
+| POST   | `/auth/register` | Public  | Register a new user                  |
+| POST   | `/auth/login`    | Public  | Log in and receive a JWT             |
+| GET    | `/auth/profile`  | Private | Get the authenticated user's profile |
 
 ### Problems & Progress
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/problems` | Public | List all problems |
-| GET | `/problems/:id` | Public | Get a single problem |
-| POST | `/progress` | Private | Add/update progress on a problem |
-| GET | `/progress/:userId` | Private | Get a user's progress records |
-| GET | `/user/progress` | Private | Get overall user progress |
-| POST | `/user/progress` | Private | Save overall user progress |
-| PUT | `/user/stats` | Private | Update user statistics |
-| GET | `/user/analytics` | Private | Get user analytics |
-| GET | `/weekly-activity` | Private | Get the user's weekly activity |
+
+| Method | Endpoint            | Access  | Description                      |
+| ------ | ------------------- | ------- | -------------------------------- |
+| GET    | `/problems`         | Public  | List all problems                |
+| GET    | `/problems/:id`     | Public  | Get a single problem             |
+| POST   | `/progress`         | Private | Add/update progress on a problem |
+| GET    | `/progress/:userId` | Private | Get a user's progress records    |
+| GET    | `/user/progress`    | Private | Get overall user progress        |
+| POST   | `/user/progress`    | Private | Save overall user progress       |
+| PUT    | `/user/stats`       | Private | Update user statistics           |
+| GET    | `/user/analytics`   | Private | Get user analytics               |
+| GET    | `/weekly-activity`  | Private | Get the user's weekly activity   |
 
 ### Code Execution & Visualization
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/execute` | Public | Run code via the backend's Judge0 integration |
-| GET | `/execute/runtimes` | Public | List available runtimes/languages |
-| POST | `/visualize` | Private | Execute and visualize code step-by-step |
-| POST | `/explain` | Public (dev) | Explain code line-by-line via Groq |
+
+| Method | Endpoint            | Access       | Description                                   |
+| ------ | ------------------- | ------------ | --------------------------------------------- |
+| POST   | `/execute`          | Public       | Run code via the backend's Judge0 integration |
+| GET    | `/execute/runtimes` | Public       | List available runtimes/languages             |
+| POST   | `/visualize`        | Private      | Execute and visualize code step-by-step       |
+| POST   | `/explain`          | Public (dev) | Explain code line-by-line via Groq            |
 
 ### Submissions
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/submissions` | Private | Record a run/submit attempt |
-| GET | `/submissions/activity` | Private | Get the last 30 days of submission activity |
+
+| Method | Endpoint                | Access  | Description                                 |
+| ------ | ----------------------- | ------- | ------------------------------------------- |
+| POST   | `/submissions`          | Private | Record a run/submit attempt                 |
+| GET    | `/submissions/activity` | Private | Get the last 30 days of submission activity |
 
 ### Recommendations & Revision
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/recommendations/:userId` | Private | Get personalized problem recommendations (`?limit=`) |
-| GET | `/advanced-recommendations/:userId` | Private | Get dynamic recommendations based on deeper performance analysis |
-| GET | `/revision/:userId` | Private | Get problems due for revision |
-| GET | `/weak-topics/:userId` | Private | Get sorted weak topics |
+
+| Method | Endpoint                            | Access  | Description                                                      |
+| ------ | ----------------------------------- | ------- | ---------------------------------------------------------------- |
+| GET    | `/recommendations/:userId`          | Private | Get personalized problem recommendations (`?limit=`)             |
+| GET    | `/advanced-recommendations/:userId` | Private | Get dynamic recommendations based on deeper performance analysis |
+| GET    | `/revision/:userId`                 | Private | Get problems due for revision                                    |
+| GET    | `/weak-topics/:userId`              | Private | Get sorted weak topics                                           |
 
 ### Mistake Analysis
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/mistakes/:userId` | Private | Comprehensive mistake pattern analysis (`?minAttempts=`) |
-| GET | `/mistakes/:userId/topics` | Private | Per-topic performance metrics |
-| GET | `/mistakes/:userId/weak-patterns` | Private | Topics with low solve rate (`?minAttempts=`) |
-| GET | `/mistakes/:userId/time-efficiency` | Private | Topics solved inefficiently (slow) |
-| GET | `/mistakes/:userId/ai-data` | Private | Structured data formatted for AI/ML consumption |
+
+| Method | Endpoint                            | Access  | Description                                              |
+| ------ | ----------------------------------- | ------- | -------------------------------------------------------- |
+| GET    | `/mistakes/:userId`                 | Private | Comprehensive mistake pattern analysis (`?minAttempts=`) |
+| GET    | `/mistakes/:userId/topics`          | Private | Per-topic performance metrics                            |
+| GET    | `/mistakes/:userId/weak-patterns`   | Private | Topics with low solve rate (`?minAttempts=`)             |
+| GET    | `/mistakes/:userId/time-efficiency` | Private | Topics solved inefficiently (slow)                       |
+| GET    | `/mistakes/:userId/ai-data`         | Private | Structured data formatted for AI/ML consumption          |
 
 ### AI Features
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/hints` | Private | Generate a progressive hint (proxies to the AI microservice) |
-| POST | `/ai-feedback` | Private | Generate personalized AI feedback and a study plan |
-| POST | `/chat` | Public | Chat with the AI tutor (full response) |
-| POST | `/chat/stream` | Public | Chat with the AI tutor via Server-Sent Events |
-| POST | `/interview/start` | Private | Start a mock DSA interview session |
-| POST | `/interview/message` | Private | Send a candidate reply and get the interviewer's next message |
+
+| Method | Endpoint             | Access  | Description                                                   |
+| ------ | -------------------- | ------- | ------------------------------------------------------------- |
+| POST   | `/hints`             | Private | Generate a progressive hint (proxies to the AI microservice)  |
+| POST   | `/ai-feedback`       | Private | Generate personalized AI feedback and a study plan            |
+| POST   | `/chat`              | Public  | Chat with the AI tutor (full response)                        |
+| POST   | `/chat/stream`       | Public  | Chat with the AI tutor via Server-Sent Events                 |
+| POST   | `/interview/start`   | Private | Start a mock DSA interview session                            |
+| POST   | `/interview/message` | Private | Send a candidate reply and get the interviewer's next message |
 
 ### Onboarding & Roadmap
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/onboarding` | Public/Private | Submit onboarding profile and generate a roadmap |
-| PUT | `/onboarding` | Private | Update onboarding profile and regenerate the roadmap |
-| GET | `/onboarding` | Public/Private | Fetch the user's roadmap |
-| GET | `/onboarding/meta` | Public/Private | Fetch roadmap progress metadata |
-| GET | `/onboarding/days/:day` | Public/Private | Fetch a single roadmap day |
-| PATCH | `/onboarding/days/:day/complete` | Private | Mark a roadmap day complete |
+
+| Method | Endpoint                         | Access         | Description                                          |
+| ------ | -------------------------------- | -------------- | ---------------------------------------------------- |
+| POST   | `/onboarding`                    | Public/Private | Submit onboarding profile and generate a roadmap     |
+| PUT    | `/onboarding`                    | Private        | Update onboarding profile and regenerate the roadmap |
+| GET    | `/onboarding`                    | Public/Private | Fetch the user's roadmap                             |
+| GET    | `/onboarding/meta`               | Public/Private | Fetch roadmap progress metadata                      |
+| GET    | `/onboarding/days/:day`          | Public/Private | Fetch a single roadmap day                           |
+| PATCH  | `/onboarding/days/:day/complete` | Private        | Mark a roadmap day complete                          |
 
 ### Gamification
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/streak/:userId` | Public | Get current and longest streak |
-| POST | `/streak/:userId/update` | Private | Update streak after solving a problem (`?timezone=`) |
-| POST | `/streak/:userId/reset` | Admin | Reset a user's streak |
-| GET | `/daily-challenge` | Private | Get today's daily challenge and completion status |
-| POST | `/daily-challenge/complete` | Private | Mark today's challenge complete |
-| GET | `/boss/today` | Private | Get today's boss battle assignments |
-| POST | `/boss/submit` | Private | Submit code for a boss battle |
+
+| Method | Endpoint                    | Access  | Description                                          |
+| ------ | --------------------------- | ------- | ---------------------------------------------------- |
+| GET    | `/streak/:userId`           | Public  | Get current and longest streak                       |
+| POST   | `/streak/:userId/update`    | Private | Update streak after solving a problem (`?timezone=`) |
+| POST   | `/streak/:userId/reset`     | Admin   | Reset a user's streak                                |
+| GET    | `/daily-challenge`          | Private | Get today's daily challenge and completion status    |
+| POST   | `/daily-challenge/complete` | Private | Mark today's challenge complete                      |
+| GET    | `/boss/today`               | Private | Get today's boss battle assignments                  |
+| POST   | `/boss/submit`              | Private | Submit code for a boss battle                        |
 
 ### System
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/health` | Public | Health check |
+
+| Method | Endpoint  | Access | Description  |
+| ------ | --------- | ------ | ------------ |
+| GET    | `/health` | Public | Health check |
 
 ### AI Microservice (`http://localhost:8000`)
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/` | Service status check |
-| POST | `/code-review` | Structured code review (approach, complexity, bugs, edge cases, improvement) |
-| POST | `/hint` | Generate a level 1–3 progressive hint |
-| POST | `/chat` | Tutor chat, in `general` or problem-scoped `problem` mode |
+
+| Method | Endpoint       | Description                                                                  |
+| ------ | -------------- | ---------------------------------------------------------------------------- |
+| GET    | `/`            | Service status check                                                         |
+| POST   | `/code-review` | Structured code review (approach, complexity, bugs, edge cases, improvement) |
+| POST   | `/hint`        | Generate a level 1–3 progressive hint                                        |
+| POST   | `/chat`        | Tutor chat, in `general` or problem-scoped `problem` mode                    |
 
 ---
 
@@ -387,6 +413,7 @@ All backend routes are mounted under `http://localhost:3005/api`.
 cd backend
 npm test
 ```
+
 Test files live under `backend/tests/` and currently cover the weak-topic and streak services.
 
 ---
@@ -394,6 +421,7 @@ Test files live under `backend/tests/` and currently cover the weak-topic and st
 ## 🛠️ Build & Deployment
 
 **Backend**
+
 ```bash
 cd backend
 npm run build     # compiles TypeScript to dist/
@@ -401,12 +429,14 @@ npm start         # runs the compiled server (node dist/index.js)
 ```
 
 **Frontend**
+
 ```bash
 cd frontend
 npm run build      # vite build → production bundle
 ```
 
 **AI Microservice**
+
 ```bash
 cd ai-service
 uvicorn main:app --host 0.0.0.0 --port 8000
@@ -414,10 +444,8 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 Each service is deployed independently; there is no bundled container/orchestration configuration in the repository, so hosting (e.g. a Node host for the backend, a static host for the frontend build, and a Python host for the AI service) must be configured per your infrastructure.
 
-
 ---
 
 ## 👨‍💻 Team
 
 AlgoAI Development Team
-
