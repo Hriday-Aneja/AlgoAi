@@ -38,6 +38,10 @@ class CodeReviewRequest(BaseModel):
 def root():
     return {"status": "ok"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 @app.post("/code-review")
 def code_review(req: CodeReviewRequest):
