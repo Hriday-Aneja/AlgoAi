@@ -920,3 +920,115 @@ export const sendTutorMessage = async (
   );
   return response.data;
 };
+
+export type InterviewPersonalityKey = 'strict' | 'friendly' | 'pressure';
+
+export interface InterviewerInfo {
+  name: string;
+  personality: InterviewPersonalityKey;
+}
+
+export interface InterviewProblemExample {
+  input: string;
+  output: string;
+  explanation?: string | null;
+}
+
+export interface InterviewProblemContext {
+  title: string;
+  description: string;
+  topic?: string | null;
+  difficulty?: string | null;
+  constraints?: string[] | null;
+  examples?: InterviewProblemExample[] | null;
+  expectedComplexity?: string | null;
+}
+
+export interface InterviewConversationMessage {
+  role: 'interviewer' | 'candidate';
+  content: string;
+}
+
+export interface InterviewEvaluation {
+  correct: boolean;
+  correctnessScore: number;
+  clarityScore: number;
+  technicalScore: number;
+  issues: string[];
+}
+
+export const startInterview = async (
+  personality: InterviewPersonalityKey,
+  language: string = 'javascript'
+): Promise<{
+  status: string;
+  data: {
+    interviewer: InterviewerInfo;
+    problem: InterviewProblemContext;
+    message: string;
+    questionNumber: number;
+    maxQuestions: number;
+  };
+}> => {
+  try {
+    const response = await api.post('/interview/start', { personality, language });
+    return response.data;
+  } catch (error) {
+    console.error('Start interview API error:', error);
+    throw error;
+  }
+};
+
+export const sendInterviewMessage = async (payload: {
+  interviewer: InterviewerInfo;
+  problem: InterviewProblemContext;
+  conversation: InterviewConversationMessage[];
+  userMessage: string;
+  userCode?: string | null;
+  questionNumber: number;
+  maxQuestions: number;
+}): Promise<{
+  status: string;
+  data: {
+    evaluation: InterviewEvaluation;
+    response: string;
+    nextQuestion: string | null;
+    shouldContinue: boolean;
+    questionNumber: number;
+  };
+}> => {
+  try {
+    const response = await api.post('/interview/message', payload);
+    return response.data;
+  } catch (error) {
+    console.error('Send interview message API error:', error);
+    throw error;
+  }
+};
+
+export const getInterviewFeedback = async (payload: {
+  interviewer: InterviewerInfo;
+  problem: InterviewProblemContext;
+  conversation: InterviewConversationMessage[];
+  correctnessScore: number;
+  clarityScore: number;
+  speedScore: number;
+  communicationScore: number;
+  technicalScore: number;
+  overallScore: number;
+}): Promise<{
+  status: string;
+  data: {
+    strengths: string[];
+    weaknesses: string[];
+    feedback: string;
+  };
+}> => {
+  try {
+    const response = await api.post('/interview/feedback', payload);
+    return response.data;
+  } catch (error) {
+    console.error('Get interview feedback API error:', error);
+    throw error;
+  }
+};

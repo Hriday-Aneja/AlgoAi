@@ -6,10 +6,12 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
 from chatbot import router as chatbot_router
+from interview import router as interview_router
 load_dotenv()
 
 app = FastAPI(title="AlgoAI AI Service")
 app.include_router(chatbot_router)
+app.include_router(interview_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,10 +38,6 @@ class CodeReviewRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
-
-@app.api_route("/health", methods=["GET", "HEAD"])
-def health():
     return {"status": "ok"}
 
 
