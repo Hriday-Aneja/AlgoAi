@@ -1,4 +1,5 @@
 import { Problem } from '../types/recommendation.types';
+import { Problem as PrismaProblem } from '@prisma/client';
 import { prisma } from '../config/database';
 
 // ─── Repository ───────────────────────────────────────────────────────────────
@@ -33,4 +34,40 @@ export const getAllProblems = async (): Promise<Problem[]> => {
 export const getProblemById = async (id: string): Promise<Problem | undefined> => {
   const problem = await prisma.problem.findUnique({ where: { id } });
   return problem ? (problem as unknown as Problem) : undefined;
+};
+
+/**
+ * Returns one topic chosen at random from the distinct set of topics
+ * present in the Problem table.
+ */
+export const getRandomTopic = async (): Promise<string | undefined> => {
+  const records = await prisma.problem.findMany({
+    distinct: ['topic'],
+    select: { topic: true },
+  });
+  if (records.length === 0) return undefined;
+  return records[Math.floor(Math.random() * records.length)].topic;
+};
+
+/**
+ * Picks a random topic, then a random problem within that topic, optionally
+ * constrained to a difficulty. Difficulty matching is case-insensitive since
+ * the Problem table has inconsistent casing (e.g. "Easy" vs "easy").
+ * Returns the full native Prisma Problem record (description, constraints,
+ * examples, etc.) rather than the narrower recommendation Problem type.
+ */
+export const getRandomProblemForInterview = async (
+  difficulty?: string,
+): Promise<PrismaProblem | undefined> => {
+  const topic = await getRandomTopic();
+  if (!topic) return undefined;
+
+  const where = difficulty
+    ? { topic, difficulty: { equals: difficulty, mode: 'insensitive' as const } }
+    : { topic };
+
+  const problems = await prisma.problem.findMany({ where });
+  if (problems.length === 0) return undefined;
+
+  return problems[Math.floor(Math.random() * problems.length)];
 };
