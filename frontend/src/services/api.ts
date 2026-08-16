@@ -147,6 +147,7 @@ export const getUserProgress = async (userId: string): Promise<{
     status: 'solved' | 'attempted';
     time_taken: number | null;
     created_at: string;
+    updated_at: string;
   }>;
 }> => {
   try {
@@ -319,6 +320,7 @@ export interface ProgressRecord {
   status: 'solved' | 'attempted';
   time_taken: number | null;
   created_at: string;
+  updated_at: string;
 }
 
 export const getAllProblems = async (): Promise<{

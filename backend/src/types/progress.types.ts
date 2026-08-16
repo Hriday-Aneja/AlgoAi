@@ -14,6 +14,7 @@ export interface UserProgress {
   status: Status;
   time_taken: number | null;   // Seconds spent solving
   created_at: string;          // ISO timestamp set by Supabase
+  updated_at: string;          // Last time this record changed (e.g. attempted -> solved)
 }
 
 // ─── Request Bodies ───────────────────────────────────────────────────────────

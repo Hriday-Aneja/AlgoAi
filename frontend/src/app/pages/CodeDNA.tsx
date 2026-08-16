@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import {
   Dna, Zap, Brain, TrendingUp, TrendingDown, Target,
@@ -10,50 +10,24 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
   LineChart, Line, AreaChart, Area
 } from "recharts";
+import { useAuth } from "../contexts/AuthContext";
+import { useUserProgress } from "../contexts/UserProgressContext";
+import { getUserProgress } from "../../services/api";
 
-const topicStrengths = [
-  { topic: "Arrays", strength: 88, color: "#00d4ff" },
-  { topic: "Strings", strength: 82, color: "#a855f7" },
-  { topic: "Trees", strength: 65, color: "#22c55e" },
-  { topic: "DP", strength: 54, color: "#f59e0b" },
-  { topic: "Graphs", strength: 42, color: "#ef4444" },
-  { topic: "Recursion", strength: 71, color: "#ec4899" },
-  { topic: "Sorting", strength: 91, color: "#00d4ff" },
-  { topic: "Heaps", strength: 38, color: "#ef4444" },
-  { topic: "Tries", strength: 25, color: "#ef4444" },
-  { topic: "Bit Manip", strength: 47, color: "#f59e0b" },
-];
+// ─── Static, non-personal reference data (unchanged) ───────────────────────
 
-const radarData = [
-  { subject: "Arrays", value: 88 },
-  { subject: "Strings", value: 82 },
-  { subject: "Trees", value: 65 },
-  { subject: "DP", value: 54 },
-  { subject: "Graphs", value: 42 },
-  { subject: "Recursion", value: 71 },
-];
+const TOPIC_COLORS = ["#00d4ff", "#a855f7", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#38bdf8", "#f472b6", "#facc15", "#34d399"];
 
-const codingBehavior = {
-  style: "Methodical Explorer",
-  emoji: "🧭",
-  description: "You prefer to thoroughly understand a problem before coding. You solve problems correctly but could speed up with more pattern practice.",
-  traits: [
-    { trait: "Accuracy", value: 90, icon: Target, color: "#22c55e" },
-    { trait: "Speed", value: 65, icon: Clock, color: "#f59e0b" },
-    { trait: "Pattern Recognition", value: 72, icon: Brain, color: "#a855f7" },
-    { trait: "Optimization", value: 58, icon: Zap, color: "#00d4ff" },
-    { trait: "Code Cleanliness", value: 85, icon: Code2, color: "#ec4899" },
-    { trait: "Debug Speed", value: 70, icon: Cpu, color: "#ff6500" },
-  ]
-};
-
-const progressHistory = [
-  { month: "Nov", dsa: 35, webdev: 20, ml: 10 },
-  { month: "Dec", dsa: 42, webdev: 25, ml: 12 },
-  { month: "Jan", dsa: 55, webdev: 30, ml: 15 },
-  { month: "Feb", dsa: 65, webdev: 38, ml: 18 },
-  { month: "Mar", dsa: 78, webdev: 45, ml: 22 },
-  { month: "Apr", dsa: 87, webdev: 52, ml: 28 },
+// These 6 traits are NOT yet derivable from real signals (no per-attempt
+// timing/hint data exists in the DB today) — left as illustrative/static
+// pending that data becoming available. See CodeDNA data-audit discussion.
+const BEHAVIOR_TRAITS = [
+  { trait: "Accuracy", value: 90, icon: Target, color: "#22c55e" },
+  { trait: "Speed", value: 65, icon: Clock, color: "#f59e0b" },
+  { trait: "Pattern Recognition", value: 72, icon: Brain, color: "#a855f7" },
+  { trait: "Optimization", value: 58, icon: Zap, color: "#00d4ff" },
+  { trait: "Code Cleanliness", value: 85, icon: Code2, color: "#ec4899" },
+  { trait: "Debug Speed", value: 70, icon: Cpu, color: "#ff6500" },
 ];
 
 const suggestions = [
@@ -93,6 +67,133 @@ const suggestions = [
 
 const dnaSequence = "ATGCGATCGTAGCTAGCTAGCTAGCATGCGATCG";
 
+// ─── Real-data types & helpers ──────────────────────────────────────────────
+
+interface DnaProgressRecord {
+  problem_id: string;
+  topic: string[];
+  difficulty: "easy" | "medium" | "hard";
+  status: "solved" | "attempted";
+  created_at: string;
+  updated_at: string;
+}
+
+interface Archetype {
+  emoji: string;
+  style: string;
+  description: string;
+}
+
+interface TopicScore {
+  topic: string;
+  strength: number;
+  color: string;
+  solvedCount: number;
+}
+
+interface TimelinePoint {
+  month: string;
+  easy: number;
+  medium: number;
+  hard: number;
+}
+
+/** Dedupe progress records to one (latest) row per problem. */
+const dedupeByProblem = (records: DnaProgressRecord[]): DnaProgressRecord[] => {
+  const byProblem = new Map<string, DnaProgressRecord>();
+  records.forEach((r) => byProblem.set(r.problem_id, r));
+  return Array.from(byProblem.values());
+};
+
+/**
+ * Honest, rule-based archetype from real solved-problem signals only.
+ * Every number in the output description is computed from actual data —
+ * nothing here is invented or AI-generated.
+ */
+const computeArchetype = (
+  totalSolved: number,
+  easySolved: number,
+  mediumSolved: number,
+  hardSolved: number,
+  topTopics: string[]
+): Archetype => {
+  if (totalSolved === 0) {
+    return {
+      emoji: "🧬",
+      style: "Unwritten DNA",
+      description: "Sorry, we can't explore your coding DNA yet. Solve some problems and come back later.",
+    };
+  }
+
+  const topicBreadth = topTopics.length;
+  const hardPct = Math.round((hardSolved / totalSolved) * 100);
+  const mediumPct = Math.round((mediumSolved / totalSolved) * 100);
+  const easyPct = Math.round((easySolved / totalSolved) * 100);
+
+  if (hardPct >= 30 && totalSolved >= 5) {
+    return {
+      emoji: "🔥",
+      style: "Challenge Seeker",
+      description: `${hardPct}% of your ${totalSolved} solved problem${totalSolved === 1 ? "" : "s"} are Hard — you gravitate toward the toughest challenges, across ${topicBreadth} topic${topicBreadth === 1 ? "" : "s"}.`,
+    };
+  }
+
+  if (topicBreadth >= 6) {
+    return {
+      emoji: "🧭",
+      style: "Broad Explorer",
+      description: `You've solved problems across ${topicBreadth} different topics${topTopics.length ? `, including ${topTopics.slice(0, 3).join(", ")}` : ""} — a wide, exploratory practice style.`,
+    };
+  }
+
+  if (easyPct >= 60) {
+    return {
+      emoji: "🌱",
+      style: "Foundation Builder",
+      description: `${easyPct}% of your ${totalSolved} solved problem${totalSolved === 1 ? "" : "s"} are Easy — you're methodically building a strong base before pushing into harder territory.`,
+    };
+  }
+
+  return {
+    emoji: "⚙️",
+    style: "Steady Solver",
+    description: `You've solved ${totalSolved} problem${totalSolved === 1 ? "" : "s"} across ${topicBreadth} topic${topicBreadth === 1 ? "" : "s"} — ${easyPct}% Easy, ${mediumPct}% Medium, ${hardPct}% Hard.`,
+  };
+};
+
+const monthLabel = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Unknown";
+  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+};
+
+/** Cumulative Easy/Medium/Hard solved counts, one point per month touched. */
+const buildTimeline = (solved: DnaProgressRecord[]): TimelinePoint[] => {
+  const sorted = [...solved].sort(
+    (a, b) => new Date(a.updated_at || a.created_at).getTime() - new Date(b.updated_at || b.created_at).getTime()
+  );
+
+  const byMonth = new Map<string, { easy: number; medium: number; hard: number }>();
+  sorted.forEach((r) => {
+    const key = monthLabel(r.updated_at || r.created_at);
+    if (!byMonth.has(key)) byMonth.set(key, { easy: 0, medium: 0, hard: 0 });
+    const bucket = byMonth.get(key)!;
+    if (r.difficulty === "easy") bucket.easy += 1;
+    else if (r.difficulty === "medium") bucket.medium += 1;
+    else if (r.difficulty === "hard") bucket.hard += 1;
+  });
+
+  let cumEasy = 0;
+  let cumMedium = 0;
+  let cumHard = 0;
+  return Array.from(byMonth.entries()).map(([month, bucket]) => {
+    cumEasy += bucket.easy;
+    cumMedium += bucket.medium;
+    cumHard += bucket.hard;
+    return { month, easy: cumEasy, medium: cumMedium, hard: cumHard };
+  });
+};
+
 function DNAStrand() {
   return (
     <div className="flex items-center justify-center overflow-hidden" style={{ height: '60px' }}>
@@ -123,7 +224,14 @@ function DNAStrand() {
   );
 }
 
-function ProfileCard() {
+interface ProfileCardProps {
+  archetype: Archetype;
+  solvedCount: number;
+  streakDisplay: string;
+  rank: string;
+}
+
+function ProfileCard({ archetype, solvedCount, streakDisplay, rank }: ProfileCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -156,23 +264,23 @@ function ProfileCard() {
       {/* Coding Style */}
       <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3 mb-2">
-          <span style={{ fontSize: '28px' }}>{codingBehavior.emoji}</span>
+          <span style={{ fontSize: '28px' }}>{archetype.emoji}</span>
           <div>
-            <div className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{codingBehavior.style}</div>
+            <div className="text-white" style={{ fontSize: '16px', fontWeight: 800 }}>{archetype.style}</div>
             <div style={{ fontSize: '11px', color: '#4a5568' }}>Your coding archetype</div>
           </div>
         </div>
         <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.7 }}>
-          {codingBehavior.description}
+          {archetype.description}
         </p>
       </div>
 
       {/* Quick stats */}
       <div className="grid grid-cols-3 gap-3 mt-4">
         {[
-          { label: "Problems", value: "87", color: "#ff6500" },
-          { label: "Streak", value: "12d", color: "#22c55e" },
-          { label: "Rank", value: "#3.2k", color: "#a855f7" },
+          { label: "Problems", value: String(solvedCount), color: "#ff6500" },
+          { label: "Streak", value: streakDisplay, color: "#22c55e" },
+          { label: "Rank", value: rank, color: "#a855f7" },
         ].map(s => (
           <div
             key={s.label}
@@ -190,6 +298,84 @@ function ProfileCard() {
 
 export default function CodeDNA() {
   const [activeSection, setActiveSection] = useState<"overview" | "behavior" | "suggestions">("overview");
+  const { user } = useAuth();
+  const { progress } = useUserProgress();
+
+  const [records, setRecords] = useState<DnaProgressRecord[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+
+    getUserProgress(user.id)
+      .then((res) => {
+        if (cancelled) return;
+        setRecords((res.data || []) as DnaProgressRecord[]);
+      })
+      .catch((err) => {
+        console.error("Failed to load Code DNA progress:", err);
+        if (!cancelled) setLoadError("Couldn't load your Code DNA right now. Please try again shortly.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // ─── Derive everything from real progress records ─────────────────────────
+
+  const allRecords = records ?? [];
+  const solved = dedupeByProblem(allRecords.filter((r) => r.status === "solved"));
+  const solvedCount = solved.length;
+
+  const easySolved = solved.filter((r) => r.difficulty === "easy").length;
+  const mediumSolved = solved.filter((r) => r.difficulty === "medium").length;
+  const hardSolved = solved.filter((r) => r.difficulty === "hard").length;
+
+  const topicCounts = new Map<string, number>();
+  solved.forEach((r) => {
+    (r.topic || []).forEach((t) => {
+      const key = (t || "").trim();
+      if (!key) return;
+      topicCounts.set(key, (topicCounts.get(key) || 0) + 1);
+    });
+  });
+
+  const topicScores: TopicScore[] = Array.from(topicCounts.entries())
+    .map(([topic, count], i) => ({
+      topic,
+      solvedCount: count,
+      strength: Math.min(100, count * 20),
+      color: TOPIC_COLORS[i % TOPIC_COLORS.length],
+    }))
+    .sort((a, b) => b.solvedCount - a.solvedCount);
+
+  const radarTopics = topicScores.slice(0, 6);
+  const radarData = radarTopics.map((t) => ({ subject: t.topic, value: t.strength }));
+
+  const archetype = computeArchetype(
+    solvedCount,
+    easySolved,
+    mediumSolved,
+    hardSolved,
+    topicScores.map((t) => t.topic)
+  );
+
+  const streakDisplay = `${Math.max(1, progress?.currentStreak ?? 1)}d`;
+  const RANK = "#1"; // TODO: wire up to a real leaderboard/ranking system once one exists.
+
+  const timelineData = buildTimeline(solved);
 
   return (
     <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
@@ -234,9 +420,27 @@ export default function CodeDNA() {
         </div>
       </motion.div>
 
-      {activeSection === "overview" && (
+      {isLoading && (
+        <div
+          className="rounded-2xl p-8 text-center"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <p style={{ fontSize: '13px', color: '#6b7280' }}>Loading your Code DNA...</p>
+        </div>
+      )}
+
+      {!isLoading && loadError && (
+        <div
+          className="rounded-2xl p-8 text-center"
+          style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}
+        >
+          <p style={{ fontSize: '13px', color: '#ef4444' }}>{loadError}</p>
+        </div>
+      )}
+
+      {!isLoading && !loadError && activeSection === "overview" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <ProfileCard />
+          <ProfileCard archetype={archetype} solvedCount={solvedCount} streakDisplay={streakDisplay} rank={RANK} />
 
           <div className="lg:col-span-2 space-y-5">
             {/* Strength Radar */}
@@ -245,38 +449,44 @@ export default function CodeDNA() {
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
             >
               <h3 className="text-white mb-4" style={{ fontSize: '14px', fontWeight: 700 }}>Skill Radar Chart</h3>
-              <div className="flex gap-5">
-                <ResponsiveContainer width="60%" height={220}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="rgba(255,255,255,0.06)" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#6b7280' }} />
-                    <Radar name="Strength" dataKey="value" stroke="#ec4899" fill="#ec4899" fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: '#ec4899' }} />
-                  </RadarChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-2 self-center">
-                  {topicStrengths.slice(0, 6).map((t, i) => (
-                    <motion.div
-                      key={t.topic}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.08 }}
-                      className="flex items-center gap-2"
-                    >
-                      <span className="w-16 flex-shrink-0" style={{ fontSize: '11px', color: '#6b7280' }}>{t.topic}</span>
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${t.strength}%` }}
-                          transition={{ duration: 1, delay: i * 0.08 + 0.3 }}
-                          className="h-full rounded-full"
-                          style={{ background: t.color, boxShadow: `0 0 6px ${t.color}60` }}
-                        />
-                      </div>
-                      <span className="w-8 text-right flex-shrink-0" style={{ fontSize: '11px', fontWeight: 700, color: t.color }}>{t.strength}%</span>
-                    </motion.div>
-                  ))}
+              {radarTopics.length === 0 ? (
+                <p style={{ fontSize: '12px', color: '#4a5568' }}>
+                  Solve a few problems across different topics to see your skill radar take shape.
+                </p>
+              ) : (
+                <div className="flex gap-5">
+                  <ResponsiveContainer width="60%" height={220}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke="rgba(255,255,255,0.06)" />
+                      <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                      <Radar name="Strength" dataKey="value" stroke="#ec4899" fill="#ec4899" fillOpacity={0.15} strokeWidth={2} dot={{ r: 3, fill: '#ec4899' }} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2 self-center">
+                    {radarTopics.map((t, i) => (
+                      <motion.div
+                        key={t.topic}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.08 }}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="w-16 flex-shrink-0" style={{ fontSize: '11px', color: '#6b7280' }}>{t.topic}</span>
+                        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${t.strength}%` }}
+                            transition={{ duration: 1, delay: i * 0.08 + 0.3 }}
+                            className="h-full rounded-full"
+                            style={{ background: t.color, boxShadow: `0 0 6px ${t.color}60` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right flex-shrink-0" style={{ fontSize: '11px', fontWeight: 700, color: t.color }}>{t.strength}%</span>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Progress Over Time */}
@@ -285,39 +495,45 @@ export default function CodeDNA() {
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
             >
               <h3 className="text-white mb-4" style={{ fontSize: '14px', fontWeight: 700 }}>Growth Timeline</h3>
-              <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={progressHistory}>
-                  <defs>
-                    <linearGradient id="dsaGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ff6500" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#ff6500" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="webGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00d4ff" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#00d4ff" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="mlGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#a855f7" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
-                  />
-                  <Area type="monotone" dataKey="dsa" stroke="#ff6500" strokeWidth={2} fill="url(#dsaGrad)" name="DSA" />
-                  <Area type="monotone" dataKey="webdev" stroke="#00d4ff" strokeWidth={2} fill="url(#webGrad)" name="Web Dev" />
-                  <Area type="monotone" dataKey="ml" stroke="#a855f7" strokeWidth={2} fill="url(#mlGrad)" name="AI/ML" />
-                </AreaChart>
-              </ResponsiveContainer>
+              {timelineData.length === 0 ? (
+                <p style={{ fontSize: '12px', color: '#4a5568' }}>
+                  Solve a few problems to start building your growth timeline.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={timelineData}>
+                    <defs>
+                      <linearGradient id="dsaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ff6500" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#ff6500" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="webGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00d4ff" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#00d4ff" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="mlGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#a855f7" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
+                    />
+                    <Area type="monotone" dataKey="hard" stroke="#ff6500" strokeWidth={2} fill="url(#dsaGrad)" name="Hard" />
+                    <Area type="monotone" dataKey="medium" stroke="#00d4ff" strokeWidth={2} fill="url(#webGrad)" name="Medium" />
+                    <Area type="monotone" dataKey="easy" stroke="#a855f7" strokeWidth={2} fill="url(#mlGrad)" name="Easy" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {activeSection === "behavior" && (
+      {!isLoading && !loadError && activeSection === "behavior" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Coding Behavior Traits */}
           <div
@@ -326,10 +542,12 @@ export default function CodeDNA() {
           >
             <h3 className="text-white mb-2" style={{ fontSize: '14px', fontWeight: 700 }}>Coding Behavior Analysis</h3>
             <p style={{ fontSize: '12px', color: '#4a5568', marginBottom: '16px' }}>
-              Based on your last 87 submissions
+              {allRecords.length > 0
+                ? `Based on your ${allRecords.length} tracked submission${allRecords.length === 1 ? "" : "s"}`
+                : "No submissions tracked yet"}
             </p>
             <div className="space-y-4">
-              {codingBehavior.traits.map((t, i) => (
+              {BEHAVIOR_TRAITS.map((t, i) => (
                 <motion.div
                   key={t.trait}
                   initial={{ opacity: 0, x: -20 }}
@@ -369,27 +587,33 @@ export default function CodeDNA() {
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
           >
             <h3 className="text-white mb-4" style={{ fontSize: '14px', fontWeight: 700 }}>All Topics Breakdown</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={topicStrengths} layout="vertical" barSize={12}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} />
-                <YAxis type="category" dataKey="topic" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} width={70} />
-                <Tooltip
-                  contentStyle={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
-                  formatter={(v: any) => [`${v}%`, 'Strength']}
-                />
-                <Bar dataKey="strength" radius={[0, 6, 6, 0]}>
-                  {topicStrengths.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {topicScores.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#4a5568' }}>
+                No topic data yet — solve a few problems to see your breakdown here.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topicScores} layout="vertical" barSize={12}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} />
+                  <YAxis type="category" dataKey="topic" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} width={70} />
+                  <Tooltip
+                    contentStyle={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
+                    formatter={(v: any) => [`${v}%`, 'Strength']}
+                  />
+                  <Bar dataKey="strength" radius={[0, 6, 6, 0]}>
+                    {topicScores.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       )}
 
-      {activeSection === "suggestions" && (
+      {!isLoading && !loadError && activeSection === "suggestions" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {suggestions.map((s, i) => (
             <motion.div

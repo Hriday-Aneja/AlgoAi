@@ -11,6 +11,7 @@ const toLegacyProgress = (record: any): UserProgress => ({
   status: record.status,
   time_taken: record.timeTaken ?? null,
   created_at: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
+  updated_at: record.updatedAt instanceof Date ? record.updatedAt.toISOString() : record.updatedAt,
 });
 
 export const upsertProgress = async (
