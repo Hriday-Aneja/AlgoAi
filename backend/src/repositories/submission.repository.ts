@@ -49,3 +49,17 @@ export const getSubmissionsForUserLastNDays = async (
     orderBy: { createdAt: 'asc' },
   });
 };
+
+export const getAllSubmissionsForUser = async (
+  userId: string,
+): Promise<Pick<SubmissionRecord, 'problemId' | 'status' | 'createdAt'>[]> => {
+  return prisma.submission.findMany({
+    where: { userId },
+    select: {
+      problemId: true,
+      status: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+};

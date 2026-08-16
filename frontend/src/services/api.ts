@@ -1035,3 +1035,45 @@ export const getInterviewFeedback = async (payload: {
     throw error;
   }
 };
+export interface CodeDnaTopicStat {
+  topic: string;
+  attempted: number;
+  solved: number;
+  accuracy: number;
+}
+
+export interface CodeDnaStats {
+  totalSubmissions: number;
+  totalPassed: number;
+  overallAccuracy: number | null;
+  topics: CodeDnaTopicStat[];
+  speed: {
+    avgSolveSeconds: number | null;
+    score: number | null;
+    sampleSize: number;
+  };
+  debugSpeed: {
+    avgRecoverySeconds: number | null;
+    score: number | null;
+    sampleSize: number;
+  };
+  patternRecognition: {
+    repeatedTopicAccuracy: number | null;
+    singleAttemptTopicAccuracy: number | null;
+    score: number | null;
+    sampleSize: number;
+  };
+}
+
+export const getCodeDnaStats = async (): Promise<{
+  status: string;
+  data: CodeDnaStats;
+}> => {
+  try {
+    const response = await api.get('/code-dna');
+    return response.data;
+  } catch (error) {
+    console.error('Get Code DNA stats API error:', error);
+    throw error;
+  }
+};
