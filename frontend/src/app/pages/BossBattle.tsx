@@ -129,9 +129,9 @@ export default function BossBattle() {
   const maxHints = Math.min(hints.length, 2);
   const xp = Math.max(0, score - hintsUsed * 20);
   const bossRewards: Record<string, number> = {
-    easy: 200,
-    medium: 400,
-    hard: 800,
+    easy: 100,
+    medium: 150,
+    hard: 200,
   };
 
   useEffect(() => {
@@ -775,9 +775,9 @@ export default function BossBattle() {
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>{viewingDefeated ? 'Boss HP' : 'Score'}</div>
+                      <div style={{ fontSize: '11px', color: '#4a5568', marginBottom: '4px' }}>{viewingDefeated ? 'Boss HP' : 'XP Earned'}</div>
                       <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b' }}>
-                        {viewingDefeated ? '0 HP' : `+${xp} XP`}
+                        {viewingDefeated ? '0 HP' : `+${battleResult.defeated ? battleResult.xpGained : 0} XP`}
                       </div>
                     </div>
                   </div>

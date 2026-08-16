@@ -430,6 +430,7 @@ export const submitBossBattle = async (
     feedback: string;
     hp: number;
     defeated: boolean;
+    xpGained: number;
   };
 }> => {
   try {
@@ -438,7 +439,7 @@ export const submitBossBattle = async (
       code,
       language,
       testOnly,
-    });
+    }, { timeout: 45000 }); // Boss Battle runs Judge0 once per test case; needs more headroom than the global 10s default
     return response.data;
   } catch (error) {
     console.error('Submit boss battle API error:', error);

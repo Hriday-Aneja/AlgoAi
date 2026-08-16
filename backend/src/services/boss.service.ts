@@ -27,6 +27,33 @@ const bossNameFor = (topic: string, difficulty: Difficulty): string => {
   return `${base} God`;
 };
 
+const BOSS_XP_REWARDS: Record<Difficulty, number> = {
+  easy: 100,
+  medium: 150,
+  hard: 200,
+};
+
+const awardBossXp = async (userId: string, xpGained: number): Promise<void> => {
+  const userProgress = await prisma.userProgress.findUnique({ where: { userId } });
+  if (!userProgress) return;
+
+  const data = typeof userProgress.data === 'string'
+    ? JSON.parse(userProgress.data)
+    : (userProgress.data as Record<string, unknown>);
+
+  const currentXp = typeof data.totalXp === 'number' ? data.totalXp : 0;
+  data.totalXp = currentXp + xpGained;
+  data.level = Math.floor((data.totalXp as number) / 100) + 1;
+
+  await prisma.userProgress.update({
+    where: { userId },
+    data: {
+      data: JSON.stringify(data),
+      updatedAt: new Date(),
+    },
+  });
+};
+
 const normalizeOutput = (value: string): string =>
   value
     .trim()
@@ -266,22 +293,27 @@ export const submitBossBattle = async (
       feedback: 'Boss already defeated.',
       hp: 0,
       defeated: true,
+      xpGained: 0,
     };
   }
   if (testCases.length === 0) {
     throw new Error('No test cases available for this problem.');
   }
 
+  const executions = await Promise.allSettled(
+    testCases.map((testCase) => executeJavaScript(request.code, testCase.input)),
+  );
+
   let passedCount = 0;
   let failureMessage = '';
 
   for (let i = 0; i < testCases.length; i += 1) {
     const testCase = testCases[i];
+    const outcome = executions[i];
 
-    let execution;
-    try {
-      execution = await executeJavaScript(request.code, testCase.input);
-    } catch (error) {
+    if (outcome.status === 'rejected') {
+      const error = outcome.reason;
+      console.error('[boss.service] Judge0 request failed:', error);
       const message = axios.isAxiosError(error)
         ? 'Could not reach the code execution server. Please try again shortly.'
         : error instanceof Error
@@ -294,8 +326,11 @@ export const submitBossBattle = async (
         feedback: message,
         hp: assignment.hp,
         defeated: false,
+        xpGained: 0,
       };
     }
+
+    const execution = outcome.value;
 
     if (!execution.success) {
       const feedback = execution.stderr || execution.compileOutput || execution.statusDescription;
@@ -306,6 +341,7 @@ export const submitBossBattle = async (
         feedback: feedback || `Test ${i + 1} failed to execute.`,
         hp: assignment.hp,
         defeated: false,
+        xpGained: 0,
       };
     }
 
@@ -330,6 +366,9 @@ export const submitBossBattle = async (
         },
       });
 
+      const xpGained = BOSS_XP_REWARDS[assignment.dailyBoss.difficulty as Difficulty] ?? 0;
+      await awardBossXp(userId, xpGained);
+
       return {
         passed: true,
         testsPassed: passedCount,
@@ -337,6 +376,7 @@ export const submitBossBattle = async (
         feedback: 'All tests passed. Boss defeated!',
         hp: 0,
         defeated: true,
+        xpGained,
       };
     }
 
@@ -347,6 +387,7 @@ export const submitBossBattle = async (
       feedback: 'All tests passed.',
       hp: assignment.hp,
       defeated: false,
+      xpGained: 0,
     };
   }
 
@@ -357,5 +398,6 @@ export const submitBossBattle = async (
     feedback: failureMessage || 'Some test cases failed.',
     hp: assignment.hp,
     defeated: false,
+    xpGained: 0,
   };
 };

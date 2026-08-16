@@ -44,4 +44,5 @@ export interface BossSubmitResponse {
   feedback: string;
   hp: number;
   defeated: boolean;
+  xpGained: number;
 }
