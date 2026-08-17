@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import traceback
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/interview")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = "openai/gpt-oss-120b"
 MAX_HISTORY_MESSAGES = 20
 
 
@@ -86,6 +87,7 @@ class InterviewMessageResponse(BaseModel):
     nextQuestion: Optional[str] = None
     shouldContinue: bool
     questionNumber: int
+    endedForConduct: bool = False
 
 
 class FeedbackRequest(BaseModel):
@@ -244,6 +246,8 @@ Respond ONLY with a JSON object of this exact shape, nothing else:
         if not message or not isinstance(message, str):
             raise ValueError("Missing message field")
     except Exception:
+        print("[interview.py] /interview/start Groq call failed:")
+        traceback.print_exc()
         message = (
             f"Let's begin. Implement {req.problem.title}. "
             f"I expect a solution matching {req.problem.expectedComplexity or 'the optimal complexity'}."
@@ -288,6 +292,14 @@ Evaluate their response honestly:
 - If they gave an explanation, judge whether it's technically accurate and clear.
 - If they were wrong, explain what is wrong and give the correct reasoning,
   in your personality's voice, before moving on.
+- If the candidate's message is abusive, harassing, sexual, hateful, or
+  otherwise not a good-faith interview response (e.g. random insults, no
+  attempt to engage with the problem), set "endedForConduct" to true and
+  write a short, professional, non-insulting closing line ending the
+  interview immediately for this reason, in your personality's voice.
+  This is independent of question count — it can happen on any turn.
+- Otherwise (normal engagement, right or wrong): set "endedForConduct" to
+  false.
 - If {at_limit}, this MUST be the final turn: do not ask a new question,
   wrap up instead.
 - Otherwise, ask ONE adaptive follow-up question that makes sense given what
@@ -306,7 +318,8 @@ Respond ONLY with a JSON object of this exact shape, nothing else:
   }},
   "response": "<your in-character reaction/correction to what they said>",
   "nextQuestion": "<your next question, or null if the interview should end now>",
-  "shouldContinue": true or false
+  "shouldContinue": true or false,
+  "endedForConduct": true or false
 }}
 """
 
@@ -329,9 +342,27 @@ Respond ONLY with a JSON object of this exact shape, nothing else:
         response_text = data.get("response")
         if not response_text or not isinstance(response_text, str):
             raise ValueError("Missing response field")
-        should_continue = bool(data.get("shouldContinue", fallback_continue)) and not at_limit
+
+        ended_for_conduct = bool(data.get("endedForConduct", False))
+
+        # Pacing is server-owned (see comment below) EXCEPT for conduct-based
+        # termination, which is a distinct signal from "we've covered enough
+        # questions" and must be able to end the interview on any turn,
+        # regardless of question count.
+        if ended_for_conduct:
+            should_continue = False
+        else:
+            # The server owns pacing, not the model: keep going until
+            # maxQuestions is actually reached, regardless of what the model
+            # set shouldContinue to. Otherwise a model that returns
+            # shouldContinue: false too early (common — models tend to wrap
+            # up after one exchange unless forced not to) ends the interview
+            # after a single response.
+            should_continue = not at_limit
         next_question = data.get("nextQuestion") if should_continue else None
     except Exception:
+        print("[interview.py] /interview/message Groq call failed:")
+        traceback.print_exc()
         evaluation = Evaluation(
             correct=False,
             correctnessScore=50,
@@ -342,6 +373,7 @@ Respond ONLY with a JSON object of this exact shape, nothing else:
         response_text = "Understood. Let's continue." if not at_limit else "That wraps up our interview."
         should_continue = fallback_continue
         next_question = "Can you elaborate further on your approach?" if should_continue else None
+        ended_for_conduct = False
 
     return InterviewMessageResponse(
         evaluation=evaluation,
@@ -349,6 +381,7 @@ Respond ONLY with a JSON object of this exact shape, nothing else:
         nextQuestion=next_question,
         shouldContinue=should_continue,
         questionNumber=req.questionNumber + (1 if should_continue else 0),
+        endedForConduct=ended_for_conduct,
     )
 
 
@@ -399,6 +432,8 @@ Respond ONLY with a JSON object of this exact shape, nothing else:
         if not strengths or not feedback:
             raise ValueError("Incomplete feedback response")
     except Exception:
+        print("[interview.py] /interview/feedback Groq call failed:")
+        traceback.print_exc()
         strengths = ["Completed the interview and engaged with follow-up questions."]
         weaknesses = ["Automated feedback generation was unavailable for this session."]
         feedback = (
