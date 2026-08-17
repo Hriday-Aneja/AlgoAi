@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   Dna, Zap, Brain, TrendingUp, TrendingDown, Target,
@@ -12,58 +13,174 @@ import {
 } from "recharts";
 import { useAuth } from "../contexts/AuthContext";
 import { useUserProgress } from "../contexts/UserProgressContext";
-import { getUserProgress } from "../../services/api";
+import { getUserProgress, getCodeDnaStats, type CodeDnaStats } from "../../services/api";
 
 // ─── Static, non-personal reference data (unchanged) ───────────────────────
 
 const TOPIC_COLORS = ["#00d4ff", "#a855f7", "#22c55e", "#f59e0b", "#ef4444", "#ec4899", "#38bdf8", "#f472b6", "#facc15", "#34d399"];
 
-// These 6 traits are NOT yet derivable from real signals (no per-attempt
-// timing/hint data exists in the DB today) — left as illustrative/static
-// pending that data becoming available. See CodeDNA data-audit discussion.
-const BEHAVIOR_TRAITS = [
-  { trait: "Accuracy", value: 90, icon: Target, color: "#22c55e" },
-  { trait: "Speed", value: 65, icon: Clock, color: "#f59e0b" },
-  { trait: "Pattern Recognition", value: 72, icon: Brain, color: "#a855f7" },
-  { trait: "Optimization", value: 58, icon: Zap, color: "#00d4ff" },
-  { trait: "Code Cleanliness", value: 85, icon: Code2, color: "#ec4899" },
-  { trait: "Debug Speed", value: 70, icon: Cpu, color: "#ff6500" },
-];
+const formatDuration = (seconds: number): string => {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  return remMin > 0 ? `${hours}h ${remMin}m` : `${hours}h`;
+};
 
-const suggestions = [
+interface BehaviorTrait {
+  trait: string;
+  value: number | null;
+  caption: string;
+  icon: any;
+  color: string;
+}
+
+/**
+ * Every value here comes straight from GET /api/code-dna (real submissions +
+ * progress timestamps). Optimization and Code Cleanliness are left as `null`
+ * ("no data source yet") rather than invented — AlgoAI doesn't currently
+ * capture per-submission execution-performance benchmarks or AI code-review
+ * scores, so there's nothing real to compute them from.
+ */
+const buildBehaviorTraits = (stats: CodeDnaStats): BehaviorTrait[] => [
   {
-    title: "Focus on Dynamic Programming",
-    desc: "Your DP score is 54% — 20 targeted DP problems will boost this significantly.",
-    priority: "🔴 High",
-    icon: Brain,
-    color: "#ef4444",
-    action: "Practice DP →"
+    trait: "Accuracy",
+    value: stats.overallAccuracy,
+    caption: stats.overallAccuracy !== null
+      ? `${stats.overallAccuracy}% pass rate across ${stats.totalSubmissions} submission${stats.totalSubmissions === 1 ? "" : "s"}`
+      : "No submissions yet",
+    icon: Target,
+    color: "#22c55e",
   },
   {
-    title: "Speed Up Your Approach",
-    desc: "You're accurate (90%) but slow (65%). Practice pattern recognition to solve faster.",
-    priority: "🟡 Medium",
+    trait: "Speed",
+    value: stats.speed.score,
+    caption: stats.speed.avgSolveSeconds !== null
+      ? `Avg ${formatDuration(stats.speed.avgSolveSeconds)} from first attempt to solve (${stats.speed.sampleSize} problem${stats.speed.sampleSize === 1 ? "" : "s"})`
+      : "Solve a problem to measure this",
     icon: Clock,
     color: "#f59e0b",
-    action: "Start Timer Mode →"
   },
   {
-    title: "Unlock Heaps & Tries",
-    desc: "These advanced topics are at 38% and 25%. Essential for senior roles.",
-    priority: "🟡 Medium",
-    icon: Layers,
+    trait: "Pattern Recognition",
+    value: stats.patternRecognition.score,
+    caption: stats.patternRecognition.score !== null
+      ? `${stats.patternRecognition.score}% accuracy on topics you've attempted 3+ times`
+      : "Attempt a topic 3+ times to measure this",
+    icon: Brain,
     color: "#a855f7",
-    action: "Study Heaps →"
   },
   {
-    title: "Maintain Array Strength",
-    desc: "Keep solving 2-3 array problems per week to maintain your 88% mastery.",
-    priority: "🟢 Low",
-    icon: CheckCircle2,
-    color: "#22c55e",
-    action: "Array Practice →"
-  }
+    trait: "Optimization",
+    value: null,
+    caption: "No execution-performance data captured yet",
+    icon: Zap,
+    color: "#00d4ff",
+  },
+  {
+    trait: "Code Cleanliness",
+    value: null,
+    caption: "No AI code-review signal captured yet",
+    icon: Code2,
+    color: "#ec4899",
+  },
+  {
+    trait: "Debug Speed",
+    value: stats.debugSpeed.score,
+    caption: stats.debugSpeed.avgRecoverySeconds !== null
+      ? `Avg ${formatDuration(stats.debugSpeed.avgRecoverySeconds)} to bounce back from a failed attempt`
+      : "Fail then pass a problem to measure this",
+    icon: Cpu,
+    color: "#ff6500",
+  },
 ];
+
+interface Suggestion {
+  title: string;
+  desc: string;
+  priority: string;
+  icon: any;
+  color: string;
+  action: string;
+  topic: string | null;
+}
+
+/**
+ * A few honest, data-triggered suggestions. Each condition below is checked
+ * against real numbers from GET /api/code-dna — nothing fires without real
+ * support behind it. Thresholds (60% weak, 80%/3+ strong, etc.) are
+ * documented judgment calls applied uniformly, not per-user invention.
+ */
+const buildSuggestions = (stats: CodeDnaStats): Suggestion[] => {
+  const result: Suggestion[] = [];
+  const meaningfulTopics = stats.topics.filter((t) => t.attempted >= 1);
+
+  const weakTopic = [...meaningfulTopics]
+    .filter((t) => t.accuracy < 60)
+    .sort((a, b) => a.accuracy - b.accuracy)[0];
+  if (weakTopic) {
+    result.push({
+      title: `Focus on ${weakTopic.topic}`,
+      desc: `Your ${weakTopic.topic} accuracy is ${weakTopic.accuracy}% across ${weakTopic.attempted} attempted problem${weakTopic.attempted === 1 ? "" : "s"} — targeted practice here will help the most.`,
+      priority: weakTopic.accuracy < 35 ? "🔴 High" : "🟡 Medium",
+      icon: Brain,
+      color: weakTopic.accuracy < 35 ? "#ef4444" : "#f59e0b",
+      action: `Practice ${weakTopic.topic} →`,
+      topic: weakTopic.topic,
+    });
+  }
+
+  const strongTopic = [...meaningfulTopics]
+    .filter((t) => t.accuracy >= 80 && t.attempted >= 3)
+    .sort((a, b) => b.accuracy - a.accuracy)[0];
+  if (strongTopic) {
+    result.push({
+      title: `Maintain ${strongTopic.topic} Strength`,
+      desc: `Keep solving 2-3 ${strongTopic.topic} problems per week to maintain your ${strongTopic.accuracy}% mastery.`,
+      priority: "🟢 Low",
+      icon: CheckCircle2,
+      color: "#22c55e",
+      action: `Practice ${strongTopic.topic} →`,
+      topic: strongTopic.topic,
+    });
+  }
+
+  if (
+    stats.speed.score !== null &&
+    stats.overallAccuracy !== null &&
+    stats.overallAccuracy >= 75 &&
+    stats.speed.score < 70
+  ) {
+    result.push({
+      title: "Speed Up Your Approach",
+      desc: `You're accurate (${stats.overallAccuracy}%) but slower than ideal (${stats.speed.score}% speed score). Practice pattern recognition to solve faster.`,
+      priority: "🟡 Medium",
+      icon: Clock,
+      color: "#f59e0b",
+      action: weakTopic ? `Practice ${weakTopic.topic} →` : "Practice More →",
+      topic: weakTopic ? weakTopic.topic : null,
+    });
+  }
+
+  if (
+    stats.patternRecognition.score !== null &&
+    stats.patternRecognition.singleAttemptTopicAccuracy !== null &&
+    stats.patternRecognition.score < stats.patternRecognition.singleAttemptTopicAccuracy - 15
+  ) {
+    result.push({
+      title: "Revisit Repeated Topics",
+      desc: `Your accuracy drops to ${stats.patternRecognition.score}% on topics you've attempted 3+ times, versus ${stats.patternRecognition.singleAttemptTopicAccuracy}% on topics tried once — worth reviewing where the pattern breaks down.`,
+      priority: "🟡 Medium",
+      icon: Layers,
+      color: "#a855f7",
+      action: "Review Problems →",
+      topic: null,
+    });
+  }
+
+  return result.slice(0, 4);
+};
 
 const dnaSequence = "ATGCGATCGTAGCTAGCTAGCTAGCATGCGATCG";
 
@@ -300,8 +417,10 @@ export default function CodeDNA() {
   const [activeSection, setActiveSection] = useState<"overview" | "behavior" | "suggestions">("overview");
   const { user } = useAuth();
   const { progress } = useUserProgress();
+  const navigate = useNavigate();
 
   const [records, setRecords] = useState<DnaProgressRecord[] | null>(null);
+  const [dnaStats, setDnaStats] = useState<CodeDnaStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -315,13 +434,14 @@ export default function CodeDNA() {
     setIsLoading(true);
     setLoadError(null);
 
-    getUserProgress(user.id)
-      .then((res) => {
+    Promise.all([getUserProgress(user.id), getCodeDnaStats()])
+      .then(([progressRes, dnaRes]) => {
         if (cancelled) return;
-        setRecords((res.data || []) as DnaProgressRecord[]);
+        setRecords((progressRes.data || []) as DnaProgressRecord[]);
+        setDnaStats(dnaRes.data);
       })
       .catch((err) => {
-        console.error("Failed to load Code DNA progress:", err);
+        console.error("Failed to load Code DNA data:", err);
         if (!cancelled) setLoadError("Couldn't load your Code DNA right now. Please try again shortly.");
       })
       .finally(() => {
@@ -332,6 +452,10 @@ export default function CodeDNA() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  const goToTopic = (topic: string) => {
+    navigate(`/problems?tag=${encodeURIComponent(topic)}`);
+  };
 
   // ─── Derive everything from real progress records ─────────────────────────
 
@@ -376,6 +500,11 @@ export default function CodeDNA() {
   const RANK = "#1"; // TODO: wire up to a real leaderboard/ranking system once one exists.
 
   const timelineData = buildTimeline(solved);
+
+  const behaviorTraits = dnaStats ? buildBehaviorTraits(dnaStats) : [];
+  const suggestionsData = dnaStats ? buildSuggestions(dnaStats) : [];
+  const hasBehaviorData = (dnaStats?.totalSubmissions ?? 0) > 0;
+  const isSmallSample = hasBehaviorData && (dnaStats?.totalSubmissions ?? 0) < 5;
 
   return (
     <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
@@ -533,7 +662,18 @@ export default function CodeDNA() {
         </div>
       )}
 
-      {!isLoading && !loadError && activeSection === "behavior" && (
+      {!isLoading && !loadError && activeSection === "behavior" && !hasBehaviorData && (
+        <div
+          className="rounded-2xl p-8 text-center"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+            Sorry, we can't explore your coding behaviour yet. Solve some problems and come back later.
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !loadError && activeSection === "behavior" && hasBehaviorData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Coding Behavior Traits */}
           <div
@@ -542,12 +682,12 @@ export default function CodeDNA() {
           >
             <h3 className="text-white mb-2" style={{ fontSize: '14px', fontWeight: 700 }}>Coding Behavior Analysis</h3>
             <p style={{ fontSize: '12px', color: '#4a5568', marginBottom: '16px' }}>
-              {allRecords.length > 0
-                ? `Based on your ${allRecords.length} tracked submission${allRecords.length === 1 ? "" : "s"}`
-                : "No submissions tracked yet"}
+              {isSmallSample
+                ? `Based on your ${dnaStats?.totalSubmissions} tracked submissions so far — still early, numbers will settle as you solve more.`
+                : `Based on your ${dnaStats?.totalSubmissions} tracked submissions`}
             </p>
             <div className="space-y-4">
-              {BEHAVIOR_TRAITS.map((t, i) => (
+              {behaviorTraits.map((t, i) => (
                 <motion.div
                   key={t.trait}
                   initial={{ opacity: 0, x: -20 }}
@@ -557,25 +697,35 @@ export default function CodeDNA() {
                   <div className="flex items-center gap-2 mb-1.5">
                     <t.icon className="w-3.5 h-3.5" style={{ color: t.color }} />
                     <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 600 }}>{t.trait}</span>
-                    <span style={{ fontSize: '12px', color: t.color, fontWeight: 800, marginLeft: 'auto' }}>{t.value}%</span>
+                    <span style={{ fontSize: '12px', color: t.value !== null ? t.color : '#4a5568', fontWeight: 800, marginLeft: 'auto' }}>
+                      {t.value !== null ? `${t.value}%` : "No data"}
+                    </span>
                   </div>
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${t.value}%` }}
-                      transition={{ duration: 1.2, delay: i * 0.1 + 0.3, ease: 'easeOut' }}
-                      className="h-full rounded-full relative overflow-hidden"
-                      style={{ background: `linear-gradient(90deg, ${t.color}, ${t.color}cc)`, boxShadow: `0 0 8px ${t.color}60` }}
-                    >
+                    {t.value !== null ? (
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${t.value}%` }}
+                        transition={{ duration: 1.2, delay: i * 0.1 + 0.3, ease: 'easeOut' }}
+                        className="h-full rounded-full relative overflow-hidden"
+                        style={{ background: `linear-gradient(90deg, ${t.color}, ${t.color}cc)`, boxShadow: `0 0 8px ${t.color}60` }}
+                      >
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                            animation: 'shimmer 2s infinite'
+                          }}
+                        />
+                      </motion.div>
+                    ) : (
                       <div
-                        className="absolute inset-0"
-                        style={{
-                          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-                          animation: 'shimmer 2s infinite'
-                        }}
+                        className="h-full rounded-full"
+                        style={{ width: '100%', background: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 6px, transparent 6px 12px)' }}
                       />
-                    </motion.div>
+                    )}
                   </div>
+                  <div style={{ fontSize: '10px', color: '#4a5568', marginTop: '4px' }}>{t.caption}</div>
                 </motion.div>
               ))}
             </div>
@@ -586,24 +736,27 @@ export default function CodeDNA() {
             className="rounded-2xl p-5"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
           >
-            <h3 className="text-white mb-4" style={{ fontSize: '14px', fontWeight: 700 }}>All Topics Breakdown</h3>
-            {topicScores.length === 0 ? (
+            <h3 className="text-white mb-1" style={{ fontSize: '14px', fontWeight: 700 }}>Topic Accuracy</h3>
+            <p style={{ fontSize: '11px', color: '#4a5568', marginBottom: '12px' }}>
+              Pass rate per topic, only for topics you've actually attempted.
+            </p>
+            {!dnaStats || dnaStats.topics.length === 0 ? (
               <p style={{ fontSize: '12px', color: '#4a5568' }}>
                 No topic data yet — solve a few problems to see your breakdown here.
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topicScores} layout="vertical" barSize={12}>
+                <BarChart data={dnaStats.topics} layout="vertical" barSize={12}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} />
                   <YAxis type="category" dataKey="topic" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} width={70} />
                   <Tooltip
                     contentStyle={{ background: '#0f1628', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
-                    formatter={(v: any) => [`${v}%`, 'Strength']}
+                    formatter={(v: any, _n: any, item: any) => [`${v}% (${item?.payload?.solved ?? 0}/${item?.payload?.attempted ?? 0} solved)`, 'Accuracy']}
                   />
-                  <Bar dataKey="strength" radius={[0, 6, 6, 0]}>
-                    {topicScores.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
+                  <Bar dataKey="accuracy" radius={[0, 6, 6, 0]}>
+                    {dnaStats.topics.map((entry, i) => (
+                      <Cell key={entry.topic} fill={TOPIC_COLORS[i % TOPIC_COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -613,9 +766,31 @@ export default function CodeDNA() {
         </div>
       )}
 
-      {!isLoading && !loadError && activeSection === "suggestions" && (
+      {!isLoading && !loadError && activeSection === "suggestions" && !hasBehaviorData && (
+        <div
+          className="rounded-2xl p-8 text-center"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+            Sorry, we can't explore your coding behaviour yet. Solve some problems and come back later.
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !loadError && activeSection === "suggestions" && hasBehaviorData && suggestionsData.length === 0 && (
+        <div
+          className="rounded-2xl p-8 text-center"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <p style={{ fontSize: '13px', color: '#6b7280' }}>
+            Nothing stands out yet — no topic is clearly weak or strong enough for a confident suggestion. Keep solving and check back.
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !loadError && activeSection === "suggestions" && hasBehaviorData && suggestionsData.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {suggestions.map((s, i) => (
+          {suggestionsData.map((s, i) => (
             <motion.div
               key={s.title}
               initial={{ opacity: 0, y: 20 }}
@@ -645,12 +820,16 @@ export default function CodeDNA() {
                     {s.desc}
                   </p>
                   <button
+                    onClick={() => s.topic && goToTopic(s.topic)}
+                    disabled={!s.topic}
                     className="px-4 py-1.5 rounded-lg transition-all cyber-btn"
                     style={{
                       fontSize: '12px', fontWeight: 700,
                       background: `${s.color}15`,
                       color: s.color,
-                      border: `1px solid ${s.color}30`
+                      border: `1px solid ${s.color}30`,
+                      cursor: s.topic ? 'pointer' : 'default',
+                      opacity: s.topic ? 1 : 0.6,
                     }}
                   >
                     {s.action}

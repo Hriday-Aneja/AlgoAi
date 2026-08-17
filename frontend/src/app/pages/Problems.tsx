@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search, CheckCircle2, Clock, Bookmark,
@@ -43,7 +43,10 @@ export default function Problems() {
   const [difficulty, setDifficulty] = useState<Difficulty | "All">("All");
   const [status, setStatus] = useState<Status | "All">("All");
   const [search, setSearch] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
+  const [searchParams] = useSearchParams();
+  // Deep-link support: /problems?tag=Dynamic%20Programming (used by Code DNA's
+  // Practice buttons) pre-applies the existing tag filter below.
+  const [tagFilter, setTagFilter] = useState(() => searchParams.get("tag") || "");
 
   useEffect(() => {
     const loadBackendData = async () => {
